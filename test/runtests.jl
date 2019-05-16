@@ -2,5 +2,10 @@ using NaiveNASlib
 using Test
 
 @testset "NaiveNASlib.jl" begin
-    # Write your own tests here.
+
+@info "Testing computation"
+
+include("vertex.jl")
+include("compgraph.jl")
+
 end
