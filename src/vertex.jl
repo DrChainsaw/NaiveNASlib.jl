@@ -92,6 +92,12 @@ julia> using NaiveNASlib
 
 julia> CompVertex(+, InputVertex(1), InputVertex(2))
 CompVertex(+, AbstractVertex[InputVertex(1), InputVertex(2)], [])
+
+julia> CompVertex(x -> 4x, InputVertex(1))(2)
+8
+
+julia>CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
+6
 ```
 """
 struct CompVertex <: AbstractVertex
@@ -99,13 +105,15 @@ struct CompVertex <: AbstractVertex
     inputs::AbstractArray{AbstractVertex,1}
     outputs::AbstractArray{AbstractVertex,1}
 
-    function CompVertex(c, ins::AbstractArray{AbstractVertex,1}, outs::AbstractArray{AbstractVertex, 1})
-         @assert !isempty(ins) "Must have inputs!"
-         this = new(c, ins, outs)
-         foreach(ins) do inpt
-             push!(outputs(inpt), this)
-         end
-         return this
+    function CompVertex(c,
+        ins::AbstractArray{AbstractVertex,1},
+        outs::AbstractArray{AbstractVertex, 1})
+        @assert !isempty(ins) "Must have inputs!"
+        this = new(c, ins, outs)
+        foreach(ins) do inpt
+            push!(outputs(inpt), this)
+        end
+        return this
      end
 end
 inputs(v::CompVertex)::AbstractArray{AbstractVertex,1} = v.inputs
@@ -117,22 +125,4 @@ function show_less(io::IO, v::CompVertex)
 end
 
 CompVertex(c, inputs::AbstractVertex...) = CompVertex(c, AbstractVertex[inputs...], AbstractVertex[])
-
-
-"""
-    CompVertex(x...)
-
-Map x to output from computation.
-
-# Examples
-```julia-repl
-julia> using NaiveNASlib
-
-julia> CompVertex(x -> 4x, InputVertex(1))(2)
-8
-
-julia>CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
-6
-```
-"""
 (v::CompVertex)(x...) = v.computation(x...)

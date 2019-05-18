@@ -55,10 +55,10 @@ julia> output!(results, CompVertex(-, cv, ivs[1]))
 4
 julia> results
 Dict{AbstractVertex,Any} with 4 entries:
-  InputVertex(2)                                => 3
-  InputVertex(1)                                => 2
-  CompVertex(*, InputVertex(1), InputVertex(2)) => 6
-  CompVertex(-, CompVertex(*), InputVertex(1))  => 4
+  CompVertex(*, [InputVertex(1), InputVertex(2)], [CompVertex(-)]) => 6
+  CompVertex(-, [CompVertex(*), InputVertex(1)], [])               => 4
+  InputVertex(1, [CompVertex(*), CompVertex(-)])                   => 2
+  InputVertex(2, [CompVertex(*)])                                  => 3
 ```
 """
 function output!(memo::Dict{AbstractVertex, Any}, v::AbstractVertex)

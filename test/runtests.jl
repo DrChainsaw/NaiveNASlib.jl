@@ -8,4 +8,9 @@ using Test
 include("vertex.jl")
 include("compgraph.jl")
 
+@info "Testing mutation"
+
+include("mutation/meta.jl")
+include("mutation/vertex.jl")
+
 end
