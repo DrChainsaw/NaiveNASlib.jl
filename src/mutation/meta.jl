@@ -5,7 +5,8 @@ Metadata about vertex needed to perform mutation operations
 abstract type VertexMeta end
 
 """
-    nin(c::VertexMeta)
+    nin(m::VertexMeta)
+    nin(v::AbstractMutationVertex)
 
 Returns the size of the input data to the vertex
 
@@ -14,7 +15,8 @@ Computation may fail if input does not have size nin.
 function nin end
 
 """
-    nout(c::VertexMeta)
+    nout(m::VertexMeta)
+    nout(v::AbstractMutationVertex)
 
 Returns the size of the output data from the vertex.
 """
