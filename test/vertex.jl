@@ -1,4 +1,4 @@
-import NaiveNASlib:CompVertex, InputVertex, AbstractVertex, inputs, outputs
+import NaiveNASlib
 import InteractiveUtils:subtypes
 using Test
 
@@ -9,7 +9,6 @@ using Test
         for subtype in subtypes(AbstractVertex)
             @info "test method contracts for $subtype"
             @test hasmethod(inputs, (subtype,))
-            @test hasmethod(outputs, (subtype,))
         end
     end
 

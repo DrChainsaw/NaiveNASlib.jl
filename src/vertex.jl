@@ -63,20 +63,17 @@ any input vertices to feed it
 julia> using NaiveNASlib
 
 julia> InputVertex(1)
-InputVertex(1, [])
+InputVertex(1)
 
 julia> InputVertex("input")
-InputVertex("input", [])
+InputVertex("input")
 ```
 """
 struct InputVertex <: AbstractVertex
     name
-    outputs::AbstractArray{AbstractVertex,1}
 end
-InputVertex(name) = InputVertex(name, AbstractVertex[])
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
-outputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = v.outputs
 function show_less(io::IO, v::InputVertex)
     print(io, "InputVertex($(v.name))")
 end
@@ -91,7 +88,7 @@ Maps input from input vertices to output. Must have at least one input vertex
 julia> using NaiveNASlib
 
 julia> CompVertex(+, InputVertex(1), InputVertex(2))
-CompVertex(+, AbstractVertex[InputVertex(1), InputVertex(2)], [])
+CompVertex(+, [InputVertex(1), InputVertex(2)])
 
 julia> CompVertex(x -> 4x, InputVertex(1))(2)
 8
@@ -103,26 +100,14 @@ julia>CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
 struct CompVertex <: AbstractVertex
     computation
     inputs::AbstractArray{AbstractVertex,1}
-    outputs::AbstractArray{AbstractVertex,1}
-
-    function CompVertex(c,
-        ins::AbstractArray{AbstractVertex,1},
-        outs::AbstractArray{AbstractVertex, 1})
-        @assert !isempty(ins) "Must have inputs!"
-        this = new(c, ins, outs)
-        foreach(ins) do inpt
-            push!(outputs(inpt), this)
-        end
-        return this
-     end
 end
+CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
 inputs(v::CompVertex)::AbstractArray{AbstractVertex,1} = v.inputs
-outputs(v::CompVertex)::AbstractArray{AbstractVertex,1} = v.outputs
+
 function show_less(io::IO, v::CompVertex)
     print(io, "CompVertex(")
     show(io, v.computation)
     print(io, ")")
 end
 
-CompVertex(c, inputs::AbstractVertex...) = CompVertex(c, AbstractVertex[inputs...], AbstractVertex[])
 (v::CompVertex)(x...) = v.computation(x...)
