@@ -26,15 +26,4 @@ using Test
         @test cv(x -> x .* 5)(ones(2,3)) == [5 5 5; 5 5 5]
         @test cv(x -> [3 4] * x)(ones(2,3)) == [7.0 7.0 7.0]
     end
-
-    # @testset "FixComp operations" begin
-    #     fc(f) = cv(FixComp(f, 1, 1))
-    #     @test typeof(fc(identity)) == CompVertex{FixComp}
-    #     @test fc(x -> 5x)(2) == 10
-    #     @test fc(+)(2,3) == 5
-    #     @test fc(sum)([2,3]) == 5
-    #     @test fc(vcat)("test", "passed") == ["test", "passed"]
-    #     @test fc(*)("test", " ", "passed") == "test passed"
-    # end
-
 end

@@ -74,7 +74,7 @@ function Δnin(v::AbsorbVertex, Δ::Integer...; s::VisitState=VisitState())
     Δnin(v.meta, Δ...)
 
     for (Δi, vi) in zip(Δ, inputs(v))
-        if Δi > 0
+        if Δi != 0
             Δnout(vi, Δi; s=s)
         end
     end
