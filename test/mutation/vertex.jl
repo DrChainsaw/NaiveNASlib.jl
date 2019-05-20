@@ -117,7 +117,63 @@ using Test
             Δnin(io2, -2)
             @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 3
 
+            Δnin(io1, 3)
+            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
+        end
+    end
+    @testset "InvariantVertex" begin
 
+        @testset "InvariantVertex 1 to 1" begin
+            #Behaviour is identical to TransparentVertex in this case
+            iv = AbsorbVertex(InputVertex(1), InvSize(2))
+            inv = InvariantVertex(CompVertex(identity, iv))
+            io = AbsorbVertex(CompVertex(identity, inv), InvSize(2))
+
+            @test outputs.(inputs(io)) == [[io]]
+            @test outputs.(inputs(inv)) == [[inv]]
+            @test outputs(iv) == [inv]
+
+            Δnout(iv, 3)
+            @test nout(iv) == nin(inv)[1] == nout(inv) == nin(io) == 5
+
+            Δnin(io, -2)
+            @test nout(iv) == nin(inv)[1] == nout(inv) == nin(io) == 3
+
+        end
+
+        @testset "InvariantVertex 2 inputs" begin
+            # Try with two inputs a InvariantVertex
+            iv1 = AbsorbVertex(InputVertex(1), InvSize(3))
+            iv2 = AbsorbVertex(InputVertex(2), InvSize(3))
+            inv = InvariantVertex(CompVertex(hcat, iv1, iv2))
+            io1 = AbsorbVertex(CompVertex(identity, inv), InvSize(3))
+
+            @test inputs(inv) == [iv1, iv2]
+            @test outputs.(inputs(inv)) == [[inv], [inv]]
+            @test outputs(iv1) == [inv]
+            @test outputs(iv2) == [inv]
+
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == 3
+
+            Δnout(iv2, -2)
+            @test nin(io1) == nout(inv) == nin(inv)[1] == nin(inv)[2]  == nout(iv1) == nout(iv2)  ==  1
+
+            Δnin(io1, 3)
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == 4
+
+            #Add another output
+            io2 = AbsorbVertex(CompVertex(identity, inv), InvSize(4))
+
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 4
+
+            Δnout(iv1, -3)
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 1
+
+            Δnin(io2, 2)
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 3
+
+            Δnout(iv2, 3)
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 6
         end
 
     end

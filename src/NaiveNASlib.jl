@@ -17,7 +17,7 @@ CompGraph, output!,
 InvSize, IoSize, nin, nout, Δnin, Δnout,
 
 # Mutation vertex
-base, AbsorbVertex, TransparentVertex
+base, AbsorbVertex, TransparentVertex, InvariantVertex
 
 include("vertex.jl")
 include("compgraph.jl")

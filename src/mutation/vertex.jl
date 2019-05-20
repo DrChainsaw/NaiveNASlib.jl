@@ -47,6 +47,7 @@ init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p)
 inputs(v::OutputsVertex) = inputs(v.base)
 outputs(v::OutputsVertex) = v.outs
 
+## Generic helper methods
 
 function invisit(v::AbstractMutationVertex, s::VisitState)
     has_visited_in(s, v) && return true
@@ -80,6 +81,9 @@ function propagate_nout(v::AbstractMutationVertex, Δ::Integer...; s::VisitState
         Δnout(vi, Δi; s=s)
     end
 end
+
+## Generic helper methods end
+
 
 """
     AbsorbVertex
@@ -119,7 +123,7 @@ end
 """
     TransparentVertex
 
-Vertex which is tranpsparent w.r.t mutation.
+Vertex which is transparent w.r.t mutation.
 
 Size of output is sum of sizes of inputs. Examples of computations are scalar operations
 (e.g add x to every element) and concatenation.
@@ -161,4 +165,43 @@ function Δnout(v::TransparentVertex, Δ::Integer; s::VisitState=VisitState())
         Δs[argmax(insizes .+ Δs)] -= 1
     end
     propagate_nout(v, Δs...; s=s)
+end
+
+"""
+    InvariantVertex
+
+Vertex which is size invariant in the sense that all inputs and outputs have the same size.
+
+Examples of computations are scalar and element wise operations.
+"""
+struct InvariantVertex <: AbstractMutationVertex
+    base::AbstractVertex
+
+    function InvariantVertex(b::OutputsVertex)
+        this = new(b)
+        init!(b, this)
+        return this
+    end
+end
+InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b))
+base(v::InvariantVertex)::AbstractVertex = v.base
+
+nout(v::InvariantVertex) = nin(v)[1]
+nin(v::InvariantVertex) = nout.(inputs(v))
+
+function Δnin(v::InvariantVertex, Δ::Integer...; s::VisitState=VisitState())
+    anyvisit(v, s) && return
+
+    Δprop = [Δi for Δi in unique((Δ)) if Δi != 0]
+    @assert length(Δprop) == 1 "Change must be invariant!"
+
+    propagate_nin(v, Δprop...; s=s)
+    propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
+end
+
+function Δnout(v::InvariantVertex, Δ::Integer; s::VisitState=VisitState())
+    (anyvisit(v, s) || Δ == 0) && return
+
+    propagate_nin(v, Δ; s=s)
+    propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
 end
