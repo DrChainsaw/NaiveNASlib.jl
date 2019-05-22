@@ -63,11 +63,11 @@ using Test
         @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 2
     end
 
-    @testset "TransparentVertex" begin
+    @testset "StackingVertex" begin
 
-        @testset "TransparentVertex 1 to 1" begin
+        @testset "StackingVertex 1 to 1" begin
             iv = AbsorbVertex(InputVertex(1), InvSize(2))
-            tv = TransparentVertex(CompVertex(identity, iv))
+            tv = StackingVertex(CompVertex(identity, iv))
             io = AbsorbVertex(CompVertex(identity, tv), InvSize(2))
 
             @test outputs.(inputs(io)) == [[io]]
@@ -81,11 +81,11 @@ using Test
             @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
         end
 
-        @testset "TransparentVertex 2 inputs" begin
-            # Try with two inputs to TransparentVertex
+        @testset "StackingVertex 2 inputs" begin
+            # Try with two inputs to StackingVertex
             iv1 = AbsorbVertex(InputVertex(1), InvSize(2))
             iv2 = AbsorbVertex(InputVertex(2), InvSize(3))
-            tv = TransparentVertex(CompVertex(hcat, iv1, iv2))
+            tv = StackingVertex(CompVertex(hcat, iv1, iv2))
             io1 = AbsorbVertex(CompVertex(identity, tv), InvSize(5))
 
             @test inputs(tv) == [iv1, iv2]
@@ -124,7 +124,7 @@ using Test
     @testset "InvariantVertex" begin
 
         @testset "InvariantVertex 1 to 1" begin
-            #Behaviour is identical to TransparentVertex in this case
+            #Behaviour is identical to StackingVertex in this case
             iv = AbsorbVertex(InputVertex(1), InvSize(2))
             inv = InvariantVertex(CompVertex(identity, iv))
             io = AbsorbVertex(CompVertex(identity, inv), InvSize(2))
@@ -145,7 +145,7 @@ using Test
             # Try with two inputs a InvariantVertex
             iv1 = AbsorbVertex(InputVertex(1), InvSize(3))
             iv2 = AbsorbVertex(InputVertex(2), InvSize(3))
-            inv = InvariantVertex(CompVertex(hcat, iv1, iv2))
+            inv = InvariantVertex(CompVertex(+, iv1, iv2))
             io1 = AbsorbVertex(CompVertex(identity, inv), InvSize(3))
 
             @test inputs(inv) == [iv1, iv2]
@@ -174,6 +174,74 @@ using Test
 
             Δnout(iv2, 3)
             @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 6
+        end
+
+    end
+
+    @testset "Mutate tricky structures" begin
+
+        ## Helper functions
+        rb(start, residual) = InvariantVertex(CompVertex(+, residual, start))
+        merge(paths...) = StackingVertex(CompVertex(hcat, paths...))
+        mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
+        av(op, meta, in...) = AbsorbVertex(CompVertex(op, in...), meta)
+        function stack(start, nouts...)
+            # Can be done on one line with mapfoldl, but it is not pretty...
+            next = start
+            for i in 1:length(nouts)
+                op = mm(nout(next), nouts[i])
+                next = av(op, IoSize(nout(next), nouts[i]), next)
+            end
+            return next
+        end
+
+        @testset "Residual fork block" begin
+            start = AbsorbVertex(InputVertex(1), InvSize(9))
+            p1 = stack(start, 3,4)
+            p2 = stack(start, 4,5)
+            resout = rb(start, merge(p1, p2))
+            out = av(mm(9, 4), IoSize(9,4), resout)
+
+            @test nout(resout) == 9
+
+            # Propagtes to out, start outputs of start
+            Δnout(p2, -2)
+            @test nin(out) == [nout(start)] == [7]
+            #outputs(start) = first vertex in p1, p2 and resout (which has two inputs)
+            @test foldl(vcat, nin.(outputs(start))) == [7, 7, 7, 7]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == [9]
+            @test foldl(vcat, nin.(outputs(start))) == [9, 9, 9, 9]
+        end
+
+        @testset "Transparent residual fork block" begin
+            start = AbsorbVertex(InputVertex(1), InvSize(8))
+            split = av(mm(8,4), IoSize(8,4), start)
+            p1 = StackingVertex(CompVertex(identity, split))
+            p2 = StackingVertex(CompVertex(identity, split))
+            resout = rb(start, merge(p1, p2))
+            out = av(mm(8, 3), IoSize(8,3), resout)
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the merge before resout. Simple dfs will
+            # fail as one will hit the merge through p1 before having
+            # resolved the path through p2.
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+
+            # Propagates to both inputs and outputs of split
+            # Note: Odd deltas are impossible. TODO: Add some way to detect this
+            Δnout(start, -4)
+            @test nin(out) == [nout(start)] == [4]
+            @test nout(split) == 2
         end
 
     end

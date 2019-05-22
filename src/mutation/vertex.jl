@@ -26,12 +26,18 @@ Remembers visitation for both forward (in) and backward (out) directions.
 struct VisitState
     in::Array{AbstractMutationVertex,1}
     out::Array{AbstractMutationVertex,1}
+    contexts::Dict{AbstractMutationVertex, Any}
 end
-VisitState() = VisitState([], [])
+VisitState() = VisitState([], [], OrderedDict{AbstractMutationVertex, Any}())
 visited_in!(s::VisitState, v::AbstractMutationVertex) = push!(s.in, v)
 visited_out!(s::VisitState, v::AbstractMutationVertex) = push!(s.out, v)
 has_visited_in(s::VisitState, v::AbstractMutationVertex) = v in s.in
 has_visited_out(s::VisitState, v::AbstractMutationVertex) = v in s.out
+
+no_context(s::VisitState) = isempty(s.contexts)
+context!(defaultfun, s::VisitState, v::AbstractMutationVertex) = get!(defaultfun, s.contexts, v)
+delete_context!(s::VisitState, v::AbstractMutationVertex) = delete!(s.contexts, v)
+contexts(s::VisitState) = s.contexts
 
 """
     OutputsVertex
@@ -68,11 +74,32 @@ function anyvisit(v::AbstractMutationVertex, s::VisitState)
 end
 
 function propagate_nin(v::AbstractMutationVertex, Δ::Integer; s::VisitState)
+    #Rundown of the idea here: The outputs of v might have more than one input
+    # If such a vertex vi is found, the missing inputs are set to "missing" and
+    # the Δ we have is put in a context for vi. Only if no input is missing
+    # do we propagate to vi.
+    # If we end up here though another input to vi the context will be populated
+    # with the new Δ and eventually we have all the Δs
+    # If not, the "if first" block in the end will insert zeroes for the missing
+    # inputs and propagate anyways.
+    # See testset "Transparent residual fork block" for a motivation
+
+    first = no_context(s)
+
     for vi in outputs(v)
         ins = inputs(vi)
-        Δs = zeros(typeof(Δ), length(ins))
+        Δs = context!(s, vi) do
+            Array{Union{Missing, Integer},1}(missing, length(ins))
+        end
         Δs[findall(vx -> vx == v, ins)] .= Δ
-        Δnin(vi, Δs...; s=s)
+        any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
+    end
+
+    if first
+        for (v, ctx) in contexts(s)
+            delete_context!(s, v)
+            Δnin(v, replace(ctx, missing=>0)..., s=s)
+        end
     end
 end
 
@@ -81,6 +108,9 @@ function propagate_nout(v::AbstractMutationVertex, Δ::Integer...; s::VisitState
         Δnout(vi, Δi; s=s)
     end
 end
+
+# trace(v::AbstractTransparentVertex, direction) = vcat([v], trace.(direction(v), direction)...)
+# trace(v::AbstractMutationVertex, direction) = [v]
 
 ## Generic helper methods end
 
@@ -114,42 +144,42 @@ function Δnin(v::AbsorbVertex, Δ::Integer...; s::VisitState=VisitState())
 end
 
 function Δnout(v::AbsorbVertex, Δ::Integer; s::VisitState=VisitState())
-    (outvisit(v,s) || Δ == 0) && return
+    (Δ == 0 || outvisit(v,s)) && return
     Δnout(v.meta, Δ)
     propagate_nin(v, Δ; s=s)
 end
 
 
 """
-    TransparentVertex
+    StackingVertex
 
 Vertex which is transparent w.r.t mutation.
 
 Size of output is sum of sizes of inputs. Examples of computations are scalar operations
 (e.g add x to every element) and concatenation.
 """
-struct TransparentVertex <: AbstractMutationVertex
+struct StackingVertex <: AbstractMutationVertex
     base::AbstractVertex
 
-    function TransparentVertex(b::OutputsVertex)
+    function StackingVertex(b::OutputsVertex)
         this = new(b)
         init!(b, this)
         return this
     end
 end
-TransparentVertex(b::AbstractVertex) = TransparentVertex(OutputsVertex(b))
-base(v::TransparentVertex)::AbstractVertex = v.base
+StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
+base(v::StackingVertex)::AbstractVertex = v.base
 
-nout(v::TransparentVertex) = sum(nin(v))
-nin(v::TransparentVertex) = nout.(inputs(v))
+nout(v::StackingVertex) = sum(nin(v))
+nin(v::StackingVertex) = nout.(inputs(v))
 
-function Δnin(v::TransparentVertex, Δ::Integer...; s::VisitState=VisitState())
+function Δnin(v::StackingVertex, Δ::Integer...; s::VisitState=VisitState())
     anyvisit(v, s) && return
     propagate_nin(v, sum(Δ); s=s)
 end
 
-function Δnout(v::TransparentVertex, Δ::Integer; s::VisitState=VisitState())
-    (anyvisit(v, s) || Δ == 0) && return
+function Δnout(v::StackingVertex, Δ::Integer; s::VisitState=VisitState())
+    (Δ == 0 || anyvisit(v, s)) && return
     propagate_nin(v, Δ; s=s) # If there are multiple outputs they must all be updated
     insizes = nin(v)
 
@@ -200,7 +230,7 @@ function Δnin(v::InvariantVertex, Δ::Integer...; s::VisitState=VisitState())
 end
 
 function Δnout(v::InvariantVertex, Δ::Integer; s::VisitState=VisitState())
-    (anyvisit(v, s) || Δ == 0) && return
+    (Δ == 0 || anyvisit(v, s)) && return
 
     propagate_nin(v, Δ; s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)

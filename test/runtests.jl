@@ -3,14 +3,19 @@ using Test
 
 @testset "NaiveNASlib.jl" begin
 
-@info "Testing computation"
+    function implementations(T::Type)
+        return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, subtypes(T), init=[])
+    end
+    
+    @info "Testing computation"
 
-include("vertex.jl")
-include("compgraph.jl")
+    include("vertex.jl")
+    include("compgraph.jl")
 
-@info "Testing mutation"
+    @info "Testing mutation"
 
-include("mutation/meta.jl")
-include("mutation/vertex.jl")
+    include("mutation/meta.jl")
+    include("mutation/vertex.jl")
+    include("mutation/select.jl")
 
 end
