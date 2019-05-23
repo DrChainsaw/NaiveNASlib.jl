@@ -5,13 +5,16 @@ using Test
 
 @testset "Vertex mutation metadata" begin
 
+    expectedtype(t::Type{<:VertexMeta}) = Integer
+    expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}
+
     @testset "Method contracts" begin
         for subtype in subtypes(VertexMeta)
             @info "test method contracts for $subtype"
             @test hasmethod(nin, (subtype,))
             @test hasmethod(nout, (subtype,))
-            @test hasmethod(Δnin, (subtype,Vararg{Integer}))
-            @test hasmethod(Δnout, (subtype, Integer))
+            @test hasmethod(Δnin, (subtype,expectedtype(subtype)))
+            @test hasmethod(Δnout, (subtype, expectedtype(subtype)))
         end
     end
 

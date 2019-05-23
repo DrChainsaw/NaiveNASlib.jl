@@ -15,13 +15,13 @@ CompGraph, output!,
 
 # Vertex meta
 #Computation
-InvSize, IoSize, nin, nout, Δnin, Δnout,
+InvSize, IoSize, IoIndices, nin, nout, Δnin, Δnout,
 
 # Mutation vertex
 base, AbsorbVertex, StackingVertex, InvariantVertex,
 
 # select
-select_inputs, select_outputs
+select_inputs, select_outputs, select_params
 
 include("vertex.jl")
 include("compgraph.jl")

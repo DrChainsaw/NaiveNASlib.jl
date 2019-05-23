@@ -72,3 +72,20 @@ nin(s::IoSize) = s.nin
 nout(s::IoSize) = s.nout
 Δnin(s::IoSize, Δ::Integer...) = s.nin .+= Δ
 Δnout(s::IoSize, Δ::Integer) = s.nout += Δ
+
+
+"""
+    IoIndices
+Indexes to retain for input and output of a computation
+
+What those indices mean is up to the computation
+"""
+mutable struct IoIndices <: VertexMeta
+    in::AbstractArray{<:AbstractArray{<:Integer,1},1}
+    out::AbstractArray{<:Integer,1}
+end
+IoIndices(in::Integer, out::Integer) = IoIndices([collect(1:in)], collect(1:out))
+nin(s::IoIndices) = length(s.in)
+nout(s::IoIndices) = length(s.out)
+Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(Δ)
+Δnout(s::IoIndices, Δ::AbstractArray{<:Integer,1}) = s.out = Δ

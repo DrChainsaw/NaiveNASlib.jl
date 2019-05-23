@@ -51,8 +51,9 @@ struct OutputsVertex <: AbstractVertex
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
-inputs(v::OutputsVertex) = inputs(v.base)
+inputs(v::OutputsVertex) = inputs(base(v))
 outputs(v::OutputsVertex) = v.outs
+base(v::OutputsVertex) = v.base
 
 ## Generic helper methods
 
@@ -92,7 +93,9 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
         Δs = context!(s, vi) do
             Array{Union{Missing, T},1}(missing, length(ins))
         end
-        Δs[findall(vx -> vx == v, ins)] .= Δ
+        # Add Δ for each input which is the current vertex (at least and typically one)
+        foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
+
         any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
     end
 
@@ -104,6 +107,7 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
             # due to vertex having been visited.
             # Should be safe to just add a check for this here or maybe remove
             # completed contexts in the above loop
+            #TODO: missing => 0 will need to be handled sooner or later...
             Δnin(v, replace(ctx, missing=>0)..., s=s)
         end
     end
