@@ -74,7 +74,7 @@ function anyvisit(v::AbstractMutationVertex, s::VisitState)
 end
 
 function propagate_nin(v::AbstractMutationVertex, Δ::Integer; s::VisitState)
-    #Rundown of the idea here: The outputs of v might have more than one input
+    # Rundown of the idea here: The outputs of v might have more than one input
     # If such a vertex vi is found, the missing inputs are set to "missing" and
     # the Δ we have is put in a context for vi. Only if no input is missing
     # do we propagate to vi.
@@ -98,6 +98,11 @@ function propagate_nin(v::AbstractMutationVertex, Δ::Integer; s::VisitState)
     if first
         for (v, ctx) in contexts(s)
             delete_context!(s, v)
+            # Note: Other contexts may be "completed" as a consequence of this
+            # However, if that happens the call below should just return immediately
+            # due to vertex having been visited.
+            # Should be safe to just add a check for this here or maybe remove
+            # completed contexts in the above loop
             Δnin(v, replace(ctx, missing=>0)..., s=s)
         end
     end

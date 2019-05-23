@@ -216,6 +216,48 @@ using Test
             @test foldl(vcat, nin.(outputs(start))) == [9, 9, 9, 9]
         end
 
+        @testset "Half transparent residual fork block" begin
+            start = AbsorbVertex(InputVertex(1), InvSize(8))
+            split = av(mm(8,4), IoSize(8,4), start)
+            p1 = StackingVertex(CompVertex(identity, split))
+            p2 = stack(split, 3,2,4)
+            resout = rb(start, merge(p1, p2))
+            out = av(mm(8, 3), IoSize(8,3), resout)
+
+            @test nout(resout) == 8
+
+            # Propagates to input of first vertex of p2, input of out and start
+            # via p1 and resout as well as to input of split
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [7]
+            @test foldl(vcat, nin.(outputs(split))) == [3, 3]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +1)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+        end
+
+        @testset "Transparent fork block" begin
+            start = AbsorbVertex(InputVertex(1), InvSize(4))
+            p1 = StackingVertex(CompVertex(identity, start))
+            p2 = StackingVertex(CompVertex(identity, start))
+            join = merge(p1, p2)
+            out = av(mm(8, 3), IoSize(8,3), join)
+
+            @test nout(join) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the merge before resout. Simple dfs will
+            # fail as one will hit the merge through p1 before having
+            # resolved the path through p2.
+            Δnout(start, -1)
+            @test nin(out) == [2nout(start)] == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [2nout(start)] == [8]
+        end
+
         @testset "Transparent residual fork block" begin
             start = AbsorbVertex(InputVertex(1), InvSize(8))
             split = av(mm(8,4), IoSize(8,4), start)
