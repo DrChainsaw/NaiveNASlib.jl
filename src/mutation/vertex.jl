@@ -23,21 +23,22 @@ Memoization struct for traversal when mutating.
 
 Remembers visitation for both forward (in) and backward (out) directions.
 """
-struct VisitState
+Maybe{T} = Union{T, Missing}
+struct VisitState{T}
     in::Array{AbstractMutationVertex,1}
     out::Array{AbstractMutationVertex,1}
-    contexts::Dict{AbstractMutationVertex, Any}
+    contexts::Dict{AbstractMutationVertex, Vector{Maybe{T}}}
 end
-VisitState() = VisitState([], [], OrderedDict{AbstractMutationVertex, Any}())
+VisitState{T}() where T = VisitState{T}([], [], OrderedDict{AbstractMutationVertex, Vector{Maybe{T}}}())
 visited_in!(s::VisitState, v::AbstractMutationVertex) = push!(s.in, v)
 visited_out!(s::VisitState, v::AbstractMutationVertex) = push!(s.out, v)
 has_visited_in(s::VisitState, v::AbstractMutationVertex) = v in s.in
 has_visited_out(s::VisitState, v::AbstractMutationVertex) = v in s.out
 
-no_context(s::VisitState) = isempty(s.contexts)
-context!(defaultfun, s::VisitState, v::AbstractMutationVertex) = get!(defaultfun, s.contexts, v)
-delete_context!(s::VisitState, v::AbstractMutationVertex) = delete!(s.contexts, v)
-contexts(s::VisitState) = s.contexts
+no_context(s::VisitState{T}) where T = isempty(s.contexts)
+context!(defaultfun, s::VisitState{T}, v::AbstractMutationVertex) where T = get!(defaultfun, s.contexts, v)
+delete_context!(s::VisitState{T}, v::AbstractMutationVertex) where T = delete!(s.contexts, v)
+contexts(s::VisitState{T}) where T = s.contexts
 
 """
     OutputsVertex
@@ -55,25 +56,25 @@ outputs(v::OutputsVertex) = v.outs
 
 ## Generic helper methods
 
-function invisit(v::AbstractMutationVertex, s::VisitState)
+function invisit(v::AbstractMutationVertex, s::VisitState{T}) where T
     has_visited_in(s, v) && return true
     visited_in!(s, v)
     return false
 end
 
-function outvisit(v::AbstractMutationVertex, s::VisitState)
+function outvisit(v::AbstractMutationVertex, s::VisitState{T}) where T
     has_visited_out(s, v) && return true
     visited_out!(s, v)
     return false
 end
 
-function anyvisit(v::AbstractMutationVertex, s::VisitState)
+function anyvisit(v::AbstractMutationVertex, s::VisitState{T}) where T
     in = invisit(v, s)
     out = outvisit(v, s)
     return in || out
 end
 
-function propagate_nin(v::AbstractMutationVertex, Δ::Integer; s::VisitState)
+function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where T
     # Rundown of the idea here: The outputs of v might have more than one input
     # If such a vertex vi is found, the missing inputs are set to "missing" and
     # the Δ we have is put in a context for vi. Only if no input is missing
@@ -89,7 +90,7 @@ function propagate_nin(v::AbstractMutationVertex, Δ::Integer; s::VisitState)
     for vi in outputs(v)
         ins = inputs(vi)
         Δs = context!(s, vi) do
-            Array{Union{Missing, Integer},1}(missing, length(ins))
+            Array{Union{Missing, T},1}(missing, length(ins))
         end
         Δs[findall(vx -> vx == v, ins)] .= Δ
         any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
@@ -108,14 +109,11 @@ function propagate_nin(v::AbstractMutationVertex, Δ::Integer; s::VisitState)
     end
 end
 
-function propagate_nout(v::AbstractMutationVertex, Δ::Integer...; s::VisitState=VisitState())
+function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end
 end
-
-# trace(v::AbstractTransparentVertex, direction) = vcat([v], trace.(direction(v), direction)...)
-# trace(v::AbstractMutationVertex, direction) = [v]
 
 ## Generic helper methods end
 
@@ -142,16 +140,16 @@ base(v::AbsorbVertex)::AbstractVertex = v.base
 nin(v::AbsorbVertex) = nin(v.meta)
 nout(v::AbsorbVertex) = nout(v.meta)
 
-function Δnin(v::AbsorbVertex, Δ::Integer...; s::VisitState=VisitState())
+function Δnin(v::AbsorbVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
     Δnin(v.meta, Δ...)
-    propagate_nout(v, Δ...; s=s)
+    propagate_nout(v, Δ..., s=s)
 end
 
-function Δnout(v::AbsorbVertex, Δ::Integer; s::VisitState=VisitState())
-    (Δ == 0 || outvisit(v,s)) && return
+function Δnout(v::AbsorbVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+    outvisit(v,s) && return
     Δnout(v.meta, Δ)
-    propagate_nin(v, Δ; s=s)
+    propagate_nin(v, Δ, s=s)
 end
 
 
@@ -178,14 +176,14 @@ base(v::StackingVertex)::AbstractVertex = v.base
 nout(v::StackingVertex) = sum(nin(v))
 nin(v::StackingVertex) = nout.(inputs(v))
 
-function Δnin(v::StackingVertex, Δ::Integer...; s::VisitState=VisitState())
+function Δnin(v::StackingVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
     propagate_nin(v, sum(Δ); s=s)
 end
 
-function Δnout(v::StackingVertex, Δ::Integer; s::VisitState=VisitState())
-    (Δ == 0 || anyvisit(v, s)) && return
-    propagate_nin(v, Δ; s=s) # If there are multiple outputs they must all be updated
+function Δnout(v::StackingVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+    anyvisit(v, s) && return
+    propagate_nin(v, Δ, s=s) # If there are multiple outputs they must all be updated
     insizes = nin(v)
 
     # We basically want a split of Δ weighted by each individual input size:
@@ -224,7 +222,7 @@ base(v::InvariantVertex)::AbstractVertex = v.base
 nout(v::InvariantVertex) = nin(v)[1]
 nin(v::InvariantVertex) = nout.(inputs(v))
 
-function Δnin(v::InvariantVertex, Δ::Integer...; s::VisitState=VisitState())
+function Δnin(v::InvariantVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
     Δprop = [Δi for Δi in unique((Δ)) if Δi != 0]
@@ -234,9 +232,9 @@ function Δnin(v::InvariantVertex, Δ::Integer...; s::VisitState=VisitState())
     propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
 end
 
-function Δnout(v::InvariantVertex, Δ::Integer; s::VisitState=VisitState())
-    (Δ == 0 || anyvisit(v, s)) && return
+function Δnout(v::InvariantVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+    anyvisit(v, s) && return
 
-    propagate_nin(v, Δ; s=s)
+    propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
 end

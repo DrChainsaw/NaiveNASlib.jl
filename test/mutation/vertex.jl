@@ -11,7 +11,7 @@ using Test
             @info "test method contracts for $subtype"
             @test hasmethod(nin,  (subtype,))
             @test hasmethod(nout, (subtype,))
-            @test hasmethod(Δnin,  (subtype, Vararg{Integer}))
+            @test hasmethod(Δnin,  (subtype, Integer))
             @test hasmethod(Δnout, (subtype, Integer))
             @test hasmethod(base, (subtype,))
             @test hasmethod(outputs, (subtype,))
