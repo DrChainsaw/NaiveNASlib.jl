@@ -114,6 +114,7 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
 end
 
 function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end
@@ -209,7 +210,7 @@ function concat(v::StackingVertex, Δ::Maybe{AbstractArray{T}}...) where T
     res = ismissing(Δ[1]) ? collect(1:insizes[1]) : Δ[1]
     for (innr, Δi) in enumerate(Δ[2:end])
         if ismissing(Δi)
-            Δi = collect(1:insizes[innr])
+            Δi = collect(1:insizes[innr+1])
         end
         res = vcat(res, map(elem -> elem + sign(elem) * insizes[innr], Δi))
     end
