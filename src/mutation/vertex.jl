@@ -16,6 +16,7 @@ function base end
 inputs(v::AbstractMutationVertex)  = inputs(base(v))
 outputs(v::AbstractMutationVertex) = outputs(base(v))
 
+Maybe{T} = Union{T, Missing}
 """
     VisitState
 
@@ -23,7 +24,6 @@ Memoization struct for traversal when mutating.
 
 Remembers visitation for both forward (in) and backward (out) directions.
 """
-Maybe{T} = Union{T, Missing}
 struct VisitState{T}
     in::Array{AbstractMutationVertex,1}
     out::Array{AbstractMutationVertex,1}
@@ -108,7 +108,7 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
             # Should be safe to just add a check for this here or maybe remove
             # completed contexts in the above loop
             #TODO: missing => 0 will need to be handled sooner or later...
-            Δnin(v, replace(ctx, missing=>0)..., s=s)
+            Δnin(v, ctx..., s=s)
         end
     end
 end
@@ -144,7 +144,7 @@ base(v::AbsorbVertex)::AbstractVertex = v.base
 nin(v::AbsorbVertex) = nin(v.state)
 nout(v::AbsorbVertex) = nout(v.state)
 
-function Δnin(v::AbsorbVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+function Δnin(v::AbsorbVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
     Δnin(v.state, Δ...)
     propagate_nout(v, Δ..., s=s)
@@ -167,27 +167,57 @@ Size of output is sum of sizes of inputs. Examples of computations are scalar op
 """
 struct StackingVertex <: AbstractMutationVertex
     base::AbstractVertex
+    op::MutationOp
 
-    function StackingVertex(b::OutputsVertex)
-        this = new(b)
+    function StackingVertex(b::OutputsVertex, op::MutationOp)
+        this = new(b, op)
         init!(b, this)
         return this
     end
 end
-StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
+StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b), NoOp())
 base(v::StackingVertex)::AbstractVertex = v.base
 
 nout(v::StackingVertex) = sum(nin(v))
 nin(v::StackingVertex) = nout.(inputs(v))
 
-function Δnin(v::StackingVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+function Δnin(v::StackingVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
-    propagate_nin(v, sum(Δ); s=s)
+
+    Δnin(v.op, Δ)
+
+    propagate_nin(v, concat(v, Δ...); s=s)
 end
 
 function Δnout(v::StackingVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
+
+    Δnout(v.op, Δ)
+
     propagate_nin(v, Δ, s=s) # If there are multiple outputs they must all be updated
+    Δs = split_nout_over_inputs(v, Δ)
+    propagate_nout(v, Δs...; s=s)
+end
+
+function concat(v::StackingVertex, Δ::Maybe{Integer}...)
+    return sum(filter(!ismissing, collect(Δ)))
+end
+
+function concat(v::StackingVertex, Δ::Maybe{AbstractArray{T}}...) where T
+    insizes = nin(v)
+
+    res = ismissing(Δ[1]) ? collect(1:insizes[1]) : Δ[1]
+    for (innr, Δi) in enumerate(Δ[2:end])
+        if ismissing(Δi)
+            Δi = collect(1:insizes[innr])
+        end
+        res = vcat(res, map(elem -> elem + sign(elem) * insizes[innr], Δi))
+    end
+
+    return res
+end
+
+function split_nout_over_inputs(v::StackingVertex, Δ::Integer)
     insizes = nin(v)
 
     # We basically want a split of Δ weighted by each individual input size:
@@ -201,7 +231,24 @@ function Δnout(v::StackingVertex, Δ::T; s::VisitState{T}=VisitState{T}()) wher
     for _ in 1:Δdeficit
         Δs[argmax(insizes .+ Δs)] -= 1
     end
-    propagate_nout(v, Δs...; s=s)
+    return Δs
+end
+
+function split_nout_over_inputs(v::StackingVertex, Δ::AbstractArray{<:Integer,1})
+    insizes = nin(v)
+
+    Δs = ntuple(i -> Integer[], length(insizes))
+
+    function push(elem::Integer, ind::Integer)
+        if elem <= insizes[ind]
+            push!(Δs[ind], elem)
+        else
+            push(elem - insizes[ind], ind+1)
+        end
+    end
+
+    foreach(elem -> push(elem, 1), Δ)
+    return Δs
 end
 
 """
@@ -213,23 +260,26 @@ Examples of computations are scalar and element wise operations.
 """
 struct InvariantVertex <: AbstractMutationVertex
     base::AbstractVertex
+    op::MutationOp
 
-    function InvariantVertex(b::OutputsVertex)
-        this = new(b)
+    function InvariantVertex(b::OutputsVertex, op::MutationOp)
+        this = new(b, op)
         init!(b, this)
         return this
     end
 end
-InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b))
+InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
 base(v::InvariantVertex)::AbstractVertex = v.base
 
 nout(v::InvariantVertex) = nin(v)[1]
 nin(v::InvariantVertex) = nout.(inputs(v))
 
-function Δnin(v::InvariantVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+function Δnin(v::InvariantVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δprop = [Δi for Δi in unique((Δ)) if Δi != 0]
+    Δnin(v.op, Δ...)
+
+    Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
     @assert length(Δprop) == 1 "Change must be invariant!"
 
     propagate_nin(v, Δprop...; s=s)
@@ -238,6 +288,8 @@ end
 
 function Δnout(v::InvariantVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
+
+    Δnout(v.op, Δ)
 
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)

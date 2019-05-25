@@ -39,24 +39,54 @@ function NaiveNASlib.select_outputs(mm::MatMul, outputs::AbstractArray{<:Integer
 
         # Select subset
         Δnin(mmv2, Integer[1, 3, 4])
-        select_params(mmv1)
-        select_params(mmv2)
+        select_params.((mmv1, mmv2))
         @test mm1.W == [ 1 7 10; 2 8 11; 3 9 12]
         @test mm2.W == [ 1 6; 3 8; 4 9]
 
         # Increase size
         Δnout(mmv1, collect(1:nout(mmv1) + 2))
-        select_params(mmv1)
-        select_params(mmv2)
+        select_params.((mmv1, mmv2))
         @test mm1.W == [ 1 7 10 0 0; 2 8 11 0 0; 3 9 12 0 0]
         @test mm2.W == [ 1 6; 3 8; 4 9; 0 0; 0 0]
 
         # Select subset and increase size
         Δnin(mmv2, Integer[1, 3, 4, 5, 6])
-        select_params(mmv1)
-        select_params(mmv2)
+        select_params.((mmv1, mmv2))
         @test mm1.W == [ 1 10 0 0 0; 2 11 0 0 0; 3 12 0 0 0]
         @test mm2.W == [ 1 6; 4 9; 0 0; 0 0; 0 0]
+    end
+
+    @testset "StackingVertex selection" begin
+
+        mmv1, mm1 = mcv(2, 3, NaiveNASlib.OutputsVertex(InputVertex(1)))
+        mmv2, mm2 = mcv(3, 4, NaiveNASlib.OutputsVertex(InputVertex(2)))
+        join = StackingVertex(CompVertex(hcat, mmv1, mmv2))
+        mmv3, mm3 = mcv(7, 3, join)
+
+        Δnout(join, Integer[1,3,5,7])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [1 5; 2 6]
+        @test mm2.W == [4 10; 5 11; 6 12]
+        @test mm3.W == [1 8 15; 3 10 17; 5 12 19; 7 14 21]
+
+        Δnout(mmv2, [1, 3, 4])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [1 5; 2 6]
+        @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
+        @test mm3.W == [1 8 15; 3 10 17; 5 12 19; 0 0 0; 0 0 0]
+
+        # Δnout(mmv1, [2, 3])
+        # select_params.((mmv1, mmv2, mmv3))
+        #
+        # @test mm1.W == [5 0; 6 0]
+        # @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
+        # @test mm3.W == [3 10 17; 0 0 0; 5 12 19; 0 0 0; 0 0 0]
+
+
+        #display(mm3.W)
+
     end
 
 end

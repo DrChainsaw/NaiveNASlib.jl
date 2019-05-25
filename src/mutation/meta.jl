@@ -5,6 +5,9 @@ Perform mutation operations
 abstract type MutationOp end
 abstract type MutationState <: MutationOp end
 
+function reset_in(s::MutationState) end
+function reset_out(s::MutationState) end
+
 """
     nin(m::MutationState)
     nin(v::AbstractMutationVertex)
@@ -96,5 +99,13 @@ end
 IoIndices(in::Integer, out::Integer) = IoIndices([collect(1:in)], collect(1:out))
 nin(s::IoIndices) = length(s.in)
 nout(s::IoIndices) = length(s.out)
-Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(Δ)
-Δnout(s::IoIndices, Δ::AbstractArray{<:Integer,1}) = s.out = Δ
+Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(deepcopy(Δ))
+Δnout(s::IoIndices, Δ::AbstractArray{<:Integer,1}) = s.out = copy(Δ)
+function reset_in(s::IoIndices)
+    foreach(s.in) do ini
+        ini[1:end] = 1:length(ini)
+    end
+end
+function reset_out(s::IoIndices)
+    s.out[1:end] = 1:length(s.out)
+end
