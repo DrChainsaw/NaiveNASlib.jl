@@ -1,12 +1,12 @@
 using NaiveNASlib
 using Test
 
+function implementations(T::Type)
+    return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, subtypes(T), init=[])
+end
+
 @testset "NaiveNASlib.jl" begin
 
-    function implementations(T::Type)
-        return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, subtypes(T), init=[])
-    end
-    
     @info "Testing computation"
 
     include("vertex.jl")

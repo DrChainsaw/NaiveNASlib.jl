@@ -1,11 +1,12 @@
 """
-    VertexMeta
-Metadata about vertex needed to perform mutation operations
+    MutationOp
+Perform mutation operations
 """
-abstract type VertexMeta end
+abstract type MutationOp end
+abstract type MutationState <: MutationOp end
 
 """
-    nin(m::VertexMeta)
+    nin(m::MutationState)
     nin(v::AbstractMutationVertex)
 
 Returns the size of the input data to the vertex
@@ -15,7 +16,7 @@ Computation may fail if input does not have size nin.
 function nin end
 
 """
-    nout(m::VertexMeta)
+    nout(m::MutationState)
     nout(v::AbstractMutationVertex)
 
 Returns the size of the output data from the vertex.
@@ -24,7 +25,7 @@ function nout end
 
 
 """
-    Δnin(v::VertexMeta, Δ)
+    Δnin(v::MutationOp, Δ)
     Δnin(v::AbstractMutationVertex, Δ)
 
 Change input size by Δ. New size is nin + Δ
@@ -35,7 +36,7 @@ depending on vertex type
 function Δnin end
 
 """
-    Δnout(v::VertexMeta, Δ)
+    Δnout(v::MutationOp, Δ)
     Δnout(v::AbstractMutationVertex, Δ)
 
 Change output size by Δ. New size is nout + Δ
@@ -46,10 +47,18 @@ depending on vertex type
 function Δnout end
 
 """
+    NoOp
+Does not perform any operations
+"""
+struct NoOp <: MutationOp end
+Δnin(s::NoOp, Δ...) = Δ
+Δnout(s::NoOp, Δ) = Δ
+
+"""
     InvSize
 Invariant size, i.e nin == nout
 """
-mutable struct InvSize <: VertexMeta
+mutable struct InvSize <: MutationState
     size::Integer
 end
 nin(s::InvSize) = s.size
@@ -63,7 +72,7 @@ end
     IoSize
 Size for input and output of a computation
 """
-mutable struct IoSize <: VertexMeta
+mutable struct IoSize <: MutationState
     nin::AbstractArray{Integer,1}
     nout::Integer
 end
@@ -80,7 +89,7 @@ Indexes to retain for input and output of a computation
 
 What those indices mean is up to the computation
 """
-mutable struct IoIndices <: VertexMeta
+mutable struct IoIndices <: MutationState
     in::AbstractArray{<:AbstractArray{<:Integer,1},1}
     out::AbstractArray{<:Integer,1}
 end

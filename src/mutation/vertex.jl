@@ -130,29 +130,29 @@ which multiplies its input with an nin x nout matrix.
 """
 struct AbsorbVertex <: AbstractMutationVertex
     base::AbstractVertex
-    meta::VertexMeta
+    state::MutationState
 
-    function AbsorbVertex(b::OutputsVertex, meta::VertexMeta)
-        this = new(b, meta)
+    function AbsorbVertex(b::OutputsVertex, state::MutationState)
+        this = new(b, state)
         init!(b, this)
         return this
     end
 end
-AbsorbVertex(b::AbstractVertex, meta::VertexMeta) = AbsorbVertex(OutputsVertex(b), meta)
+AbsorbVertex(b::AbstractVertex, state::MutationState) = AbsorbVertex(OutputsVertex(b), state)
 base(v::AbsorbVertex)::AbstractVertex = v.base
 
-nin(v::AbsorbVertex) = nin(v.meta)
-nout(v::AbsorbVertex) = nout(v.meta)
+nin(v::AbsorbVertex) = nin(v.state)
+nout(v::AbsorbVertex) = nout(v.state)
 
 function Δnin(v::AbsorbVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
-    Δnin(v.meta, Δ...)
+    Δnin(v.state, Δ...)
     propagate_nout(v, Δ..., s=s)
 end
 
 function Δnout(v::AbsorbVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     outvisit(v,s) && return
-    Δnout(v.meta, Δ)
+    Δnout(v.state, Δ)
     propagate_nin(v, Δ, s=s)
 end
 

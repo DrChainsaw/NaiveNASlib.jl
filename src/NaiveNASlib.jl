@@ -5,7 +5,7 @@ using DataStructures
 
 export
 #Interface
-AbstractVertex, AbstractMutationVertex, VertexMeta,
+AbstractVertex, AbstractMutationVertex, MutationOp, MutationState,
 
 # Vertex
 InputVertex, CompVertex, inputs, outputs,
@@ -13,9 +13,9 @@ InputVertex, CompVertex, inputs, outputs,
 # Computation graph
 CompGraph, output!,
 
-# Vertex meta
+# Mutation operations
 #Computation
-InvSize, IoSize, IoIndices, nin, nout, Δnin, Δnout,
+InvSize, IoSize, IoIndices, NoOp, nin, nout, Δnin, Δnout,
 
 # Mutation vertex
 base, AbsorbVertex, StackingVertex, InvariantVertex,

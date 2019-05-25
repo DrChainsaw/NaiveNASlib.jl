@@ -11,7 +11,7 @@ function select_inputs(v::CompVertex, inputs::AbstractArray{<:Integer, 1}...)
 end
 
 function select_inputs(v::AbsorbVertex)
-    select_inputs(v, v.meta)
+    select_inputs(v, v.state)
 end
 
 function select_inputs(v::AbstractVertex, m::IoIndices)
@@ -27,7 +27,7 @@ function select_outputs(v::CompVertex, outputs::AbstractArray{<:Integer, 1})
 end
 
 function select_outputs(v::AbsorbVertex)
-    select_outputs(v, v.meta)
+    select_outputs(v, v.state)
 end
 
 function select_outputs(v::AbstractVertex, m::IoIndices)

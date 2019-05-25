@@ -1,20 +1,24 @@
-import NaiveNASlib: VertexMeta, InvSize, IoSize, nin, nout, Δnout, Δnin
+import NaiveNASlib: MutationOp, InvSize, IoSize, nin, nout, Δnout, Δnin
 import InteractiveUtils:subtypes
 
 using Test
 
-@testset "Vertex mutation metadata" begin
+@testset "Vertex mutation operations" begin
 
-    expectedtype(t::Type{<:VertexMeta}) = Integer
+    expectedtype(t::Type{<:MutationOp}) = Integer
     expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}
 
     @testset "Method contracts" begin
-        for subtype in subtypes(VertexMeta)
-            @info "test method contracts for $subtype"
-            @test hasmethod(nin, (subtype,))
-            @test hasmethod(nout, (subtype,))
+        for subtype in implementations(MutationOp)
+            @info "test method contracts for MutationOp $subtype"
             @test hasmethod(Δnin, (subtype,expectedtype(subtype)))
             @test hasmethod(Δnout, (subtype, expectedtype(subtype)))
+        end
+
+        for subtype in implementations(MutationState)
+            @info "test method contracts for MutationState $subtype"
+            @test hasmethod(nin, (subtype,))
+            @test hasmethod(nout, (subtype,))
         end
     end
 
