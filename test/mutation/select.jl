@@ -11,26 +11,17 @@ MatMul(nin, nout) = MatMul(reshape(collect(1:nin*nout), nin,nout))
 (mm::MatMul)(x) = x * mm.W
 function NaiveNASlib.select_inputs(mm::MatMul, inputs::AbstractArray{<:Integer, 1}...)
     indskeep = filter(ind -> ind > 0, inputs[1])
-    toadd = -filter(ind -> ind < 0, inputs[1])
-    newmap = Integer[]
-    sizenew = length(inputs[1])
-    toadd .-= minimum(abs.(indskeep)) .- 1
+    newmap = inputs[1] .> 0
 
-    foreach(y -> push!(newmap, setdiff(1:sizenew, toadd, newmap)[1]), indskeep)
-
-    newmat = zeros(Int64, sizenew, size(mm.W, 2))
+    newmat = zeros(Int64, length(newmap), size(mm.W, 2))
     newmat[newmap, :] = mm.W[indskeep, :]
     mm.W = newmat
 end
 function NaiveNASlib.select_outputs(mm::MatMul, outputs::AbstractArray{<:Integer, 1})
     indskeep = filter(ind -> ind > 0, outputs)
-    toadd = -filter(ind -> ind < 0, outputs)
-    newmap = Integer[]
-    sizenew = length(outputs)
+    newmap = outputs .> 0
 
-    foreach(y -> push!(newmap, setdiff(1:sizenew, toadd, newmap)[1]), indskeep)
-
-    newmat = zeros(Int64, size(mm.W, 1), sizenew)
+    newmat = zeros(Int64, size(mm.W, 1), length(newmap))
     newmat[:, newmap] = mm.W[:, indskeep]
     mm.W = newmat
 end
@@ -57,16 +48,16 @@ end
         @test mm2.W == [ 1 6; 3 8; 4 9]
 
         # Increase size
-        Δnout(mmv1, [collect(1:nout(mmv1))..., -4, -5])
+        Δnout(mmv1, [collect(1:nout(mmv1))..., -1, -1])
         select_params.((mmv1, mmv2))
         @test mm1.W == [ 1 7 10 0 0; 2 8 11 0 0; 3 9 12 0 0]
         @test mm2.W == [ 1 6; 3 8; 4 9; 0 0; 0 0]
 
         # Select subset and increase size
-        Δnin(mmv2, Integer[1, 3, -4, -5, -6])
+        Δnin(mmv2, Integer[1, -1, 3, -1, -1])
         select_params.((mmv1, mmv2))
-        @test mm1.W == [ 1 10 0 0 0; 2 11 0 0 0; 3 12 0 0 0]
-        @test mm2.W == [ 1 6; 4 9; 0 0; 0 0; 0 0]
+        @test mm1.W == [ 1 0 10 0 0; 2 0 11 0 0; 3 0 12 0 0]
+        @test mm2.W == [ 1 6; 0 0; 4 9; 0 0; 0 0]
     end
 
     @testset "StackingVertex selection" begin
@@ -83,22 +74,34 @@ end
         @test mm2.W == [4 10; 5 11; 6 12]
         @test mm3.W == [1 8 15; 3 10 17; 5 12 19; 7 14 21]
 
-        Δnout(mmv2, [1, -3, -4])
+        Δnout(mmv2, [1, -1, -1])
         select_params.((mmv1, mmv2, mmv3))
 
         @test mm1.W == [1 5; 2 6]
         @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
         @test mm3.W == [1 8 15; 3 10 17; 5 12 19; 0 0 0; 0 0 0]
 
-        Δnout(mmv1, [2, -3])
+        Δnout(mmv1, [2, -1])
         select_params.((mmv1, mmv2, mmv3))
 
         @test mm1.W == [5 0; 6 0]
         @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
         @test mm3.W == [3 10 17; 0 0 0; 5 12 19; 0 0 0; 0 0 0]
 
+        Δnin(mmv3, [1, 3])
+        select_params.((mmv1, mmv2, mmv3))
 
-        #display(mm3.W)
+        # For some reason [5; 6] creates a column vector...
+        @test mm1.W == permutedims([5 6])
+        @test mm2.W == permutedims([4 5 6])
+        @test mm3.W == [3 10 17; 5 12 19]
+
+        Δnin(mmv3, [1, -1, 2, -1, -1])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [5 0 ; 6 0]
+        @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
+        @test mm3.W == [3 10 17; 0 0 0; 5 12 19; 0 0 0; 0 0 0]
 
     end
 

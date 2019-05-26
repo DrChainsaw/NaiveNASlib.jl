@@ -114,7 +114,6 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
 end
 
 function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
-
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end
@@ -207,7 +206,7 @@ end
 function concat(v::StackingVertex, Δ::Maybe{AbstractArray{T}}...) where T
     insizes = nin(v)
 
-    res = ismissing(Δ[1]) ? collect(1:insizes[1]) : Δ[1]
+    res = ismissing(Δ[1]) ? collect(T, 1:insizes[1]) : Δ[1]
     for (innr, Δi) in enumerate(Δ[2:end])
         if ismissing(Δi)
             Δi = collect(1:insizes[innr+1])
@@ -218,7 +217,7 @@ function concat(v::StackingVertex, Δ::Maybe{AbstractArray{T}}...) where T
     return res
 end
 
-function split_nout_over_inputs(v::StackingVertex, Δ::Integer)
+function split_nout_over_inputs(v::StackingVertex, Δ::T) where T<:Integer
     insizes = nin(v)
 
     # We basically want a split of Δ weighted by each individual input size:
@@ -235,13 +234,17 @@ function split_nout_over_inputs(v::StackingVertex, Δ::Integer)
     return Δs
 end
 
-function split_nout_over_inputs(v::StackingVertex, Δ::AbstractArray{<:Integer,1})
+function split_nout_over_inputs(v::StackingVertex, Δ::AbstractArray{T,1}) where T<:Integer
     insizes = nin(v)
 
-    Δs = ntuple(i -> Integer[], length(insizes))
+    Δs = ntuple(i -> T[], length(insizes))
 
+    negind = 1
     function push(elem::Integer, ind::Integer)
-        if elem <= insizes[ind]
+        if elem < 0
+            push!(Δs[negind], elem)
+        elseif elem <= insizes[ind]
+            negind = ind
             push!(Δs[ind], elem)
         else
             push(elem - insizes[ind], ind+1)
