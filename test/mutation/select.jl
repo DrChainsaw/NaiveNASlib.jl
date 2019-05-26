@@ -91,9 +91,8 @@ end
         Δnin(mmv3, [1, 3])
         select_params.((mmv1, mmv2, mmv3))
 
-        # For some reason [5; 6] creates a column vector...
-        @test mm1.W == permutedims([5 6])
-        @test mm2.W == permutedims([4 5 6])
+        @test mm1.W == reshape([5; 6], :, 1)
+        @test mm2.W == reshape([4; 5; 6], :, 1)
         @test mm3.W == [3 10 17; 5 12 19]
 
         Δnin(mmv3, [1, -1, 2, -1, -1])
@@ -102,7 +101,51 @@ end
         @test mm1.W == [5 0 ; 6 0]
         @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
         @test mm3.W == [3 10 17; 0 0 0; 5 12 19; 0 0 0; 0 0 0]
+    end
 
+    @testset "InvariantVertex selection" begin
+
+        addsize = 7
+        mmv1, mm1 = mcv(2, addsize, NaiveNASlib.OutputsVertex(InputVertex(1)))
+        mmv2, mm2 = mcv(3, addsize, NaiveNASlib.OutputsVertex(InputVertex(2)))
+        add = InvariantVertex(CompVertex(+, mmv1, mmv2))
+        mmv3, mm3 = mcv(addsize, 3, add)
+
+        Δnout(add, Integer[1,3,5,7])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [1 5 9 13; 2 6 10 14]
+        @test mm2.W == [1 7 13 19; 2 8 14 20; 3 9 15 21]
+        @test mm3.W == [1 8 15; 3 10 17; 5 12 19; 7 14 21]
+
+        Δnout(mmv2, [2, -1, 3])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [5 0 9; 6 0 10]
+        @test mm2.W == [7 0 13; 8 0 14; 9 0 15]
+        @test mm3.W == [3 10 17; 0 0 0; 5 12 19]
+
+        Δnout(mmv1, [-1, 1, 2, -1])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [0 5 0 0; 0 6 0 0]
+        @test mm2.W == [0 7 0 0; 0 8 0 0; 0 9 0 0]
+        @test mm3.W == [0 0 0; 3 10 17; 0 0 0; 0 0 0]
+
+        Δnin(mmv3, [2])
+        select_params.((mmv1, mmv2, mmv3))
+
+        # Need to add one dim: 2 -> 2x1
+        @test mm1.W == reshape([5; 6], :, 1)
+        @test mm2.W == reshape([7; 8; 9], :, 1)
+        @test mm3.W == [3 10 17]
+
+        Δnin(mmv3, [-1, 1, -1])
+        select_params.((mmv1, mmv2, mmv3))
+
+        @test mm1.W == [0 5 0; 0 6 0]
+        @test mm2.W == [0 7 0; 0 8 0; 0 9 0]
+        @test mm3.W == [0 0 0; 3 10 17; 0 0 0]
     end
 
 end
