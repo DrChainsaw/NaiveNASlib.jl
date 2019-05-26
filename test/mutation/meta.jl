@@ -1,4 +1,5 @@
-import NaiveNASlib: MutationOp, InvSize, IoSize, nin, nout, Δnout, Δnin
+import NaiveNASlib
+import NaiveNASlib:reset_in!, reset_out!
 import InteractiveUtils:subtypes
 
 using Test
@@ -56,6 +57,29 @@ using Test
 
         Δnin(size, 1,-2, 3)
         @test nin(size) == [3, 1 ,7]
+    end
+
+    @testset "IoIncies" begin
+        inds = IoIndices([3,4], 5)
+
+        @test nin(inds) == [3, 4]
+        @test nout(inds) == 5
+
+        Δnin(inds, [1,2], [2,3,4])
+        @test nin(inds) == [2, 3]
+        @test nout(inds) == 5
+        @test inds.in == [[1, 2], [2,3,4]]
+
+        reset_in!(inds)
+        @test inds.in == [[1, 2], [1,2,3]]
+
+        Δnout(inds, [2,4])
+        @test nin(inds) == [2, 3]
+        @test nout(inds) == 2
+        @test inds.out == [2, 4]
+
+        reset_out!(inds)
+        @test inds.out == [1, 2]
     end
 
 end

@@ -11,7 +11,7 @@ AbstractVertex, AbstractMutationVertex, MutationOp, MutationState,
 InputVertex, CompVertex, inputs, outputs,
 
 # Computation graph
-CompGraph, output!,
+CompGraph, output!,flatten,
 
 # Mutation operations
 #Computation

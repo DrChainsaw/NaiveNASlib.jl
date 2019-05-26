@@ -95,7 +95,6 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
-
         any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
     end
 
@@ -107,7 +106,6 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
             # due to vertex having been visited.
             # Should be safe to just add a check for this here or maybe remove
             # completed contexts in the above loop
-            #TODO: missing => 0 will need to be handled sooner or later...
             Δnin(v, ctx..., s=s)
         end
     end
@@ -167,44 +165,49 @@ Size of output is sum of sizes of inputs. Examples of computations are scalar op
 """
 struct StackingVertex <: AbstractMutationVertex
     base::AbstractVertex
-    op::MutationOp
+    state::MutationState
 
-    function StackingVertex(b::OutputsVertex, op::MutationOp)
+    function StackingVertex(b::OutputsVertex, op::MutationState)
         this = new(b, op)
         init!(b, this)
         return this
     end
 end
-StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b), NoOp())
+StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
+StackingVertex(b::Union{OutputsVertex, AbstractMutationVertex}) = StackingVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))))
 base(v::StackingVertex)::AbstractVertex = v.base
 
-nout(v::StackingVertex) = sum(nin(v))
-nin(v::StackingVertex) = nout.(inputs(v))
+nout(v::StackingVertex) = nout(v.state)
+nin(v::StackingVertex) = nin(v.state)
 
 function Δnin(v::StackingVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnin(v.op, Δ)
+    insizes = deepcopy(nin(v))
 
-    propagate_nin(v, concat(v, Δ...); s=s)
+    Δnin(v.state, Δ...)
+    Δo = concat(insizes, Δ...)
+    Δnout(v.state, Δo)
+
+    propagate_nin(v, Δo; s=s)
 end
 
 function Δnout(v::StackingVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnout(v.op, Δ)
+    Δnout(v.state, Δ)
 
     propagate_nin(v, Δ, s=s) # If there are multiple outputs they must all be updated
     Δs = split_nout_over_inputs(v, Δ)
+    Δnin(v.state, Δs...)
     propagate_nout(v, Δs...; s=s)
 end
 
-function concat(v::StackingVertex, Δ::Maybe{Integer}...)
+function concat(insizes, Δ::Maybe{<:Integer}...)
     return sum(filter(!ismissing, collect(Δ)))
 end
 
-function concat(v::StackingVertex, Δ::Maybe{AbstractArray{T}}...) where T
-    insizes = nin(v)
+function concat(insizes, Δ::Maybe{AbstractArray{T}}...) where T
 
     res = ismissing(Δ[1]) ? collect(T, 1:insizes[1]) : Δ[1]
     for (innr, Δi) in enumerate(Δ[2:end])

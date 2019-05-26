@@ -12,7 +12,7 @@ end
 
 function select_inputs(v::AbsorbVertex)
     select_inputs(v, v.state)
-    reset_in(v.state)
+    reset_in!(v.state)
 end
 
 function select_inputs(v::AbstractVertex, m::IoIndices)
@@ -29,7 +29,7 @@ end
 
 function select_outputs(v::AbsorbVertex)
     select_outputs(v, v.state)
-    reset_out(v.state)
+    reset_out!(v.state)
 end
 
 function select_outputs(v::AbstractVertex, m::IoIndices)
@@ -40,3 +40,5 @@ function select_params(v::AbsorbVertex)
     select_inputs(v)
     select_outputs(v)
 end
+
+function select_params(v::AbstractVertex) end

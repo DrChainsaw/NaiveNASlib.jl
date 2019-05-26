@@ -26,7 +26,6 @@ function NaiveNASlib.select_outputs(mm::MatMul, outputs::AbstractArray{<:Integer
     mm.W = newmat
 end
 
-
 @testset "Selection testing" begin
 
     function mcv(nin, nout, in)
@@ -146,6 +145,144 @@ end
         @test mm1.W == [0 5 0; 0 6 0]
         @test mm2.W == [0 7 0; 0 8 0; 0 9 0]
         @test mm3.W == [0 0 0; 3 10 17; 0 0 0]
+    end
+
+    @testset "Select in tricky structures" begin
+
+        ## Helper functions
+        rb(start, residual) = InvariantVertex(CompVertex(+, residual, start))
+        merge(paths...) = StackingVertex(CompVertex(hcat, paths...))
+        function stack(start, nouts...)
+            next = start
+            mm = missing
+            for i in 1:length(nouts)
+                next, mm = mcv(nout(next), nouts[i], next)
+            end
+            return next, mm
+        end
+
+        @testset "Residual fork block" begin
+            start, mmstart = mcv(2, 9, NaiveNASlib.OutputsVertex(InputVertex(1)))
+            p1, mmp1 = stack(start, 3,4)
+            p2, mmp2 = stack(start, 4,5)
+            resout = rb(start, merge(p1, p2))
+            out, mmout = mcv(9, 3, resout)
+
+            @test nout(resout) == 9
+
+            # Propagates to out, start outputs of start
+            Δnout(p2, [2, 4])
+            select_params.(flatten(out))
+
+            @test mmp1.W == [1 4 7 10; 2 5 8 11; 3 6 9 12] #Not touched
+            @test mmp2.W == [5 13; 6 14; 7 15; 8 16] #Columns 2 and 4 kept
+            @test mmstart.W == [1 3 5 7 11 15; 2 4 6 8 12 16] #Columns 1:4 6 and 8 kept
+            @test mmout.W == [1 10 19; 2 11 20; 3 12 21; 4 13 22; 6 15 24; 8 17 26] # Rows 1:4, 6 and 8 kept
+
+            Δnin(out, [2, 3, -1, 5, -1])
+            select_params.(flatten(out))
+
+            @test mmp1.W == [4 7 0; 5 8 0; 6 9 0] #Columns 2 and 3 kept, new column added to end
+            @test mmp2.W == [5 0; 6 0; 7 0; 8 0] #Column 1 kept, new column added to end
+            @test mmstart.W == [3 5 0 11 0; 4 6 0 12 0] #Columns 2,3 5 kept, two new columns
+            @test mmout.W == [2 11 20; 3 12 21; 0 0 0; 6 15 24; 0 0 0] # Rows 2,3 5 kept, two new rows
+        end
+
+        @testset "Half transparent residual fork block" begin
+            start, mmstart = mcv(2, 5, NaiveNASlib.OutputsVertex(InputVertex(1)))
+            split, mmsplit = mcv(5, 3, start)
+            p1 = StackingVertex(CompVertex(identity, split))
+            p2,mmp2 = stack(split, 3,2,2)
+            resout = rb(start, merge(p1, p2))
+            out, mmout = mcv(5, 3, resout)
+
+            @test nout(resout) == 5
+
+            # Propagates to input of first vertex of p2, input of out and start
+            # via p1 and resout as well as to input of split
+            Δnout(split, [1, 3])
+            select_params.(flatten(out))
+
+            mmp2in = base(base(outputs(split)[2])).computation
+            @test mmsplit.W == [1 11; 3 13; 4 14; 5 15]
+            @test mmout.W == [1 6 11; 3 8 13; 4 9 14; 5 10 15]
+            @test mmstart.W == [1 5 7 9; 2 6 8 10]
+            @test mmp2in.W == [1 4 7; 3 6 9]
+
+            Δnin(out, [2,-1, 3, 4, -1])
+            select_params.(flatten(out))
+
+            @test mmsplit.W == [13 0; 0 0; 14 0; 15 0; 0 0]
+            @test mmout.W == [3 8 13; 0 0 0; 4 9 14; 5 10 15; 0 0 0]
+            @test mmstart.W == [5 0 7 9 0; 6 0 8 10 0]
+            @test mmp2in.W == [3 6 9; 0 0 0]
+
+        end
+
+        @testset "Transparent fork block" begin
+            start, mmstart = mcv(2, 4, NaiveNASlib.OutputsVertex(InputVertex(1)))
+            p1 = StackingVertex(CompVertex(identity, start))
+            p2 = StackingVertex(CompVertex(identity, start))
+            join = merge(p1, p2)
+            out,mmout = mcv(8, 3, join)
+
+            @test nout(join) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the merge before resout. Simple dfs will
+            # fail as one will hit the merge through p1 before having
+            # resolved the path through p2.
+            Δnout(start, [1,3,4])
+            select_params.(flatten(out))
+
+            @test mmstart.W == [1 5 7; 2 6 8]
+            @test mmout.W == [1 9 17; 3 11 19; 4 12 20; 5 13 21; 7 15 23; 8 16 24]
+
+            Δnin(out, [-1, 2, -1, 3])
+            select_params.(flatten(out))
+
+            @test mmstart.W == [0 5 0 7; 0 6 0 8]
+            @test mmout.W == [0 0 0; 3 11 19; 0 0 0; 4 12 20]
+
+        end
+
+        @testset "Transparent residual fork block" begin
+            start, mmstart = mcv(2, 8, NaiveNASlib.OutputsVertex(InputVertex(1)))
+            split, mmsplit = mcv(8, 4, start)
+            p1 = StackingVertex(CompVertex(identity, split))
+            p2 = StackingVertex(CompVertex(identity, split))
+            resout = rb(start, merge(p1, p2))
+            out,mmout = mcv(8, 3, resout)
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the merge before resout. Simple dfs will
+            # fail as one will hit the merge through p1 before having
+            # resolved the path through p2.
+            Δnout(split, [2, 3, -1])
+            select_params.(flatten(out))
+
+            @test mmsplit.W == [10 18 0; 11 19 0; 0 0 0; 14 22 0; 15 23 0; 0 0 0]
+            @test mmout.W == [2 10 18; 3 11 19; 0 0 0; 6 14 22; 7 15 23; 0 0 0]
+            @test mmstart.W == [3 5 0 11 13 0; 4 6 0 12 14 0]
+
+            Δnin(out, [1, -1, 2, 3])
+            select_params.(flatten(out))
+
+            @test mmsplit.W == [10 0 18 0; 0 0 0 0; 11 0 19 0; 0 0 0 0]
+            @test mmout.W == [2 10 18; 0 0 0; 3 11 19; 0 0 0]
+            @test mmstart.W == [3 0 5 0; 4 0 6 0]
+
+            # Propagates to both inputs and outputs of split
+            Δnout(start, [1, 3])
+            select_params.(flatten(out))
+
+            @test mmsplit.W == [10 18; 11 19]
+            @test mmout.W == [2 10 18; 3 11 19]
+            @test mmstart.W == [3 5; 4 6]
+        end
+
     end
 
 end

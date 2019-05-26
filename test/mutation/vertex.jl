@@ -184,7 +184,7 @@ using Test
         rb(start, residual) = InvariantVertex(CompVertex(+, residual, start))
         merge(paths...) = StackingVertex(CompVertex(hcat, paths...))
         mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
-        av(op, meta, in...) = AbsorbVertex(CompVertex(op, in...), meta)
+        av(op, state, in...) = AbsorbVertex(CompVertex(op, in...), state)
         function stack(start, nouts...)
             # Can be done on one line with mapfoldl, but it is not pretty...
             next = start
@@ -204,7 +204,7 @@ using Test
 
             @test nout(resout) == 9
 
-            # Propagtes to out, start outputs of start
+            # Propagates to out, start outputs of start
             Δnout(p2, -2)
             @test nin(out) == [nout(start)] == [7]
             #outputs(start) = first vertex in p1, p2 and resout (which has two inputs)

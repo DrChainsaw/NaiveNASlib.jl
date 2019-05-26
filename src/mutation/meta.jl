@@ -82,8 +82,17 @@ end
 IoSize(in::Integer, out::Integer) = IoSize([in], out)
 nin(s::IoSize) = s.nin
 nout(s::IoSize) = s.nout
-Δnin(s::IoSize, Δ::Integer...) = s.nin .+= Δ
+Maybe{T} = Union{T, Missing}
+Δnin(s::IoSize, Δ::Maybe{Integer}...) = s.nin .+= replace(collect(Δ), missing => 0)
 Δnout(s::IoSize, Δ::Integer) = s.nout += Δ
+function Δnin(s::IoSize, Δ::Maybe{AbstractArray{<:Integer,1}}...)
+    for (i,Δi) in enumerate(Δ)
+        if !ismissing(Δi)
+            s.nin[i] = length(Δi)
+        end
+    end
+end
+Δnout(s::IoSize, Δ::AbstractArray{<:Integer,1}) = s.nout = length(Δ)
 
 
 """
@@ -96,16 +105,18 @@ mutable struct IoIndices <: MutationState
     in::AbstractArray{<:AbstractArray{<:Integer,1},1}
     out::AbstractArray{<:Integer,1}
 end
-IoIndices(in::Integer, out::Integer) = IoIndices([collect(1:in)], collect(1:out))
-nin(s::IoIndices) = length(s.in)
+IoIndices(in::Integer, out::Integer) = IoIndices([in], out)
+IoIndices(in::AbstractArray{<:Integer}, out::Integer) = IoIndices(collect.(range.(1, in, step=1)), collect(1:out))
+IoIndices(s::MutationState) = IoIndices(nin(s), nout(s))
+nin(s::IoIndices) = length.(s.in)
 nout(s::IoIndices) = length(s.out)
 Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(deepcopy(Δ))
 Δnout(s::IoIndices, Δ::AbstractArray{<:Integer,1}) = s.out = copy(Δ)
-function reset_in(s::IoIndices)
+function reset_in!(s::IoIndices)
     foreach(s.in) do ini
         ini[1:end] = 1:length(ini)
     end
 end
-function reset_out(s::IoIndices)
+function reset_out!(s::IoIndices)
     s.out[1:end] = 1:length(s.out)
 end
