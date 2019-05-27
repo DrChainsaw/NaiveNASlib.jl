@@ -40,21 +40,6 @@ context!(defaultfun, s::VisitState{T}, v::AbstractMutationVertex) where T = get!
 delete_context!(s::VisitState{T}, v::AbstractMutationVertex) where T = delete!(s.contexts, v)
 contexts(s::VisitState{T}) where T = s.contexts
 
-"""
-    OutputsVertex
-
-Decorates an AbstractVertex with output edges.
-"""
-struct OutputsVertex <: AbstractVertex
-    base::AbstractVertex
-    outs::AbstractArray{AbstractVertex,1}
-end
-OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
-init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
-inputs(v::OutputsVertex) = inputs(base(v))
-outputs(v::OutputsVertex) = v.outs
-base(v::OutputsVertex) = v.base
-
 ## Generic helper methods
 
 function invisit(v::AbstractMutationVertex, s::VisitState{T}) where T
@@ -118,6 +103,49 @@ function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=Vi
 end
 
 ## Generic helper methods end
+
+"""
+    OutputsVertex
+
+Decorates an AbstractVertex with output edges.
+"""
+struct OutputsVertex <: AbstractVertex
+    base::AbstractVertex
+    outs::AbstractArray{AbstractVertex,1}
+end
+OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
+init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
+base(v::OutputsVertex) = v.base
+(v::OutputsVertex)(x...) = base(v)(x...)
+
+inputs(v::OutputsVertex) = inputs(base(v))
+outputs(v::OutputsVertex) = v.outs
+
+"""
+    InputSizeVertex
+
+Vertex with an (immutable) size. Intended use if for wrapping an InputVertex
+in conjuntion with mutation
+"""
+struct InputSizeVertex <: AbstractVertex
+    base::AbstractVertex
+    size::Integer
+
+    function InputSizeVertex(b::OutputsVertex, size::Integer)
+        this = new(b, size)
+        init!(b, this)
+        return this
+    end
+end
+InputSizeVertex(b::AbstractVertex, size::Integer) = InputSizeVertex(OutputsVertex(b), size)
+base(v::InputSizeVertex)::AbstractVertex = v.base
+(v::InputSizeVertex)(x...) = base(v)(x...)
+
+inputs(v::InputSizeVertex) = inputs(base(v))
+outputs(v::InputSizeVertex) = outputs(base(v))
+
+nin(v::InputSizeVertex) = v.size
+nout(v::InputSizeVertex) = v.size
 
 
 """

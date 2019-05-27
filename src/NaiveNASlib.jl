@@ -14,11 +14,11 @@ InputVertex, CompVertex, inputs, outputs,
 CompGraph, output!,flatten,
 
 # Mutation operations
-#Computation
+#State
 InvSize, IoSize, IoIndices, NoOp, nin, nout, Δnin, Δnout,
 
 # Mutation vertex
-base, AbsorbVertex, StackingVertex, InvariantVertex,
+base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
 
 # select
 select_inputs, select_outputs, select_params

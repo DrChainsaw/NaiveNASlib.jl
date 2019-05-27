@@ -18,6 +18,34 @@ using Test
         end
     end
 
+    @testset "OutputsVertex" begin
+        iv = OutputsVertex(InputVertex(1))
+
+        @test inputs(iv) == []
+        @test outputs(iv) == []
+
+        cv = CompVertex(x -> 2x, iv)
+        NaiveNASlib.init!(OutputsVertex(cv), cv)
+
+        @test inputs(cv) == [iv]
+        @test outputs(iv) == [cv]
+
+    end
+
+    @testset "InputSizeVertex" begin
+        iv = InputSizeVertex(InputVertex(1), 3)
+
+        @test nout(iv) == nin(iv) == 3
+        @test inputs(iv) == []
+        @test outputs(iv) == []
+
+        cv = CompVertex(x -> 2x, iv)
+        NaiveNASlib.init!(OutputsVertex(cv), cv)
+
+        @test inputs(cv) == [iv]
+        @test outputs(iv) == [cv]
+    end
+
     @testset "AbsorbVertex" begin
         iv = AbsorbVertex(InputVertex(1), InvSize(2))
         v1 = AbsorbVertex(CompVertex(x -> 3 .* x, iv), IoSize(2, 3))
