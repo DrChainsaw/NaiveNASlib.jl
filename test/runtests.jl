@@ -1,9 +1,7 @@
 using NaiveNASlib
 using Test
 
-function implementations(T::Type)
-    return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, subtypes(T), init=[])
-end
+include("testutil.jl")
 
 @testset "NaiveNASlib.jl" begin
 

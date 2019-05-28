@@ -54,6 +54,7 @@ function Δnout end
 Does not perform any operations
 """
 struct NoOp <: MutationOp end
+clone(op::NoOp) = op
 Δnin(s::NoOp, Δ...) = Δ
 Δnout(s::NoOp, Δ) = Δ
 
@@ -64,6 +65,8 @@ Invariant size, i.e nin == nout
 mutable struct InvSize <: MutationState
     size::Integer
 end
+clone(s::InvSize) = InvSize(s.size)
+
 nin(s::InvSize) = s.size
 nout(s::InvSize) = s.size
 function Δnin(s::InvSize, Δ::Integer...)
@@ -80,6 +83,8 @@ mutable struct IoSize <: MutationState
     nout::Integer
 end
 IoSize(in::Integer, out::Integer) = IoSize([in], out)
+clone(s::IoSize) = IoSize(copy(nin(s)), nout(s))
+
 nin(s::IoSize) = s.nin
 nout(s::IoSize) = s.nout
 Maybe{T} = Union{T, Missing}
@@ -108,6 +113,8 @@ end
 IoIndices(in::Integer, out::Integer) = IoIndices([in], out)
 IoIndices(in::AbstractArray{<:Integer}, out::Integer) = IoIndices(collect.(range.(1, in, step=1)), collect(1:out))
 IoIndices(s::MutationState) = IoIndices(nin(s), nout(s))
+clone(s::IoIndices) = IoIndices(deepcopy(s.in), copy(s.out))
+
 nin(s::IoIndices) = length.(s.in)
 nout(s::IoIndices) = length(s.out)
 Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(deepcopy(Δ))

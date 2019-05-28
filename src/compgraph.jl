@@ -108,3 +108,30 @@ function flatten(v::AbstractVertex, vertices::Array{AbstractVertex,1} = Array{Ab
     foreach(iv -> flatten(iv, vertices), inputs(v))
     return vertices
 end
+
+
+function Base.copy(g::CompGraph)
+    # Can't just have each vertex copy its inputs as a graph with multiple outputs
+    # might end up with multiple copies of the same vertex
+
+    # Instead, use the same recursion as when calculating output and store the copies
+    # in the memo
+
+    # Will contain mapping between vertex in g and its copy
+    # We could initialize it with inputs, but CompGraph does not require that inputs
+    # are of type InputVertex
+    memo = Dict{AbstractVertex, AbstractVertex}()
+    foreach(ov -> copy!(memo, ov), g.outputs)
+    return CompGraph(
+    map(iv -> memo[iv], g.inputs),
+    map(ov -> memo[ov], g.outputs)
+    )
+end
+
+function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex)
+    return get!(memo, v) do
+        # Recurse until inputs(v) is empty
+        ins = map(iv -> copy!(memo, iv), inputs(v))
+        clone(v, ins...)
+    end
+end

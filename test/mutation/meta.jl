@@ -11,13 +11,14 @@ using Test
 
     @testset "Method contracts" begin
         for subtype in implementations(MutationOp)
-            @info "test method contracts for MutationOp $subtype"
+            @info "\ttest method contracts for MutationOp $subtype"
             @test hasmethod(Δnin, (subtype,expectedtype(subtype)))
             @test hasmethod(Δnout, (subtype, expectedtype(subtype)))
+            @test hasmethod(clone, (subtype,))
         end
 
         for subtype in implementations(MutationState)
-            @info "test method contracts for MutationState $subtype"
+            @info "\ttest method contracts for MutationState $subtype"
             @test hasmethod(nin, (subtype,))
             @test hasmethod(nout, (subtype,))
         end
@@ -37,6 +38,8 @@ using Test
         @test nout(size) == 2
 
         @test_throws AssertionError Δnin(size, 1,2)
+
+        @test issame(size, clone(size))
     end
 
     @testset "IoSize" begin
@@ -57,6 +60,8 @@ using Test
 
         Δnin(size, 1,-2, 3)
         @test nin(size) == [3, 1 ,7]
+
+        @test issame(size, clone(size))
     end
 
     @testset "IoIncies" begin
@@ -80,6 +85,8 @@ using Test
 
         reset_out!(inds)
         @test inds.out == [1, 2]
+
+        @test issame(inds, clone(inds))
     end
 
 end

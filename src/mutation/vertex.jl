@@ -115,6 +115,8 @@ struct OutputsVertex <: AbstractVertex
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
+clone(v::OutputsVertex, ins::AbstractVertex...) = OutputsVertex(clone(base(v), ins...))
+
 base(v::OutputsVertex) = v.base
 (v::OutputsVertex)(x...) = base(v)(x...)
 
@@ -137,7 +139,10 @@ struct InputSizeVertex <: AbstractVertex
         return this
     end
 end
+InputSizeVertex(name, size::Integer) = InputSizeVertex(InputVertex(name), size)
 InputSizeVertex(b::AbstractVertex, size::Integer) = InputSizeVertex(OutputsVertex(b), size)
+clone(v::InputSizeVertex, ins::AbstractVertex...) = InputSizeVertex(clone(base(v), ins...), v.size)
+
 base(v::InputSizeVertex)::AbstractVertex = v.base
 (v::InputSizeVertex)(x...) = base(v)(x...)
 
@@ -165,7 +170,11 @@ struct AbsorbVertex <: AbstractMutationVertex
     end
 end
 AbsorbVertex(b::AbstractVertex, state::MutationState) = AbsorbVertex(OutputsVertex(b), state)
+clone(v::AbsorbVertex, ins::AbstractVertex...) = AbsorbVertex(clone(base(v), ins...), clone(v.state))
+
 base(v::AbsorbVertex)::AbstractVertex = v.base
+(v::AbsorbVertex)(x...) = base(v)(x...)
+
 
 nin(v::AbsorbVertex) = nin(v.state)
 nout(v::AbsorbVertex) = nout(v.state)
@@ -203,7 +212,11 @@ struct StackingVertex <: AbstractMutationVertex
 end
 StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
 StackingVertex(b::Union{OutputsVertex, AbstractMutationVertex}) = StackingVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))))
+clone(v::StackingVertex, ins::AbstractVertex...) = StackingVertex(clone(base(v), ins...), clone(v.state))
+
 base(v::StackingVertex)::AbstractVertex = v.base
+(v::StackingVertex)(x...) = base(v)(x...)
+
 
 nout(v::StackingVertex) = nout(v.state)
 nin(v::StackingVertex) = nin(v.state)
@@ -304,7 +317,10 @@ struct InvariantVertex <: AbstractMutationVertex
     end
 end
 InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
+clone(v::InvariantVertex, ins::AbstractVertex...) = InvariantVertex(clone(base(v), ins...), clone(v.op))
+
 base(v::InvariantVertex)::AbstractVertex = v.base
+(v::InvariantVertex)(x...) = base(v)(x...)
 
 nout(v::InvariantVertex) = nin(v)[1]
 nin(v::InvariantVertex) = nout.(inputs(v))

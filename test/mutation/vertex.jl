@@ -8,7 +8,7 @@ using Test
 
     @testset "Method contracts" begin
         for subtype in subtypes(AbstractMutationVertex)
-            @info "test method contracts for $subtype"
+            @info "\ttest method contracts for $subtype"
             @test hasmethod(nin,  (subtype,))
             @test hasmethod(nout, (subtype,))
             @test hasmethod(Δnin,  (subtype, Integer))
@@ -24,12 +24,19 @@ using Test
         @test inputs(iv) == []
         @test outputs(iv) == []
 
-        cv = CompVertex(x -> 2x, iv)
-        NaiveNASlib.init!(OutputsVertex(cv), cv)
+        @test issame(iv, clone(iv))
+
+        cv = OutputsVertex(CompVertex(x -> 2x, iv))
+        NaiveNASlib.init!(cv, base(cv))
 
         @test inputs(cv) == [iv]
-        @test outputs(iv) == [cv]
+        @test outputs(iv) == [base(cv)]
 
+        ivc = clone(iv)
+        cvc = clone(cv, ivc)
+        NaiveNASlib.init!(cvc,base(cvc))
+
+        @test issame(iv, ivc)
     end
 
     @testset "InputSizeVertex" begin
@@ -39,11 +46,19 @@ using Test
         @test inputs(iv) == []
         @test outputs(iv) == []
 
-        cv = CompVertex(x -> 2x, iv)
-        NaiveNASlib.init!(OutputsVertex(cv), cv)
+        @test issame(iv, clone(iv))
+
+        cv =  OutputsVertex(CompVertex(x -> 2x, iv))
+        NaiveNASlib.init!(cv, base(cv))
 
         @test inputs(cv) == [iv]
-        @test outputs(iv) == [cv]
+        @test outputs(iv) == [base(cv)]
+
+        ivc = clone(iv)
+        cvc = clone(cv, ivc)
+        NaiveNASlib.init!(cvc,base(cvc))
+
+        @test issame(iv, ivc)
     end
 
     @testset "AbsorbVertex" begin
@@ -89,6 +104,16 @@ using Test
 
         Δnin(v2, -2)
         @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 2
+
+        ivc = clone(iv)
+        v1c = clone(v1, ivc)
+        v2c = clone(v2, v1c)
+        v3c = clone(v3, v1c)
+
+        @test issame(iv, ivc)
+        @test issame(v1, v1c)
+        @test issame(v2, v2c)
+        @test issame(v3, v3c)
     end
 
     @testset "StackingVertex" begin
@@ -107,6 +132,14 @@ using Test
 
             Δnin(io, -2)
             @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
+
+            ivc = clone(iv)
+            tvc = clone(tv, ivc)
+            ioc = clone(io, tvc)
+
+            @test issame(iv, ivc)
+            @test issame(tv, tvc)
+            @test issame(io, ioc)
         end
 
         @testset "StackingVertex 2 inputs" begin
@@ -147,6 +180,18 @@ using Test
 
             Δnin(io1, 3)
             @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
+
+            iv1c = clone(iv1)
+            iv2c = clone(iv2)
+            tvc = clone(tv, iv1c, iv2c)
+            io1c = clone(io1, tvc)
+            io2c = clone(io2, tvc)
+
+            @test issame(iv1, iv1c)
+            @test issame(iv2, iv2c)
+            @test issame(tv, tvc)
+            @test issame(io1, io1c)
+            @test issame(io2, io2c)
         end
     end
     @testset "InvariantVertex" begin
@@ -166,6 +211,14 @@ using Test
 
             Δnin(io, -2)
             @test nout(iv) == nin(inv)[1] == nout(inv) == nin(io) == 3
+
+            ivc = clone(iv)
+            invc = clone(inv, ivc)
+            ioc = clone(io, invc)
+
+            @test issame(iv, ivc)
+            @test issame(inv, invc)
+            @test issame(io, ioc)
 
         end
 
@@ -202,6 +255,19 @@ using Test
 
             Δnout(iv2, 3)
             @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 6
+
+            iv1c = clone(iv1)
+            iv2c = clone(iv2)
+            invc = clone(inv, iv1c, iv2c)
+            io1c = clone(io1, invc)
+            io2c = clone(io2, invc)
+
+            @test issame(iv1, iv1c)
+            @test issame(iv2, iv2c)
+            @test issame(inv, invc)
+            @test issame(io1, io1c)
+            @test issame(io2, io2c)
+
         end
 
     end

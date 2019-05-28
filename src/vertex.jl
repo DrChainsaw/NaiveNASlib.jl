@@ -72,8 +72,10 @@ InputVertex("input")
 struct InputVertex <: AbstractVertex
     name
 end
-(v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
+clone(v::InputVertex, ins::AbstractVertex...) = isempty(ins) ? InputVertex(v.name) : error("Input vertex got inputs: $(ins)!")
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
+(v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
+
 function show_less(io::IO, v::InputVertex)
     print(io, "InputVertex($(v.name))")
 end
@@ -102,7 +104,9 @@ struct CompVertex <: AbstractVertex
     inputs::AbstractArray{AbstractVertex,1}
 end
 CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
+clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone_comp(v.computation), ins...)
 inputs(v::CompVertex)::AbstractArray{AbstractVertex,1} = v.inputs
+(v::CompVertex)(x...) = v.computation(x...)
 
 function show_less(io::IO, v::CompVertex)
     print(io, "CompVertex(")
@@ -110,4 +114,5 @@ function show_less(io::IO, v::CompVertex)
     print(io, ")")
 end
 
-(v::CompVertex)(x...) = v.computation(x...)
+# Don't use name copy for this to avoid strangeness in other aspects
+clone_comp(c::Function) = c
