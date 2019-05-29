@@ -16,6 +16,8 @@ function base end
 inputs(v::AbstractMutationVertex)  = inputs(base(v))
 outputs(v::AbstractMutationVertex) = outputs(base(v))
 
+cloneop(v::AbstractMutationVertex) = clone(op(v))
+
 Maybe{T} = Union{T, Missing}
 """
     VisitState
@@ -170,11 +172,12 @@ struct AbsorbVertex <: AbstractMutationVertex
     end
 end
 AbsorbVertex(b::AbstractVertex, state::MutationState) = AbsorbVertex(OutputsVertex(b), state)
-clone(v::AbsorbVertex, ins::AbstractVertex...) = AbsorbVertex(clone(base(v), ins...), clone(v.state))
+
+clone(v::AbsorbVertex, ins::AbstractVertex...; opfun=cloneop) = AbsorbVertex(clone(base(v), ins...), opfun(v))
+op(v::AbsorbVertex) = v.state
 
 base(v::AbsorbVertex)::AbstractVertex = v.base
 (v::AbsorbVertex)(x...) = base(v)(x...)
-
 
 nin(v::AbsorbVertex) = nin(v.state)
 nout(v::AbsorbVertex) = nout(v.state)
@@ -212,7 +215,9 @@ struct StackingVertex <: AbstractMutationVertex
 end
 StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
 StackingVertex(b::Union{OutputsVertex, AbstractMutationVertex}) = StackingVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))))
-clone(v::StackingVertex, ins::AbstractVertex...) = StackingVertex(clone(base(v), ins...), clone(v.state))
+
+clone(v::StackingVertex, ins::AbstractVertex...; opfun=cloneop) = StackingVertex(clone(base(v), ins...), opfun(v))
+op(v::StackingVertex) = v.state
 
 base(v::StackingVertex)::AbstractVertex = v.base
 (v::StackingVertex)(x...) = base(v)(x...)
@@ -317,7 +322,9 @@ struct InvariantVertex <: AbstractMutationVertex
     end
 end
 InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
-clone(v::InvariantVertex, ins::AbstractVertex...) = InvariantVertex(clone(base(v), ins...), clone(v.op))
+
+clone(v::InvariantVertex, ins::AbstractVertex...; opfun=cloneop) = InvariantVertex(clone(base(v), ins...), opfun(v))
+op(v::InvariantVertex) = v.op
 
 base(v::InvariantVertex)::AbstractVertex = v.base
 (v::InvariantVertex)(x...) = base(v)(x...)

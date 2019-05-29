@@ -64,19 +64,36 @@ using Test
         v1 = AbsorbVertex(CompVertex(+, ins[1], ins[2]), IoSize(1,1))
         v2 = StackingVertex(CompVertex(vcat, v1, ins[3]))
         v3 = StackingVertex(CompVertex(vcat, ins[1], v1))
-        v4 = AbsorbVertex(CompVertex(-, v3, v2), IoIndices(1,1))
+        v4 = AbsorbVertex(CompVertex(-, v3, v2), IoSize(1,1))
         v5 = InvariantVertex(CompVertex(/, ins[1], v1))
         graph = CompGraph(ins, [v4, v5])
         #TODO outputs as [v5, v4] causes graphs to not be identical
         # This is due to v5 being a mostly independent branch
         # which is the completed before the v4 branch
         # I think this does not matter in practice (as the branches
-        #  are independent), but in this  test case we are testing
+        #  are independent), but in this test case we are testing
         # for identity
 
         gcopy = copy(graph)
 
         @test issame(graph, gcopy)
         @test graph(3,4,10) == gcopy(3,4,10)
+
+        newop(v::AbstractMutationVertex) = clone(op(v))
+        newop(v::AbsorbVertex) = IoIndices(nin(v), nout(v))
+        graph_inds = copy(graph, newop)
+
+        @test !issame(graph_inds, graph)
+        @test graph(3,4,10) == graph_inds(3,4,10)
+
+        # Nothing should have changed with original
+        function testop(v) end
+        testop(v::AbsorbVertex) = @test typeof(op(v)) == IoSize
+        foreach(testop, mapreduce(flatten, vcat, graph.outputs))
+
+        # But new graph shall use IoIndices
+        testop(v::AbsorbVertex) = @test typeof(op(v)) == IoIndices
+        foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
+
     end
 end

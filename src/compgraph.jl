@@ -100,7 +100,15 @@ end
 """
     flatten(v::AbstractVertex)
 
-Return an array of all parents of v
+Return an array of all input parents of v
+
+# Examples
+```julia-repl
+julia> flatten(CompVertex(+, InputVertex.(1:2)...))
+3-element Array{AbstractVertex,1}:
+ InputVertex(2)
+ InputVertex(1)
+ CompVertex(+, [InputVertex(1), InputVertex(2)])
 """
 function flatten(v::AbstractVertex, vertices::Array{AbstractVertex,1} = Array{AbstractVertex,1}())
     v in vertices && return vertices
@@ -110,7 +118,30 @@ function flatten(v::AbstractVertex, vertices::Array{AbstractVertex,1} = Array{Ab
 end
 
 
-function Base.copy(g::CompGraph)
+"""
+    copy(g::CompGraph, opfun=cloneop)
+
+Copies the given graph into a new instance with identical structure.
+
+Argument opfun may be used to alter what type is used for certain
+members, e.g. the mutationOp and mutationState of AbstractMutationVertices.
+
+# Examples
+```julia-repl
+julia> ivs = InputVertex.(1:2);
+
+julia> cv = CompVertex(+, ivs...);
+
+julia> graph = CompGraph(ivs, [cv])
+CompGraph([InputVertex(1), InputVertex(2)], [CompVertex(+)])
+
+julia> gcopy = copy(graph)
+CompGraph([InputVertex(1), InputVertex(2)], [CompVertex(+)])
+
+julia> gcopy == graph
+false
+"""
+function Base.copy(g::CompGraph, opfun=cloneop)
     # Can't just have each vertex copy its inputs as a graph with multiple outputs
     # might end up with multiple copies of the same vertex
 
@@ -121,17 +152,40 @@ function Base.copy(g::CompGraph)
     # We could initialize it with inputs, but CompGraph does not require that inputs
     # are of type InputVertex
     memo = Dict{AbstractVertex, AbstractVertex}()
-    foreach(ov -> copy!(memo, ov), g.outputs)
+    foreach(ov -> copy!(memo, ov, opfun), g.outputs)
     return CompGraph(
     map(iv -> memo[iv], g.inputs),
     map(ov -> memo[ov], g.outputs)
     )
 end
 
-function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex)
+"""
+    copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, opfun=cloneop)
+
+Recursively copy the input parents of v, ensuring that each vertex gets exactly one copy.
+
+Results will be stored in the provided dict as a mapping between original and copy.
+
+Argument opfun may be used to alter what type is used for certain
+members, e.g. the mutationOp and mutationState of AbstractMutationVertices.
+
+# Examples
+```julia-repl
+
+julia> result = Dict{AbstractVertex, AbstractVertex}();
+
+julia> NaiveNASlib.copy!(result, CompVertex(+, InputVertex.(1:2)...));
+
+julia> result
+Dict{AbstractVertex,AbstractVertex} with 3 entries:
+  InputVertex(2)                                  => InputVertex(2)
+  InputVertex(1)                                  => InputVertex(1)
+  CompVertex(+, [InputVertex(1), InputVertex(2)]) => CompVertex(+, [InputVertex(1), InputVertex(2)])
+"""
+function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, opfun=cloneop)
     return get!(memo, v) do
         # Recurse until inputs(v) is empty
-        ins = map(iv -> copy!(memo, iv), inputs(v))
-        clone(v, ins...)
+        ins = map(iv -> copy!(memo, iv, opfun), inputs(v))
+        clone(v, ins...; opfun=opfun)
     end
 end

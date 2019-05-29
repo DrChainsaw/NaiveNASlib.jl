@@ -15,7 +15,7 @@ CompGraph, output!,flatten,
 
 # Mutation operations
 #State
-InvSize, IoSize, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone,
+InvSize, IoSize, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op,
 
 # Mutation vertex
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
@@ -29,5 +29,6 @@ include("compgraph.jl")
 include("mutation/meta.jl")
 include("mutation/vertex.jl")
 include("mutation/select.jl")
+
 
 end # module

@@ -41,6 +41,8 @@ julia> outputs(iv)
 """
 function outputs end
 
+clone(v::AbstractVertex, ins::AbstractVertex...; opfun) = clone(v, ins...)
+
 # To avoid too verbose console output
 function Base.show(io::IO, vs::Array{AbstractVertex,1})
     print(io, "[")
