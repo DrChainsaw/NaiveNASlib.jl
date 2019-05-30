@@ -5,8 +5,8 @@ Perform mutation operations
 abstract type MutationOp end
 abstract type MutationState <: MutationOp end
 
-function reset_in(s::MutationState) end
-function reset_out(s::MutationState) end
+function reset_in!(s::MutationOp) end
+function reset_out!(s::MutationOp) end
 
 """
     nin(m::MutationState)

@@ -21,7 +21,7 @@ InvSize, IoSize, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op,
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
 
 # select
-select_inputs, select_outputs, select_params
+mutate_inputs, mutate_outputs, apply_mutation
 
 include("vertex.jl")
 include("compgraph.jl")
