@@ -20,7 +20,7 @@ InvSize, IoSize, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op,
 # Mutation vertex
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
 
-# select
+# apply mutation
 mutate_inputs, mutate_outputs, apply_mutation
 
 include("vertex.jl")

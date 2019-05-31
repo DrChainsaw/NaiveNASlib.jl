@@ -106,7 +106,7 @@ struct CompVertex <: AbstractVertex
     inputs::AbstractArray{AbstractVertex,1}
 end
 CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
-clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone_comp(v.computation), ins...)
+clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone(v.computation), ins...)
 inputs(v::CompVertex)::AbstractArray{AbstractVertex,1} = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
 
@@ -116,5 +116,4 @@ function show_less(io::IO, v::CompVertex)
     print(io, ")")
 end
 
-# Don't use name copy for this to avoid strangeness in other aspects
-clone_comp(c::Function) = c
+clone(c::Function) = deepcopy(c)
