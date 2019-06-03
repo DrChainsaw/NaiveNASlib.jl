@@ -1,5 +1,5 @@
 import NaiveNASlib
-import NaiveNASlib:reset_in!, reset_out!
+import NaiveNASlib:reset_in!, reset_out!, reset!
 import InteractiveUtils:subtypes
 
 using Test
@@ -8,6 +8,7 @@ using Test
 
     expectedtype(t::Type{<:MutationOp}) = Integer
     expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}
+    expectedtype(t::Type{InvIndices}) = AbstractArray{<:Integer,1}
 
     @testset "Method contracts" begin
         for subtype in implementations(MutationOp)
@@ -64,7 +65,7 @@ using Test
         @test issame(size, clone(size))
     end
 
-    @testset "IoIncies" begin
+    @testset "IoIndices" begin
         inds = IoIndices([3,4], 5)
 
         @test nin(inds) == [3, 4]
@@ -89,4 +90,28 @@ using Test
         @test issame(inds, clone(inds))
     end
 
+    @testset "InvIndices" begin
+        inds = InvIndices(5)
+
+        @test nin(inds) == [5]
+        @test nout(inds) == 5
+
+        Δnin(inds, [2,3,4])
+        @test nin(inds) == [3]
+        @test nout(inds) == 3
+        @test inds.inds == [2,3,4]
+
+        reset!(inds)
+        @test inds.inds == [1,2,3]
+
+        Δnout(inds, [1,-1,2, 3])
+        @test nin(inds) == [4]
+        @test nout(inds) == 4
+        @test inds.inds == [1,-1,2, 3]
+
+        reset!(inds)
+        @test inds.inds == [1,2,3,4]
+
+        @test issame(inds, clone(inds))
+    end
 end

@@ -322,6 +322,7 @@ struct InvariantVertex <: AbstractMutationVertex
     end
 end
 InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
+InvariantVertex(b::AbstractVertex, op::MutationOp) = InvariantVertex(OutputsVertex(b), op)
 
 clone(v::InvariantVertex, ins::AbstractVertex...; opfun=cloneop) = InvariantVertex(clone(base(v), ins...), opfun(v))
 op(v::InvariantVertex) = v.op

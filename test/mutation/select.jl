@@ -1,7 +1,5 @@
-import NaiveNASlib
+using NaiveNASlib
 import InteractiveUtils:subtypes
-
-using Test
 
 # Testing mock
 mutable struct MatMul
@@ -145,6 +143,67 @@ end
         @test mm1.W == [0 5 0; 0 6 0]
         @test mm2.W == [0 7 0; 0 8 0; 0 9 0]
         @test mm3.W == [0 0 0; 3 10 17; 0 0 0]
+    end
+
+    @testset "InvariantVertex with mutation OP" begin
+        invsize = 3
+        iv, mmi = mcv(2, invsize, NaiveNASlib.OutputsVertex(InputVertex(1)))
+        mminv = MatMul(invsize, invsize)
+        inv = InvariantVertex(CompVertex(mminv, iv), InvIndices(invsize))
+
+        Δnout(inv, [1, 3])
+        apply_mutation.((inv, iv))
+
+        @test mminv.W == [1 7; 3 9]
+        @test mmi.W == [1 5; 2 6]
+
+        Δnin(inv, [-1, 2, -1])
+        apply_mutation.((inv, iv))
+
+        @test mminv.W == [0 0 0;0 9 0; 0 0 0]
+        @test mmi.W == [0 5 0; 0 6 0]
+    end
+
+    @testset "Size only mutation" begin
+        mutable struct SizeProbe
+            nin
+            nout
+        end
+        NaiveNASlib.mutate_inputs(p::SizeProbe, newsize...) = p.nin = newsize[1]
+        NaiveNASlib.mutate_outputs(p::SizeProbe, newsize) = p.nout = newsize
+
+        @testset "IoSize" begin
+            p = SizeProbe(3,5)
+            in = AbsorbVertex(CompVertex(identity, NaiveNASlib.OutputsVertex(InputVertex(1))), IoSize(1, 3))
+            v = AbsorbVertex(CompVertex(p, in), IoSize(p.nin, p.nout))
+
+            Δnin(v, -1)
+            apply_mutation(v)
+            @test p.nin == 2
+            @test p.nout == 5
+
+            Δnout(v, 2)
+            apply_mutation(v)
+            @test p.nin == 2
+            @test p.nout == 7
+        end
+
+        @testset "InvSize" begin
+            p = SizeProbe(5,5)
+            in = AbsorbVertex(CompVertex(identity, NaiveNASlib.OutputsVertex(InputVertex(1))), IoSize(1, 5))
+            v = AbsorbVertex(CompVertex(p, in), InvSize(p.nin))
+
+            Δnin(v, -1)
+            apply_mutation(v)
+            @test p.nin == 4
+            @test p.nout == 4
+
+            Δnout(v, 2)
+            apply_mutation(v)
+            @test p.nin == 6
+            @test p.nout == 6
+        end
+
     end
 
     @testset "Mutate tricky structures" begin

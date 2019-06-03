@@ -7,6 +7,7 @@ abstract type MutationState <: MutationOp end
 
 function reset_in!(s::MutationOp) end
 function reset_out!(s::MutationOp) end
+function reset!(s::MutationOp) end
 
 """
     nin(m::MutationState)
@@ -98,6 +99,31 @@ function Δnin(s::IoSize, Δ::Maybe{AbstractArray{<:Integer,1}}...)
     end
 end
 Δnout(s::IoSize, Δ::AbstractArray{<:Integer,1}) = s.nout = length(Δ)
+
+
+"""
+    InvIndices
+Invariant size, i.e nin == nout.
+"""
+mutable struct InvIndices <: MutationState
+    inds::AbstractArray{<:Integer,1}
+end
+InvIndices(size::Integer) = InvIndices(1:size)
+InvIndices(s::InvSize) = InvIndices(nin(s))
+clone(s::InvIndices) = InvIndices(copy(s.inds))
+
+nin(s::InvIndices) = [nout(s)]
+nout(s::InvIndices) = length(s.inds)
+
+function Δnin(s::InvIndices, Δ::AbstractArray{<:Integer,1}...)
+    @assert length(Δ) == 1 "Must be single input! Got $Δ"
+    Δnout(s, Δ[1])
+end
+Δnout(s::InvIndices, Δ::AbstractArray{<:Integer,1}) = s.inds = copy(Δ)
+
+function reset!(s::InvIndices)
+    s.inds[1:end] = 1:length(s.inds)
+end
 
 
 """
