@@ -29,7 +29,7 @@ Remembers visitation for both forward (in) and backward (out) directions.
 struct VisitState{T}
     in::Array{AbstractMutationVertex,1}
     out::Array{AbstractMutationVertex,1}
-    contexts::Dict{AbstractMutationVertex, Vector{Maybe{T}}}
+    contexts::OrderedDict{AbstractMutationVertex, Vector{Maybe{T}}}
 end
 VisitState{T}() where T = VisitState{T}([], [], OrderedDict{AbstractMutationVertex, Vector{Maybe{T}}}())
 visited_in!(s::VisitState, v::AbstractMutationVertex) = push!(s.in, v)
@@ -69,13 +69,15 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
     # do we propagate to vi.
     # If we end up here though another input to vi the context will be populated
     # with the new Δ and eventually we have all the Δs
-    # If not, the "if first" block in the end will insert zeroes for the missing
-    # inputs and propagate anyways.
+    # If not, the "if first" block in the end will propagate anyways, leaving
+    # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" for a motivation
 
     first = no_context(s)
 
-    for vi in outputs(v)
+    # TODO: Don't know why it works with reverse (or why it doesn't without it).
+    # Probably a bug waiting to be sprung...
+    for vi in reverse(outputs(v))
         ins = inputs(vi)
         Δs = context!(s, vi) do
             Array{Union{Missing, T},1}(missing, length(ins))
@@ -86,7 +88,10 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
     end
 
     if first
-        for (v, ctx) in contexts(s)
+        # Must delete from contexts before further traversal and we don't
+        # wanna delete from the collection we're iterating over
+        tmpctxs = copy(contexts(s))
+        for (v, ctx) in tmpctxs
             delete_context!(s, v)
             # Note: Other contexts may be "completed" as a consequence of this
             # However, if that happens the call below should just return immediately
