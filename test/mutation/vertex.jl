@@ -379,6 +379,32 @@ using Test
             @test nin(out) == [nout(start)] == [4]
             @test nout(split) == 2
         end
+    end
+
+    @testset "Vertex removal" begin
+
+        #Helper functions
+        inpt(size, id=1) = InputSizeVertex(InputVertex(1), size)
+        av(in, outsize) = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), outsize))
+
+        @testset "Linear graph" begin
+            v0 = inpt(3)
+            v1 = av(v0, 5)
+            v2 = av(v1, 4)
+            v3 = av(v2,6)
+
+            remove!(v2)
+            @test inputs(v3) == [v1]
+            @test outputs(v1) == [v3]
+            @test nin(v3) == [nout(v1)] == [5]
+
+            # Note, input to v1 can not be changed, we must decrease
+            # size of v3 even though it is bigger
+            remove!(v1)
+            @test inputs(v3) == [v0]
+            @test outputs(v0) == [v3]
+            @test nin(v3) == [nout(v0)] == [3]
+        end
 
     end
 

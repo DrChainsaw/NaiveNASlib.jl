@@ -110,6 +110,68 @@ function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=Vi
     end
 end
 
+
+abstract type AbstractConnectStrategy end
+struct ConnectAll <: AbstractConnectStrategy end
+
+abstract type AbstractAlignSizeStrategy end
+struct IncreaseSmaller <: AbstractAlignSizeStrategy
+    fallback
+end
+IncreaseSmaller() = IncreaseSmaller(DecreaseBigger(Fail()))
+struct DecreaseBigger <: AbstractAlignSizeStrategy
+    fallback
+end
+DecreaseBigger() = DecreaseBigger(Fail())
+struct Fail <: AbstractAlignSizeStrategy end
+
+struct RemoveStrategy
+    reconnect::AbstractConnectStrategy
+    align::AbstractAlignSizeStrategy
+end
+RemoveStrategy() = RemoveStrategy(ConnectAll(), IncreaseSmaller())
+
+function remove!(v::AbstractMutationVertex, strategy=RemoveStrategy())
+    prealignsizes(strategy.align, v)
+    remove!(v, inputs, outputs, strategy.reconnect)
+    remove!(v, outputs, inputs, strategy.reconnect)
+    postalignsizes(strategy.align, v)
+end
+
+function remove!(v::AbstractMutationVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
+    for v1 in f1(v)
+        v1_2 = f2(v1)
+        inds = findall(vx -> vx == v, v1_2)
+        deleteat!(v1_2, inds)
+
+        # E.g connect f2 of v to f2 of v1, e.g connect the inputs to v as inputs to v1 if f2 == inputs
+        connect!(v1, v1_2, inds, f2(v), s)
+    end
+end
+
+#Not sure broadcasting insert! like this is supposed to work, but it does...
+connect!(v, to, inds, items, ::ConnectAll) = foreach(ind -> insert!.([to], [ind], items), inds)
+
+function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
+    Δinsize = nout(v) - sum(nin(v))
+    Δoutsize = -Δinsize
+
+    insize_can_change = all(isa.(inputs(v), AbstractMutationVertex))
+    outsize_can_change = all(isa.(outputs(v), AbstractMutationVertex))
+
+    insize_can_change && proceedwith(s, Δinsize) && return Δnin(v, Δinsize)
+    outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(v, Δoutsize)
+    prealignsizes(s.fallback, v)
+end
+
+proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
+proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
+
+prealignsizes(::Fail, v) = error("Could not align sizes of $(v)!")
+
+function postalignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v) end
+postalignsizes(::Fail, v) = error("Could not align sizes of $(v)!")
+
 ## Generic helper methods end
 
 """
