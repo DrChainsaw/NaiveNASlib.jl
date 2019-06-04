@@ -15,10 +15,19 @@ CompGraph, output!,flatten,
 
 # Mutation operations
 #State
-InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op, remove!,
+InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op,
 
 # Mutation vertex
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
+
+# Connectivity mutation
+remove!, RemoveStrategy,
+
+# Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
+AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, ChangeNinOfOutputs, Fail,
+
+# Connect strategies
+AbstractConnectStrategy, ConnectAll, ConnectNone,
 
 # apply mutation
 mutate_inputs, mutate_outputs, apply_mutation

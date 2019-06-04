@@ -386,8 +386,9 @@ using Test
         #Helper functions
         inpt(size, id=1) = InputSizeVertex(InputVertex(1), size)
         av(in, outsize) = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), outsize))
+        sv(in...) = StackingVertex(CompVertex(hcat, in...))
 
-        @testset "Linear graph" begin
+        @testset "Remove from linear graph" begin
             v0 = inpt(3)
             v1 = av(v0, 5)
             v2 = av(v1, 4)
@@ -399,13 +400,30 @@ using Test
             @test nin(v3) == [nout(v1)] == [5]
 
             # Note, input to v1 can not be changed, we must decrease
-            # size of v3 even though it is bigger
+            # nin of v3
             remove!(v1)
             @test inputs(v3) == [v0]
             @test outputs(v0) == [v3]
             @test nin(v3) == [nout(v0)] == [3]
         end
 
+        @testset "Remove one of many inputs" begin
+            v0 = inpt(3)
+            v1 = av(v0, 4)
+            v2 = av(v0,5)
+            v3 = av(v0, 6)
+            v4 = sv(v1,v2,v3)
+            v5 = av(v4,2)
+
+            remove!(v2)
+            @test inputs(v4) == [v1, v0, v3]
+            @test nin(v5) == [nout(v4)] == [3+4+6]
+
+            #Now lets try without connecting the inputs to v4
+            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
+            @test inputs(v4) == [v0, v3]
+            @test nin(v5) == [nout(v4)] == [3+6]
+        end
     end
 
 end

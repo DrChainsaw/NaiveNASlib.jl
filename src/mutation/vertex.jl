@@ -113,6 +113,7 @@ end
 
 abstract type AbstractConnectStrategy end
 struct ConnectAll <: AbstractConnectStrategy end
+struct ConnectNone <: AbstractConnectStrategy end
 
 abstract type AbstractAlignSizeStrategy end
 struct IncreaseSmaller <: AbstractAlignSizeStrategy
@@ -123,6 +124,9 @@ struct DecreaseBigger <: AbstractAlignSizeStrategy
     fallback
 end
 DecreaseBigger() = DecreaseBigger(Fail())
+struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
+    Δoutsize
+end
 struct Fail <: AbstractAlignSizeStrategy end
 
 struct RemoveStrategy
@@ -130,6 +134,8 @@ struct RemoveStrategy
     align::AbstractAlignSizeStrategy
 end
 RemoveStrategy() = RemoveStrategy(ConnectAll(), IncreaseSmaller())
+RemoveStrategy(rs::AbstractConnectStrategy) = RemoveStrategy(rs, IncreaseSmaller())
+RemoveStrategy(as::AbstractAlignSizeStrategy) = RemoveStrategy(ConnectAll(), as)
 
 function remove!(v::AbstractMutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v)
@@ -151,6 +157,7 @@ end
 
 #Not sure broadcasting insert! like this is supposed to work, but it does...
 connect!(v, to, inds, items, ::ConnectAll) = foreach(ind -> insert!.([to], [ind], items), inds)
+function connect!(v, to, inds, items, ::ConnectNone) end 
 
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
     Δinsize = nout(v) - sum(nin(v))
@@ -163,13 +170,13 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
     outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(v, Δoutsize)
     prealignsizes(s.fallback, v)
 end
-
 proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
 proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
+prealignsizes(s::ChangeNinOfOutputs, v) = Δnin.(outputs(v), s.Δoutsize)
 prealignsizes(::Fail, v) = error("Could not align sizes of $(v)!")
 
-function postalignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v) end
+function postalignsizes(s::AbstractAlignSizeStrategy, v) end
 postalignsizes(::Fail, v) = error("Could not align sizes of $(v)!")
 
 ## Generic helper methods end
