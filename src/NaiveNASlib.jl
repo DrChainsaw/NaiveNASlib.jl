@@ -26,9 +26,9 @@ mutate_inputs, mutate_outputs, apply_mutation
 include("vertex.jl")
 include("compgraph.jl")
 
-include("mutation/meta.jl")
+include("mutation/op.jl")
 include("mutation/vertex.jl")
-include("mutation/select.jl")
+include("mutation/apply.jl")
 
 
 end # module

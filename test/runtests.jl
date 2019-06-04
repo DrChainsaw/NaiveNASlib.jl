@@ -12,8 +12,8 @@ include("testutil.jl")
 
     @info "Testing mutation"
 
-    include("mutation/meta.jl")
+    include("mutation/op.jl")
     include("mutation/vertex.jl")
-    include("mutation/select.jl")
+    include("mutation/apply.jl")
 
 end
