@@ -72,12 +72,8 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
     # If not, the "if first" block in the end will propagate anyways, leaving
     # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" for a motivation
-
     first = no_context(s)
-
-    # TODO: Don't know why it works with reverse (or why it doesn't without it).
-    # Probably a bug waiting to be sprung...
-    for vi in reverse(outputs(v))
+    for vi in outputs(v)
         ins = inputs(vi)
         Δs = context!(s, vi) do
             Array{Union{Missing, T},1}(missing, length(ins))
@@ -90,15 +86,20 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
     if first
         # Must delete from contexts before further traversal and we don't
         # wanna delete from the collection we're iterating over
-        tmpctxs = copy(contexts(s))
-        for (v, ctx) in tmpctxs
-            delete_context!(s, v)
-            # Note: Other contexts may be "completed" as a consequence of this
-            # However, if that happens the call below should just return immediately
-            # due to vertex having been visited.
-            # Should be safe to just add a check for this here or maybe remove
-            # completed contexts in the above loop
-            Δnin(v, ctx..., s=s)
+        # New contexts might be added as we traverse though, so after
+        # we are done with the current batch we need to check again
+        # if there are new contexts, hence the while loop
+        while !no_context(s)
+            tmpctxs = copy(contexts(s))
+            for (vn, ctx) in tmpctxs
+                delete_context!(s, vn)
+                # Note: Other contexts may be "completed" as a consequence of this
+                # However, if that happens the call below should just return immediately
+                # due to vertex having been visited.
+                # Should be safe to just add a check for this here or maybe remove
+                # completed contexts in the above loop
+                Δnin(vn, ctx..., s=s)
+            end
         end
     end
 end
