@@ -14,6 +14,7 @@ include("testutil.jl")
 
     include("mutation/op.jl")
     include("mutation/vertex.jl")
+    include("mutation/size.jl")
     include("mutation/apply.jl")
 
 end
