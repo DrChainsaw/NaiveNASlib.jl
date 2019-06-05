@@ -2,8 +2,6 @@ import NaiveNASlib
 import NaiveNASlib:OutputsVertex
 import InteractiveUtils:subtypes
 
-using Test
-
 @testset "Mutation vertices" begin
 
     @testset "Method contracts" begin
@@ -387,6 +385,7 @@ using Test
         inpt(size, id=1) = InputSizeVertex(InputVertex(1), size)
         av(in, outsize) = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), outsize))
         sv(in...) = StackingVertex(CompVertex(hcat, in...))
+        rb(in...) = InvariantVertex(CompVertex(+, in...))
 
         @testset "Remove from linear graph" begin
             v0 = inpt(3)
@@ -441,6 +440,19 @@ using Test
             remove!(v3)
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [6]
+        end
+
+        @testset "Hidden immutable" begin
+            v0 = inpt(3)
+            v1 = sv(v0)
+            v2 = av(v1, 4)
+            v3 = av(v2, 5)
+
+            #Danger! Must realize that size of v1 can not be changed!
+            remove!(v2)
+            @test outputs(v1) == [v3]
+            @test inputs(v3) == [v1]
+            @test nin(v3) == [nout(v1)] == [3]
         end
     end
 end

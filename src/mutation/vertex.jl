@@ -157,14 +157,15 @@ end
 
 #Not sure broadcasting insert! like this is supposed to work, but it does...
 connect!(v, to, inds, items, ::ConnectAll) = foreach(ind -> insert!.([to], [ind], items), inds)
-function connect!(v, to, inds, items, ::ConnectNone) end 
+function connect!(v, to, inds, items, ::ConnectNone) end
 
+function prealignsizes(s::AbstractAlignSizeStrategy, v) end
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
     Δinsize = nout(v) - sum(nin(v))
     Δoutsize = -Δinsize
 
-    insize_can_change = all(isa.(inputs(v), AbstractMutationVertex))
-    outsize_can_change = all(isa.(outputs(v), AbstractMutationVertex))
+    insize_can_change = all(isa.(findabsorbing(Transparent(), v, inputs), AbstractMutationVertex))
+    outsize_can_change = all(isa.(findabsorbing(Transparent(), v, outputs), AbstractMutationVertex))
 
     insize_can_change && proceedwith(s, Δinsize) && return Δnin(v, Δinsize)
     outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(v, Δoutsize)
@@ -428,3 +429,23 @@ function Δnout(v::InvariantVertex, Δ::T; s::VisitState{T}=VisitState{T}()) whe
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
 end
+
+minΔin(v::AbstractVertex) = minΔin(base(v))
+minΔin(v::InputVertex) = missing
+minΔin(v::CompVertex) = minΔin(v.computation)
+minΔin(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
+minΔin(v::InvariantVertex) = maximum(minΔin.(inputs(v)))
+function minΔin(v::StackingVertex)
+    absorbing = findabsorbing(v, inputs)
+    return maximum([count(x->x==va,absorbing) * minΔin(va) for va in unique(absorbing)])
+end
+
+struct Transparent end
+struct Absorb end
+
+sizetransparency(v::AbstractVertex) = Absorb()
+sizetransparency(v::Union{InvariantVertex, StackingVertex}) = Transparent()
+
+findabsorbing(v::AbstractVertex, f::Function) = findabsorbing(sizetransparency(v), v, f)
+findabsorbing(::Absorb, v, f::Function) = [v]
+findabsorbing(::Transparent, v, f::Function) = mapfoldl(vf -> findabsorbing(vf, f), vcat, f(v), init=[])
