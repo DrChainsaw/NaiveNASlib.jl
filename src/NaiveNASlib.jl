@@ -40,5 +40,8 @@ include("mutation/vertex.jl")
 include("mutation/size.jl")
 include("mutation/apply.jl")
 
+include("mutation/structure.jl")
+
+
 
 end # module

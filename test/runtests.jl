@@ -14,7 +14,14 @@ include("testutil.jl")
 
     include("mutation/op.jl")
     include("mutation/vertex.jl")
+
+    @info "Testing size mutation"
+
     include("mutation/size.jl")
     include("mutation/apply.jl")
+
+    @info "Testing structural mutation"
+
+    include("mutation/structure.jl")
 
 end
