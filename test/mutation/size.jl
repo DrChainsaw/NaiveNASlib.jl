@@ -1,6 +1,8 @@
 
 @testset "Size mutations" begin
 
+    inpt(size, id=1) = InputSizeVertex(InputVertex(id), size)
+
     @testset "AbsorbVertex" begin
         iv = AbsorbVertex(InputVertex(1), InvSize(2))
         v1 = AbsorbVertex(CompVertex(x -> 3 .* x, iv), IoSize(2, 3))
@@ -59,7 +61,8 @@
     @testset "StackingVertex" begin
 
         @testset "StackingVertex 1 to 1" begin
-            iv = AbsorbVertex(InputVertex(1), InvSize(2))
+
+            iv = AbsorbVertex(CompVertex(identity, inpt(2)), InvSize(2))
             tv = StackingVertex(CompVertex(identity, iv))
             io = AbsorbVertex(CompVertex(identity, tv), InvSize(2))
 
@@ -73,7 +76,7 @@
             Δnin(io, -2)
             @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
 
-            ivc = clone(iv)
+            ivc = clone(iv, inpt(2))
             tvc = clone(tv, ivc)
             ioc = clone(io, tvc)
 
@@ -84,8 +87,8 @@
 
         @testset "StackingVertex 2 inputs" begin
             # Try with two inputs to StackingVertex
-            iv1 = AbsorbVertex(InputVertex(1), InvSize(2))
-            iv2 = AbsorbVertex(InputVertex(2), InvSize(3))
+            iv1 = AbsorbVertex(CompVertex(identity, inpt(2)), InvSize(2))
+            iv2 = AbsorbVertex(CompVertex(identity, inpt(3,2)), InvSize(3))
             tv = StackingVertex(CompVertex(hcat, iv1, iv2))
             io1 = AbsorbVertex(CompVertex(identity, tv), InvSize(5))
 
@@ -121,8 +124,8 @@
             Δnin(io1, 3)
             @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
 
-            iv1c = clone(iv1)
-            iv2c = clone(iv2)
+            iv1c = clone(iv1, inpt(2))
+            iv2c = clone(iv2, inpt(3,2))
             tvc = clone(tv, iv1c, iv2c)
             io1c = clone(io1, tvc)
             io2c = clone(io2, tvc)
@@ -272,7 +275,7 @@
         end
 
         @testset "Transparent fork block" begin
-            start = AbsorbVertex(InputVertex(1), InvSize(4))
+            start = AbsorbVertex(CompVertex(identity, inpt(4)), InvSize(4))
             p1 = StackingVertex(CompVertex(identity, start))
             p2 = StackingVertex(CompVertex(identity, start))
             join = merge(p1, p2)
@@ -288,12 +291,13 @@
             @test nin(out) == [2nout(start)] == [6]
 
             # Should basically undo the previous mutation
+            @test minΔnoutfactor.(inputs(out)) == [2]
             Δnin(out, +2)
             @test nin(out) == [2nout(start)] == [8]
         end
 
         @testset "Transparent residual fork block" begin
-            start = AbsorbVertex(InputVertex(1), InvSize(8))
+            start = AbsorbVertex(CompVertex(identity, inpt(8)), InvSize(8))
             split = av(mm(8,4), IoSize(8,4), start)
             p1 = StackingVertex(CompVertex(identity, split))
             p2 = StackingVertex(CompVertex(identity, split))
@@ -313,11 +317,81 @@
             Δnin(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            # Propagates to both inputs and outputs of split
-            # Note: Odd deltas are impossible. TODO: Add some way to detect this
+            @test minΔnoutfactor.(inputs(out)) == [2]
             Δnout(start, -4)
             @test nin(out) == [nout(start)] == [4]
             @test nout(split) == 2
         end
     end
+
+    @testset "Size Mutation possibilities" begin
+
+        # Helpers
+        struct SizeConstraint constraint; end
+        NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
+        av(size, csize, in...) = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(collect(nin.(in)), size))
+        sv(in...) = StackingVertex(CompVertex(hcat, in...))
+
+        @testset "InputSizeVertex" begin
+            @test ismissing(minΔnoutfactor(inpt(3)))
+        end
+
+        @testset "AbsorbVertex" begin
+            @test minΔnoutfactor(av(4, 2, inpt(3))) == 2
+        end
+
+        @testset "Pick values" begin
+            import NaiveNASlib: pick_values
+
+            @test pick_values([1], 1) == [1]
+            @test pick_values([17], 17) == [1]
+            @test pick_values([3,2], 12) == [2, 3]
+            @test pick_values([3,2,1], 12) == [2,2,2]
+
+            @test pick_values([5,3,1], 37) == [4,4,5]
+            @test pick_values([5,3,1], 37, sum) == [5,4,0]
+
+            vals = [11, 7, 5, 3, 1]
+            for target in 1:10
+                @test sum(pick_values(vals, target) .* vals) == target
+            end
+        end
+
+        @testset "StackingVertex single input" begin
+            @test ismissing(minΔnoutfactor(sv(inpt(3))))
+            @test minΔnoutfactor(sv(av(4, 2, inpt(3)))) == 2
+        end
+
+        @testset "StackingVertex multi inputs" begin
+            v1 = av(5,3, inpt(3))
+            v2 = av(6,2, inpt(3))
+            v3 = av(8,2, inpt(3))
+
+
+            sv1 = sv(v1, v2)
+            sv2 = sv(v3, v2, v1, v2)
+            @test minΔnoutfactor(sv1) == 3
+            @test minΔnoutfactor(sv2) == 4
+
+            # Expect only v1 to change as size change is not compatible with v2
+            Δnout(sv1, -3)
+            @test nout(v1) == 2
+            @test nout(v2) == 6
+
+            # v1 can't change as it is too small already
+            # v3 makes a larger change as it is larger than v1
+            Δnout(sv2, -6)
+            @test nout(v1) == 2
+            @test nout(v2) == 4
+            @test nout(v3) == 6
+
+            Δnout(sv2, +9)
+            @test nout(v1) == 5
+            @test nout(v2) == 6
+            @test nout(v3) == 8
+
+        end
+
+    end
+
 end

@@ -1,18 +1,18 @@
 
 """
-    minΔinfactor(v::AbstractVertex)
+    minΔnoutfactor(v::AbstractVertex)
 
-Returns the smallest n so that allowed changes to nin are n * Z there Z is an integer.
-Returns missing if it is not possible to change nin.
+Returns the smallest n so that allowed changes to nout are n * Z there Z is an integer.
+Returns missing if it is not possible to change nout.
 """
-minΔinfactor(v::AbstractVertex) = minΔinfactor(base(v))
-minΔinfactor(v::InputVertex) = missing
-minΔinfactor(v::CompVertex) = minΔinfactor(v.computation)
-minΔinfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔinfactor(v::InvariantVertex) = maximum(minΔinfactor.(inputs(v)))
-function minΔinfactor(v::StackingVertex)
+minΔnoutfactor(v::AbstractVertex) = minΔnoutfactor(base(v))
+minΔnoutfactor(v::InputVertex) = missing
+minΔnoutfactor(v::CompVertex) = minΔnoutfactor(v.computation)
+minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
+minΔnoutfactor(v::InvariantVertex) = maximum(minΔnoutfactor.(inputs(v)))
+function minΔnoutfactor(v::StackingVertex)
     absorbing = findabsorbing(v, inputs)
-    return maximum([count(x->x==va,absorbing) * minΔinfactor(va) for va in unique(absorbing)])
+    return maximum([count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)])
 end
 
 # Vertex traits w.r.t whether size changes propagates
@@ -120,20 +120,45 @@ end
 
 function split_nout_over_inputs(v::StackingVertex, Δ::T) where T<:Integer
     insizes = nin(v)
+    Δfactors = minΔnoutfactor.(inputs(v))
 
-    # We basically want a split of Δ weighted by each individual input size:
-    Δs = round.(typeof(Δ), insizes .* Δ / sum(insizes))
-
-    # However, we can't set any of the input sizes to 0
-    # TODO: Add min_nout and min_nin functions to ensure the above is always
-    # possible
-    Δs = max.(Δs, -insizes .+ 1) #1 is the minimum input size
-    Δdeficit = sum(Δs) - Δ
-    for _ in 1:Δdeficit
-        Δs[argmax(insizes .+ Δs)] -= 1
+    # All we want is basically a split of Δ weighted by each individual input size
+    # Major annoyance: We must comply to the Δfactors so that Δi for input i is an
+    # integer multiple of Δfactors[i]
+    Δfactors_u = sort!(unique(Δfactors), rev=true)
+    insizes_u = [sum(insizes[Δfactors .== Δf]) for Δf in Δfactors_u]
+    limits = insizes_u ./ Δfactors_u
+    objective = function(n)
+        Δ < 0 && any(n .> limits) && return Inf
+        return std(n .* Δfactors_u ./ insizes_u, corrected=false)
     end
+
+    nΔfactors = pick_values(Δfactors_u, abs(Δ), objective)
+
+    sum(nΔfactors .* Δfactors_u) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
+
+    # Ok, now we have the total number of times to use each Δfactor, but we need
+    # to handle the (typical) case when several inputs have the same Δfactor
+    # Do a weighted split of nΔfactors for each unique Δfactor
+    Δs = zeros(T, length(insizes))
+    Δfactors, Δfactors_u = sign(Δ) .* (Δfactors, Δfactors_u)
+    for (i, Δf) in enumerate(filter(Δf -> Δf != 0, Δfactors_u)) # Δf == 0 would cause /0 below
+        inds = Δfactors .== Δf
+        wsplit = round.(Integer, insizes[inds] .* nΔfactors[i] / sum(insizes[inds]))
+
+        # Super annoying: Need to check size > 0 constraint again. Consideration in
+        # objective above only guarantees that a solution exists
+        wsplit = ceil.(max.(wsplit * Δf, -insizes[inds] .+ abs(Δf)) ./ Δf)
+        deficit = nΔfactors[i] - sum(wsplit)
+        for _ in 1:deficit
+            wsplit[argmax(insizes[inds] .+ (Δf .* wsplit))] += 1
+        end
+        Δs[inds] .= Δf .* wsplit
+    end
+
     return Δs
 end
+
 
 function split_nout_over_inputs(v::StackingVertex, Δ::AbstractArray{T,1}) where T<:Integer
     insizes = nin(v)
@@ -245,5 +270,35 @@ function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=Vi
         Δnout(vi, Δi; s=s)
     end
 end
+
+
+# Yeah, this is an exhaustive search. Non-linear objective (such as std) makes
+# DP not feasible (or maybe I'm just too stupid to figure out the optimal substructure).
+# Shouldn't matter as any remotely sane application of this library should call this function
+# with relatively small targets and few values
+function pick_values(
+    values::Vector{T},
+    target::T,
+    ind::T,
+    n::Vector{T},
+    objective) where T <: Integer
+
+    #Base cases
+    ind > length(n) && return n, Inf
+    target < 0 && return n, Inf
+    target == 0 && return n, objective(n)
+
+    # Recursions
+    nn = copy(n)
+    nn[ind] += 1
+    pick, obj_p = pick_values(values, target-values[ind], ind, nn, objective)
+    next, obj_n = pick_values(values, target, ind+1, n, objective)
+    return obj_p < obj_n ? (pick, obj_p) : (next, obj_n)
+end
+
+function pick_values(values::Vector{T}, target::T, objective= x->std(x, corrected=false)) where T <:Integer
+    return pick_values(values, target, 1, zeros(T, length(values)), objective)[1]
+end
+
 
 ## Generic helper methods end

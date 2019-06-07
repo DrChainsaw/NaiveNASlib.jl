@@ -2,6 +2,7 @@ module NaiveNASlib
 
 using LightGraphs
 using DataStructures
+using Statistics
 
 export
 #Interface
@@ -19,6 +20,9 @@ InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, o
 
 # Mutation vertex
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
+
+# Size util
+minΔnoutfactor, findabsorbing,
 
 # Connectivity mutation
 remove!, RemoveStrategy,
