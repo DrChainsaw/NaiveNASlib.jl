@@ -367,7 +367,6 @@
             v2 = av(6,2, inpt(3))
             v3 = av(8,2, inpt(3))
 
-
             sv1 = sv(v1, v2)
             sv2 = sv(v3, v2, v1, v2)
             @test minΔnoutfactor(sv1) == 3

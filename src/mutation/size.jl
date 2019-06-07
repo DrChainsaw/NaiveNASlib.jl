@@ -125,38 +125,18 @@ function split_nout_over_inputs(v::StackingVertex, Δ::T) where T<:Integer
     # All we want is basically a split of Δ weighted by each individual input size
     # Major annoyance: We must comply to the Δfactors so that Δi for input i is an
     # integer multiple of Δfactors[i]
-    Δfactors_u = sort!(unique(Δfactors), rev=true)
-    insizes_u = [sum(insizes[Δfactors .== Δf]) for Δf in Δfactors_u]
-    limits = insizes_u ./ Δfactors_u
+    limits = ceil.(insizes ./ Δfactors)
+
     objective = function(n)
-        Δ < 0 && any(n .> limits) && return Inf
-        return std(n .* Δfactors_u ./ insizes_u, corrected=false)
+        Δ < 0 && any(n .>= limits) && return Inf
+        return std(n .* Δfactors ./ insizes, corrected=false)
     end
 
-    nΔfactors = pick_values(Δfactors_u, abs(Δ), objective)
+    nΔfactors = pick_values(Δfactors, abs(Δ), objective)
 
-    sum(nΔfactors .* Δfactors_u) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
+    sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
 
-    # Ok, now we have the total number of times to use each Δfactor, but we need
-    # to handle the (typical) case when several inputs have the same Δfactor
-    # Do a weighted split of nΔfactors for each unique Δfactor
-    Δs = zeros(T, length(insizes))
-    Δfactors, Δfactors_u = sign(Δ) .* (Δfactors, Δfactors_u)
-    for (i, Δf) in enumerate(filter(Δf -> Δf != 0, Δfactors_u)) # Δf == 0 would cause /0 below
-        inds = Δfactors .== Δf
-        wsplit = round.(Integer, insizes[inds] .* nΔfactors[i] / sum(insizes[inds]))
-
-        # Super annoying: Need to check size > 0 constraint again. Consideration in
-        # objective above only guarantees that a solution exists
-        wsplit = ceil.(max.(wsplit * Δf, -insizes[inds] .+ abs(Δf)) ./ Δf)
-        deficit = nΔfactors[i] - sum(wsplit)
-        for _ in 1:deficit
-            wsplit[argmax(insizes[inds] .+ (Δf .* wsplit))] += 1
-        end
-        Δs[inds] .= Δf .* wsplit
-    end
-
-    return Δs
+    Δs = sign(Δ) .* nΔfactors .* Δfactors
 end
 
 
