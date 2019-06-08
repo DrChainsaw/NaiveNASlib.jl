@@ -57,7 +57,7 @@ minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
 minΔnoutfactor(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor(base(v))
 minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔnoutfactor.(inputs(v)))
 function minΔnoutfactor(::SizeStack, v::AbstractVertex)
-    absorbing = findabsorbing(v, inputs)
+    absorbing = findterminating(v, inputs)
     return maximum([count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)])
 end
 
@@ -75,21 +75,21 @@ minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
 minΔninfactor(::SizeAbsorb, v::AbstractVertex) = minΔninfactor(base(v))
 minΔninfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔninfactor.(outputs(v)))
 function minΔninfactor(::SizeStack, v::AbstractVertex)
-    absorbing = findabsorbing(v, outputs)
+    absorbing = findterminating(v, outputs)
     return maximum([count(x->x==va,absorbing) * minΔninfactor(va) for va in unique(absorbing)])
 end
 
 
 """
-    findabsorbing(v::AbstractVertex, f::Function)
+    findterminating(v::AbstractVertex, f::Function)
 
-Return an array of all vertices which absorb size changes (i.e does not require nin==nout)
-connected through the given function. Will return the given vertex if it is absorbing
+Return an array of all vertices which terminate size changes (i.e does not propagate them)
+connected through the given function. Will return the given vertex if it is terminating.
 """
-findabsorbing(v::AbstractVertex, f::Function) = findabsorbing(trait(v), v, f)
-findabsorbing(::SizeAbsorb, v, f::Function) = [v]
-findabsorbing(::Immutable, v, f::Function) = [v] #TODO!!!
-findabsorbing(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findabsorbing(vf, f), vcat, f(v), init=[])
+findterminating(v::AbstractVertex, f::Function) = findterminating(trait(v), v, f)
+findterminating(::SizeAbsorb, v, f::Function) = [v]
+findterminating(::Immutable, v, f::Function) = [v]
+findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
 
 
 """
