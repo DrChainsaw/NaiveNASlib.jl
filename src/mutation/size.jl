@@ -1,4 +1,27 @@
 
+
+# Vertex traits w.r.t whether size changes propagates
+abstract type MutationSizeTrait <: MutationTrait end
+abstract type SizeTransparent <: MutationSizeTrait end
+struct SizeStack <: SizeTransparent end
+struct SizeInvariant <: SizeTransparent end
+struct SizeAbsorb <: MutationSizeTrait end
+
+nin(v::InputSizeVertex) = v.size
+nin(v::MutationVertex) = nin(trait(v), v, op(v))
+nin(::MutationTrait, v::AbstractVertex, op::MutationState) = nin(op)
+# TODO
+nin(::SizeInvariant, v::AbstractVertex, op::MutationOp) = nout.(inputs(v))
+
+nout(v::InputSizeVertex) = v.size
+nout(v::MutationVertex) = nout(trait(v), v, op(v))
+nout(::MutationTrait, v::AbstractVertex, op::MutationState) = nout(op)
+# TODO
+nout(t::SizeInvariant, v::AbstractVertex, op::MutationOp) = nin(v)[1]
+#nout(::SizeInvariant, v::AbstractVertex) = nin(v)[1]
+#nout(::SizeStack, v::AbstractVertex) = sum(nin(v))
+
+
 """
     minΔnoutfactor(v::AbstractVertex)
 
@@ -9,17 +32,32 @@ minΔnoutfactor(v::AbstractVertex) = minΔnoutfactor(base(v))
 minΔnoutfactor(v::InputVertex) = missing
 minΔnoutfactor(v::CompVertex) = minΔnoutfactor(v.computation)
 minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔnoutfactor(v::InvariantVertex) = maximum(minΔnoutfactor.(inputs(v)))
-function minΔnoutfactor(v::StackingVertex)
+minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
+minΔnoutfactor(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor(base(v))
+minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔnoutfactor.(inputs(v)))
+function minΔnoutfactor(::SizeStack, v::AbstractVertex)
     absorbing = findabsorbing(v, inputs)
     return maximum([count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)])
 end
 
-# Vertex traits w.r.t whether size changes propagates
-struct Transparent end
-struct Absorb end
-sizetransparency(v::AbstractVertex) = Absorb()
-sizetransparency(v::Union{InvariantVertex, StackingVertex}) = Transparent()
+"""
+    minΔninfactor(v::AbstractVertex)
+
+Returns the smallest n so that allowed changes to nin are n * Z there Z is an integer.
+Returns missing if it is not possible to change nin.
+"""
+minΔninfactor(v::AbstractVertex) = minΔninfactor(base(v))
+minΔninfactor(v::InputVertex) = missing
+minΔninfactor(v::CompVertex) = minΔninfactor(v.computation)
+minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
+minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
+minΔninfactor(::SizeAbsorb, v::AbstractVertex) = minΔninfactor(base(v))
+minΔninfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔninfactor.(outputs(v)))
+function minΔninfactor(::SizeStack, v::AbstractVertex)
+    absorbing = findabsorbing(v, outputs)
+    return maximum([count(x->x==va,absorbing) * minΔninfactor(va) for va in unique(absorbing)])
+end
+
 
 """
     findabsorbing(v::AbstractVertex, f::Function)
@@ -27,19 +65,10 @@ sizetransparency(v::Union{InvariantVertex, StackingVertex}) = Transparent()
 Return an array of all vertices which absorb size changes (i.e does not require nin==nout)
 connected through the given function. Will return the given vertex if it is absorbing
 """
-findabsorbing(v::AbstractVertex, f::Function) = findabsorbing(sizetransparency(v), v, f)
-findabsorbing(::Absorb, v, f::Function) = [v]
-findabsorbing(::Transparent, v, f::Function) = mapfoldl(vf -> findabsorbing(vf, f), vcat, f(v), init=[])
-
-
-nin(v::AbsorbVertex) = nin(v.state)
-nout(v::AbsorbVertex) = nout(v.state)
-nout(v::StackingVertex) = nout(v.state)
-nin(v::StackingVertex) = nin(v.state)
-nout(v::InvariantVertex) = nin(v)[1]
-nin(v::InvariantVertex) = nout.(inputs(v))
-nin(v::InputSizeVertex) = v.size
-nout(v::InputSizeVertex) = v.size
+findabsorbing(v::AbstractVertex, f::Function) = findabsorbing(trait(v), v, f)
+findabsorbing(::SizeAbsorb, v, f::Function) = [v]
+findabsorbing(::Immutable, v, f::Function) = [v] #TODO!!!
+findabsorbing(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findabsorbing(vf, f), vcat, f(v), init=[])
 
 
 """
@@ -65,39 +94,43 @@ context!(defaultfun, s::VisitState{T}, v::AbstractMutationVertex) where T = get!
 delete_context!(s::VisitState{T}, v::AbstractMutationVertex) where T = delete!(s.contexts, v)
 contexts(s::VisitState{T}) where T = s.contexts
 
-function Δnin(v::AbsorbVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+
+Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(trait(v), v, Δ..., s=s)
+Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(trait(v), v, Δ, s=s)
+
+function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
-    Δnin(v.state, Δ...)
+    Δnin(op(v), Δ...)
     propagate_nout(v, Δ..., s=s)
 end
 
-function Δnout(v::AbsorbVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+function Δnout(::SizeAbsorb, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     outvisit(v,s) && return
-    Δnout(v.state, Δ)
+    Δnout(op(v), Δ)
     propagate_nin(v, Δ, s=s)
 end
 
 
-function Δnin(v::StackingVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
     insizes = deepcopy(nin(v))
 
-    Δnin(v.state, Δ...)
+    Δnin(op(v), Δ...)
     Δo = concat(insizes, Δ...)
-    Δnout(v.state, Δo)
+    Δnout(op(v), Δo)
 
     propagate_nin(v, Δo; s=s)
 end
 
-function Δnout(v::StackingVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnout(v.state, Δ)
+    Δnout(op(v), Δ)
 
     propagate_nin(v, Δ, s=s) # If there are multiple outputs they must all be updated
     Δs = split_nout_over_inputs(v, Δ)
-    Δnin(v.state, Δs...)
+    Δnin(op(v), Δs...)
     propagate_nout(v, Δs...; s=s)
 end
 
@@ -118,7 +151,7 @@ function concat(insizes, Δ::Maybe{AbstractArray{T}}...) where T
     return res
 end
 
-function split_nout_over_inputs(v::StackingVertex, Δ::T) where T<:Integer
+function split_nout_over_inputs(v::AbstractVertex, Δ::T) where T<:Integer
     insizes = nin(v)
     Δfactors = minΔnoutfactor.(inputs(v))
 
@@ -140,7 +173,7 @@ function split_nout_over_inputs(v::StackingVertex, Δ::T) where T<:Integer
 end
 
 
-function split_nout_over_inputs(v::StackingVertex, Δ::AbstractArray{T,1}) where T<:Integer
+function split_nout_over_inputs(v::AbstractVertex, Δ::AbstractArray{T,1}) where T<:Integer
     insizes = nin(v)
 
     Δs = ntuple(i -> T[], length(insizes))
@@ -162,10 +195,10 @@ function split_nout_over_inputs(v::StackingVertex, Δ::AbstractArray{T,1}) where
 end
 
 
-function Δnin(v::InvariantVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnin(v.op, Δ...)
+    Δnin(op(v), Δ...)
 
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
     @assert length(Δprop) == 1 "Change must be invariant!"
@@ -174,10 +207,10 @@ function Δnin(v::InvariantVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{
     propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
 end
 
-function Δnout(v::InvariantVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnout(v.op, Δ)
+    Δnout(op(v), Δ)
 
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)

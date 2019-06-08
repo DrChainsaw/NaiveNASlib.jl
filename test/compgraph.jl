@@ -79,8 +79,9 @@ using Test
         @test issame(graph, gcopy)
         @test graph(3,4,10) == gcopy(3,4,10)
 
-        newop(v::AbstractMutationVertex) = clone(op(v))
-        newop(v::AbsorbVertex) = IoIndices(nin(v), nout(v))
+        newop(v::MutationVertex) = newop(trait(v), v)
+        newop(::MutationTrait, v::MutationVertex) = clone(op(v))
+        newop(::SizeAbsorb, v::MutationVertex) = IoIndices(nin(v), nout(v))
         graph_inds = copy(graph, newop)
 
         @test !issame(graph_inds, graph)
@@ -88,11 +89,13 @@ using Test
 
         # Nothing should have changed with original
         function testop(v) end
-        testop(v::AbsorbVertex) = @test typeof(op(v)) == IoSize
+        testop(v::MutationVertex) = testop(trait(v), v)
+        function testop(::MutationTrait, v) end
+        testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoSize
         foreach(testop, mapreduce(flatten, vcat, graph.outputs))
 
         # But new graph shall use IoIndices
-        testop(v::AbsorbVertex) = @test typeof(op(v)) == IoIndices
+        testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoIndices
         foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
 
     end

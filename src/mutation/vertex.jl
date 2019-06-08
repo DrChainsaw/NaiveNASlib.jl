@@ -17,6 +17,7 @@ inputs(v::AbstractMutationVertex)  = inputs(base(v))
 outputs(v::AbstractMutationVertex) = outputs(base(v))
 
 cloneop(v::AbstractMutationVertex) = clone(op(v))
+clonetrait(v::AbstractMutationVertex) = clone(trait(v))
 
 """
     OutputsVertex
@@ -64,81 +65,35 @@ inputs(v::InputSizeVertex) = inputs(base(v))
 outputs(v::InputSizeVertex) = outputs(base(v))
 
 
-"""
-    AbsorbVertex
+abstract type MutationTrait end
+clone(t::MutationTrait) = t
+struct Immutable <: MutationTrait end
+trait(v::AbstractVertex) = Immutable()
 
-Vertex which absorbs changes in nout or nin. An example of this is a vertex
-which multiplies its input with an nin x nout matrix.
-"""
-struct AbsorbVertex <: AbstractMutationVertex
-    base::AbstractVertex
-    state::MutationState
-
-    function AbsorbVertex(b::OutputsVertex, state::MutationState)
-        this = new(b, state)
-        init!(b, this)
-        return this
-    end
-end
-AbsorbVertex(b::AbstractVertex, state::MutationState) = AbsorbVertex(OutputsVertex(b), state)
-
-clone(v::AbsorbVertex, ins::AbstractVertex...; opfun=cloneop) = AbsorbVertex(clone(base(v), ins...), opfun(v))
-op(v::AbsorbVertex) = v.state
-
-base(v::AbsorbVertex)::AbstractVertex = v.base
-(v::AbsorbVertex)(x...) = base(v)(x...)
-
-
-"""
-    StackingVertex
-
-Vertex which is transparent w.r.t mutation.
-
-Size of output is sum of sizes of inputs. Examples of computations are scalar operations
-(e.g add x to every element) and concatenation.
-"""
-struct StackingVertex <: AbstractMutationVertex
-    base::AbstractVertex
-    state::MutationState
-
-    function StackingVertex(b::OutputsVertex, op::MutationState)
-        this = new(b, op)
-        init!(b, this)
-        return this
-    end
-end
-StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
-StackingVertex(b::Union{OutputsVertex, AbstractMutationVertex}) = StackingVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))))
-
-clone(v::StackingVertex, ins::AbstractVertex...; opfun=cloneop) = StackingVertex(clone(base(v), ins...), opfun(v))
-op(v::StackingVertex) = v.state
-
-base(v::StackingVertex)::AbstractVertex = v.base
-(v::StackingVertex)(x...) = base(v)(x...)
-
-
-"""
-    InvariantVertex
-
-Vertex which is size invariant in the sense that all inputs and outputs have the same size.
-
-Examples of computations are scalar and element wise operations.
-"""
-struct InvariantVertex <: AbstractMutationVertex
+struct MutationVertex <: AbstractMutationVertex
     base::AbstractVertex
     op::MutationOp
+    trait::MutationTrait
 
-    function InvariantVertex(b::OutputsVertex, op::MutationOp)
-        this = new(b, op)
+    function MutationVertex(b::OutputsVertex, s::MutationOp, t::MutationTrait)
+        this = new(b, s, t)
         init!(b, this)
         return this
     end
 end
+MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVertex(OutputsVertex(b), s, t)
+
+AbsorbVertex(b::AbstractVertex, s::MutationState) = MutationVertex(b, s, SizeAbsorb())
+
+StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
+StackingVertex(b::Union{OutputsVertex, AbstractMutationVertex}) = MutationVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))), SizeStack())
+
 InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
-InvariantVertex(b::AbstractVertex, op::MutationOp) = InvariantVertex(OutputsVertex(b), op)
+InvariantVertex(b::AbstractVertex, op::MutationOp) = MutationVertex(OutputsVertex(b), op, SizeInvariant())
 
-clone(v::InvariantVertex, ins::AbstractVertex...; opfun=cloneop) = InvariantVertex(clone(base(v), ins...), opfun(v))
-op(v::InvariantVertex) = v.op
+clone(v::MutationVertex, ins::AbstractVertex...; opfun=cloneop, traitfun=clonetrait) = MutationVertex(clone(base(v), ins...), opfun(v), traitfun(v))
 
-base(v::InvariantVertex)::AbstractVertex = v.base
-(v::InvariantVertex)(x...) = base(v)(x...)
+base(v::MutationVertex) = v.base
+op(v::MutationVertex) = v.op
+trait(v::MutationVertex) = v.trait
+(v::MutationVertex)(x...) = base(v)(x...)

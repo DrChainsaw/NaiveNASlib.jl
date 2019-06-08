@@ -114,10 +114,13 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
     Δinsize = nout(v) - sum(nin(v))
     Δoutsize = -Δinsize
 
-    insize_can_change = all(isa.(findabsorbing(Transparent(), v, inputs), AbstractMutationVertex))
-    outsize_can_change = all(isa.(findabsorbing(Transparent(), v, outputs), AbstractMutationVertex))
+    can_change(Δ, factor::Integer) = Δ % factor == 0
+    can_change(Δ, ::Missing) = false
 
+    insize_can_change = all( can_change.(Δinsize, minΔnoutfactor.(inputs(v))))
     insize_can_change && proceedwith(s, Δinsize) && return Δnin(v, Δinsize)
+
+    outsize_can_change = all( can_change.(Δoutsize, minΔninfactor.(outputs(v))))
     outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(v, Δoutsize)
     prealignsizes(s.fallback, v)
 end

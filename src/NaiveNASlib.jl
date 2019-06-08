@@ -19,7 +19,10 @@ CompGraph, output!,flatten,
 InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op,
 
 # Mutation vertex
-base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex,
+base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex,
+
+# Mutation traits
+trait, MutationTrait, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant,
 
 # Size util
 minΔnoutfactor, findabsorbing,
