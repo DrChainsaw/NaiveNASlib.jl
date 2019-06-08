@@ -1,25 +1,46 @@
 
 
 # Vertex traits w.r.t whether size changes propagates
+"""
+    MutationSizeTrait
+Base type for mutation traits relevant to size
+"""
 abstract type MutationSizeTrait <: MutationTrait end
+"""
+    SizeTransparent
+Base type for mutation traits which are transparent w.r.t size, i.e size changes propagate both forwards and backwards.
+"""
 abstract type SizeTransparent <: MutationSizeTrait end
+"""
+    SizeStack
+Transparent size trait type where inputs are stacked, i.e output size is the sum of all input sizes
+"""
 struct SizeStack <: SizeTransparent end
+"""
+    SizeInvariant
+Transparent size trait type where all input sizes must be equal to the output size, e.g. elementwise operations (including broadcasted).
+"""
 struct SizeInvariant <: SizeTransparent end
+"""
+    SizeAbsorb
+Size trait type for which size changes are absorbed, i.e they do not propagate forward.
+
+Note that size changes do propagate backward as changing the input size of a vertex requires that the output size of its input is also changed and vice versa.
+"""
 struct SizeAbsorb <: MutationSizeTrait end
 
 nin(v::InputSizeVertex) = v.size
 nin(v::MutationVertex) = nin(trait(v), v, op(v))
 nin(::MutationTrait, v::AbstractVertex, op::MutationState) = nin(op)
-# TODO
+# SizeInvariant does not need mutation state to keep track of sizes
 nin(::SizeInvariant, v::AbstractVertex, op::MutationOp) = nout.(inputs(v))
 
 nout(v::InputSizeVertex) = v.size
 nout(v::MutationVertex) = nout(trait(v), v, op(v))
 nout(::MutationTrait, v::AbstractVertex, op::MutationState) = nout(op)
-# TODO
+# SizeInvariant does not need mutation state to keep track of sizes
 nout(t::SizeInvariant, v::AbstractVertex, op::MutationOp) = nin(v)[1]
-#nout(::SizeInvariant, v::AbstractVertex) = nin(v)[1]
-#nout(::SizeStack, v::AbstractVertex) = sum(nin(v))
+
 
 
 """

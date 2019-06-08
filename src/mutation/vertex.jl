@@ -28,8 +28,9 @@ outputs(v::OutputsVertex) = v.outs
 """
     InputSizeVertex
 
-Vertex with an (immutable) size. Intended use if for wrapping an InputVertex
-in conjuntion with mutation
+Vertex with an (immutable) size.
+
+Intended use is for wrapping an InputVertex in conjuntion with mutation
 """
 struct InputSizeVertex <: AbstractVertex
     base::AbstractVertex
@@ -52,12 +53,35 @@ inputs(v::InputSizeVertex) = inputs(base(v))
 outputs(v::InputSizeVertex) = outputs(base(v))
 
 
+"""
+    MutationTrait
+
+Base type for traits relevant when mutating.
+"""
 abstract type MutationTrait end
 clone(t::MutationTrait) = t
 
+"""
+    Immutable
+
+Trait for vertices which are immutable. Typically inputs and outputs as those are fixed to the data set
+"""
 struct Immutable <: MutationTrait end
 trait(v::AbstractVertex) = Immutable()
 
+"""
+    MutationVertex
+
+Vertex which may be subject to mutation.
+
+Scope is mutations which affect the input and output sizes as such changes needs to be propagated to the neighbouring vertices.
+
+The member op describes the type of mutation, e.g if individual inputs/outputs are to be pruned vs just changing the size without selecting any particular inputs/outputs.
+
+The member trait describes the nature of the vertex itself, for example if size changes
+are absorbed (e.g changing an nin x nout matrix to an nin - Δ x nout matrix) or if they
+propagate to neighbouring vertices (and if so, how).
+"""
 struct MutationVertex <: AbstractVertex
     base::AbstractVertex
     op::MutationOp
