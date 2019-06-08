@@ -79,19 +79,19 @@ Memoization struct for traversal when mutating.
 Remembers visitation for both forward (in) and backward (out) directions.
 """
 struct VisitState{T}
-    in::Array{AbstractMutationVertex,1}
-    out::Array{AbstractMutationVertex,1}
-    contexts::OrderedDict{AbstractMutationVertex, Vector{Maybe{T}}}
+    in::Array{MutationVertex,1}
+    out::Array{MutationVertex,1}
+    contexts::OrderedDict{MutationVertex, Vector{Maybe{T}}}
 end
-VisitState{T}() where T = VisitState{T}([], [], OrderedDict{AbstractMutationVertex, Vector{Maybe{T}}}())
-visited_in!(s::VisitState, v::AbstractMutationVertex) = push!(s.in, v)
-visited_out!(s::VisitState, v::AbstractMutationVertex) = push!(s.out, v)
-has_visited_in(s::VisitState, v::AbstractMutationVertex) = v in s.in
-has_visited_out(s::VisitState, v::AbstractMutationVertex) = v in s.out
+VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{T}}}())
+visited_in!(s::VisitState, v::MutationVertex) = push!(s.in, v)
+visited_out!(s::VisitState, v::MutationVertex) = push!(s.out, v)
+has_visited_in(s::VisitState, v::MutationVertex) = v in s.in
+has_visited_out(s::VisitState, v::MutationVertex) = v in s.out
 
 no_context(s::VisitState{T}) where T = isempty(s.contexts)
-context!(defaultfun, s::VisitState{T}, v::AbstractMutationVertex) where T = get!(defaultfun, s.contexts, v)
-delete_context!(s::VisitState{T}, v::AbstractMutationVertex) where T = delete!(s.contexts, v)
+context!(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get!(defaultfun, s.contexts, v)
+delete_context!(s::VisitState{T}, v::MutationVertex) where T = delete!(s.contexts, v)
 contexts(s::VisitState{T}) where T = s.contexts
 
 
@@ -218,25 +218,25 @@ end
 
 ## Generic helper methods
 
-function invisit(v::AbstractMutationVertex, s::VisitState{T}) where T
+function invisit(v::MutationVertex, s::VisitState{T}) where T
     has_visited_in(s, v) && return true
     visited_in!(s, v)
     return false
 end
 
-function outvisit(v::AbstractMutationVertex, s::VisitState{T}) where T
+function outvisit(v::MutationVertex, s::VisitState{T}) where T
     has_visited_out(s, v) && return true
     visited_out!(s, v)
     return false
 end
 
-function anyvisit(v::AbstractMutationVertex, s::VisitState{T}) where T
+function anyvisit(v::MutationVertex, s::VisitState{T}) where T
     in = invisit(v, s)
     out = outvisit(v, s)
     return in || out
 end
 
-function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where T
+function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # Rundown of the idea here: The outputs of v might have more than one input
     # If such a vertex vi is found, the missing inputs are set to "missing" and
     # the Δ we have is put in a context for vi. Only if no input is missing
@@ -278,7 +278,7 @@ function propagate_nin(v::AbstractMutationVertex, Δ::T; s::VisitState{T}) where
     end
 end
 
-function propagate_nout(v::AbstractMutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+function propagate_nout(v::MutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end

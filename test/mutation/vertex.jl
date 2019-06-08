@@ -4,18 +4,6 @@ import InteractiveUtils:subtypes
 
 @testset "Mutation vertices" begin
 
-    @testset "Method contracts" begin
-        for subtype in subtypes(AbstractMutationVertex)
-            @info "\ttest method contracts for $subtype"
-            @test hasmethod(nin,  (subtype,))
-            @test hasmethod(nout, (subtype,))
-            @test hasmethod(Δnin,  (subtype, Integer))
-            @test hasmethod(Δnout, (subtype, Integer))
-            @test hasmethod(base, (subtype,))
-            @test hasmethod(outputs, (subtype,))
-        end
-    end
-
     @testset "OutputsVertex" begin
         iv = OutputsVertex(InputVertex(1))
 

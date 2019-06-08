@@ -70,7 +70,7 @@ RemoveStrategy(rs::AbstractConnectStrategy) = RemoveStrategy(rs, IncreaseSmaller
 RemoveStrategy(as::AbstractAlignSizeStrategy) = RemoveStrategy(ConnectAll(), as)
 
 """
-    remove!(v::AbstractMutationVertex, strategy=RemoveStrategy())
+    remove!(v::MutationVertex, strategy=RemoveStrategy())
 
 Removes v from the graph by removing it from its inputs and outputs.
 
@@ -80,7 +80,7 @@ of v and 2) align the input and output sizes of the inputs and outputs of v.
 Default strategy is to first set nin==nout for v and then connect all its inputs
 to all its outputs.
 """
-function remove!(v::AbstractMutationVertex, strategy=RemoveStrategy())
+function remove!(v::MutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v)
     remove!(v, inputs, outputs, strategy.reconnect)
     remove!(v, outputs, inputs, strategy.reconnect)
@@ -89,7 +89,7 @@ end
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
 ## anything useful unless f1=inputs and f2=outputs or vise versa.
-function remove!(v::AbstractMutationVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
+function remove!(v::MutationVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
     for v1 in f1(v)
         v1_2 = f2(v1)
         inds = findall(vx -> vx == v, v1_2)

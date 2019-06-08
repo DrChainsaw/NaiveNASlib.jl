@@ -1,5 +1,5 @@
 """
-    mutate_inputs(v::AbstractMutationVertex)
+    mutate_inputs(v::MutationVertex)
 
 Apply the input size mutation from the given vertex.
 
@@ -8,7 +8,7 @@ In the context of a neural network, this means removing or adding columns or row
 function mutate_inputs end
 
 """
-    mutate_outputs(v::AbstractMutationVertex)
+    mutate_outputs(v::MutationVertex)
 
 Apply the output size mutation from the given vertex.
 
@@ -24,7 +24,7 @@ Apply the size mutation from the given vertex.
 In the context of a neural network, this means removing or adding columns or rows from a matrix
 """
 function apply_mutation(v::AbstractVertex) end
-function apply_mutation(v::AbstractMutationVertex)
+function apply_mutation(v::MutationVertex)
     mutate_inputs(v)
     mutate_outputs(v)
 end
@@ -44,7 +44,7 @@ function mutate_inputs(v::AbstractVertex, s::InvSize)
     mutate_inputs(v, nin(s))
     mutate_outputs(v, nout(s))
  end
-function mutate_inputs(v::AbstractMutationVertex)
+function mutate_inputs(v::MutationVertex)
     mutate_inputs(v, op(v))
     reset_in!(op(v))
 end
@@ -69,7 +69,7 @@ function mutate_outputs(v::AbstractVertex, s::InvSize)
     mutate_inputs(v, nin(s))
     reset!(s)
 end
-function mutate_outputs(v::AbstractMutationVertex)
+function mutate_outputs(v::MutationVertex)
     mutate_outputs(v, op(v))
     reset_out!(op(v))
 end

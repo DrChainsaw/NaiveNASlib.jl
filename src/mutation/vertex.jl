@@ -1,23 +1,10 @@
 
 """
-AbstractMutationVertex
-
-Base type for vertices which can be mutated
-"""
-abstract type AbstractMutationVertex <: AbstractVertex end
-
-"""
-    base(v::AbstractMutationVertex)
+    base(v::AbstractVertex)
 
 Return base vertex
 """
 function base end
-
-inputs(v::AbstractMutationVertex)  = inputs(base(v))
-outputs(v::AbstractMutationVertex) = outputs(base(v))
-
-cloneop(v::AbstractMutationVertex) = clone(op(v))
-clonetrait(v::AbstractMutationVertex) = clone(trait(v))
 
 """
     OutputsVertex
@@ -67,10 +54,11 @@ outputs(v::InputSizeVertex) = outputs(base(v))
 
 abstract type MutationTrait end
 clone(t::MutationTrait) = t
+
 struct Immutable <: MutationTrait end
 trait(v::AbstractVertex) = Immutable()
 
-struct MutationVertex <: AbstractMutationVertex
+struct MutationVertex <: AbstractVertex
     base::AbstractVertex
     op::MutationOp
     trait::MutationTrait
@@ -86,14 +74,19 @@ MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVer
 AbsorbVertex(b::AbstractVertex, s::MutationState) = MutationVertex(b, s, SizeAbsorb())
 
 StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
-StackingVertex(b::Union{OutputsVertex, AbstractMutationVertex}) = MutationVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))), SizeStack())
+StackingVertex(b::Union{OutputsVertex, MutationVertex}) = MutationVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))), SizeStack())
 
 InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
 InvariantVertex(b::AbstractVertex, op::MutationOp) = MutationVertex(OutputsVertex(b), op, SizeInvariant())
 
 clone(v::MutationVertex, ins::AbstractVertex...; opfun=cloneop, traitfun=clonetrait) = MutationVertex(clone(base(v), ins...), opfun(v), traitfun(v))
+cloneop(v::MutationVertex) = clone(op(v))
+clonetrait(v::MutationVertex) = clone(trait(v))
 
 base(v::MutationVertex) = v.base
 op(v::MutationVertex) = v.op
 trait(v::MutationVertex) = v.trait
 (v::MutationVertex)(x...) = base(v)(x...)
+
+inputs(v::MutationVertex)  = inputs(base(v))
+outputs(v::MutationVertex) = outputs(base(v))
