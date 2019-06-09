@@ -29,17 +29,26 @@ Note that size changes do propagate backward as changing the input size of a ver
 """
 struct SizeAbsorb <: MutationSizeTrait end
 
+#TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
+# all MutationVertex has state?
 nin(v::InputSizeVertex) = v.size
-nin(v::MutationVertex) = nin(trait(v), v, op(v))
-nin(::MutationTrait, v::AbstractVertex, op::MutationState) = nin(op)
-# SizeInvariant does not need mutation state to keep track of sizes
-nin(::SizeInvariant, v::AbstractVertex, op::MutationOp) = nout.(inputs(v))
+nin(v::MutationVertex) = nin(v, op(v))
+nin(v::AbstractVertex, op::MutationState) = nin(op)
+nin(v::AbstractVertex, op::MutationOp) = nin(trait(v), v)
+nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
+
+# SizeTransparent does not need mutation state to keep track of sizes
+nin(::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
 
 nout(v::InputSizeVertex) = v.size
-nout(v::MutationVertex) = nout(trait(v), v, op(v))
-nout(::MutationTrait, v::AbstractVertex, op::MutationState) = nout(op)
-# SizeInvariant does not need mutation state to keep track of sizes
-nout(t::SizeInvariant, v::AbstractVertex, op::MutationOp) = nin(v)[1]
+nout(v::MutationVertex) = nout(v, op(v))
+nout(v::AbstractVertex, op::MutationState) = nout(op)
+nout(v::AbstractVertex, op::MutationOp) = nout(trait(v), v)
+nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
+
+# SizeTransparent does not need mutation state to keep track of sizes
+nout(t::SizeInvariant, v::AbstractVertex) = nin(v)[1]
+nout(t::SizeStack, v::AbstractVertex) = sum(nin(v))
 
 
 
@@ -54,6 +63,7 @@ minΔnoutfactor(v::InputVertex) = missing
 minΔnoutfactor(v::CompVertex) = minΔnoutfactor(v.computation)
 minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
 minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
+minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
 minΔnoutfactor(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor(base(v))
 minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔnoutfactor.(inputs(v)))
 function minΔnoutfactor(::SizeStack, v::AbstractVertex)
@@ -72,6 +82,7 @@ minΔninfactor(v::InputVertex) = missing
 minΔninfactor(v::CompVertex) = minΔninfactor(v.computation)
 minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
 minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
+minΔinfactor(t::DecoratingTrait, v::AbstractVertex) = minΔinfactor(base(t), v)
 minΔninfactor(::SizeAbsorb, v::AbstractVertex) = minΔninfactor(base(v))
 minΔninfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔninfactor.(outputs(v)))
 function minΔninfactor(::SizeStack, v::AbstractVertex)
@@ -87,6 +98,7 @@ Return an array of all vertices which terminate size changes (i.e does not propa
 connected through the given function. Will return the given vertex if it is terminating.
 """
 findterminating(v::AbstractVertex, f::Function) = findterminating(trait(v), v, f)
+findterminating(t::DecoratingTrait, v, f::Function) = findterminating(base(t), v, f)
 findterminating(::SizeAbsorb, v, f::Function) = [v]
 findterminating(::Immutable, v, f::Function) = [v]
 findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
@@ -118,6 +130,9 @@ contexts(s::VisitState{T}) where T = s.contexts
 
 Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(trait(v), v, Δ..., s=s)
 Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(trait(v), v, Δ, s=s)
+
+Δnin(t::DecoratingTrait, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(base(t), v, Δ..., s=s)
+Δnout(t::DecoratingTrait, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(base(t), v, Δ, s=s)
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return

@@ -78,9 +78,9 @@ clone(v::InputVertex, ins::AbstractVertex...) = isempty(ins) ? InputVertex(v.nam
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 
-function show_less(io::IO, v::InputVertex)
-    print(io, "InputVertex($(v.name))")
-end
+show_less(io::IO, v::InputVertex) = show_less(io, v, v.name)   
+show_less(io::IO, v::InputVertex, name::String) = print(io, name)
+show_less(io::IO, v::InputVertex, name) = print(io, "InputVertex($(v.name))")
 
 """
     CompVertex
@@ -103,17 +103,24 @@ julia>CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
 """
 struct CompVertex <: AbstractVertex
     computation
-    inputs::AbstractArray{AbstractVertex,1}
+    inputs::AbstractVector{AbstractVertex}
 end
 CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
 clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone(v.computation), ins...)
-inputs(v::CompVertex)::AbstractArray{AbstractVertex,1} = v.inputs
+inputs(v::CompVertex)::AbstractVector{AbstractVertex} = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
 
 function show_less(io::IO, v::CompVertex)
-    print(io, "CompVertex(")
+    summary(io, v)
+    print(io, "(")
     show(io, v.computation)
     print(io, ")")
 end
 
 clone(c::Function) = deepcopy(c)
+
+function show(io::IO, v::CompVertex)
+    show_less(io, v)
+    print(io, ", inputs=")
+    show(io, inputs(v))
+end

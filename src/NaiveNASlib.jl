@@ -22,10 +22,10 @@ InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, o
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex,
 
 # Mutation traits
-trait, MutationTrait, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant,
+trait, MutationTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant,
 
 # Size util
-minΔnoutfactor, findabsorbing,
+minΔnoutfactor, findterminating,
 
 # Connectivity mutation
 remove!, RemoveStrategy,

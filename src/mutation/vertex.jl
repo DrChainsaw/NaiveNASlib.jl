@@ -13,7 +13,7 @@ Decorates an AbstractVertex with output edges.
 """
 struct OutputsVertex <: AbstractVertex
     base::AbstractVertex
-    outs::AbstractArray{AbstractVertex,1}
+    outs::AbstractVector{AbstractVertex}
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
@@ -24,6 +24,14 @@ base(v::OutputsVertex) = v.base
 
 inputs(v::OutputsVertex) = inputs(base(v))
 outputs(v::OutputsVertex) = v.outs
+
+show_less(io::IO, v::OutputsVertex) = show_less(io, base(v))
+
+function show(io::IO, v::OutputsVertex)
+     show(io, base(v))
+     print(io, ", outputs=")
+     show(io, outputs(v))
+ end
 
 """
     InputSizeVertex
@@ -52,6 +60,9 @@ base(v::InputSizeVertex)::AbstractVertex = v.base
 inputs(v::InputSizeVertex) = inputs(base(v))
 outputs(v::InputSizeVertex) = outputs(base(v))
 
+show_less(io::IO, v::InputSizeVertex) = show_less(io, base(v))
+
+
 
 """
     MutationTrait
@@ -59,15 +70,24 @@ outputs(v::InputSizeVertex) = outputs(base(v))
 Base type for traits relevant when mutating.
 """
 abstract type MutationTrait end
+# For convenience as 99% of all traits are immutable. Don't forget to implement for stateful traits or else there will be pain!
 clone(t::MutationTrait) = t
 
 """
     Immutable
 
-Trait for vertices which are immutable. Typically inputs and outputs as those are fixed to the data set
+Trait for vertices which are immutable. Typically inputs and outputs as those are fixed to the surroundings (e.g a data set).
 """
 struct Immutable <: MutationTrait end
 trait(v::AbstractVertex) = Immutable()
+
+abstract type DecoratingTrait <: MutationTrait end
+
+struct NamedTrait <: DecoratingTrait
+    base::MutationTrait
+    name
+end
+base(t::NamedTrait) = t.base
 
 """
     MutationVertex
@@ -95,13 +115,13 @@ struct MutationVertex <: AbstractVertex
 end
 MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVertex(OutputsVertex(b), s, t)
 
-AbsorbVertex(b::AbstractVertex, s::MutationState) = MutationVertex(b, s, SizeAbsorb())
+AbsorbVertex(b::AbstractVertex, s::MutationState, f::Function=identity) = MutationVertex(b, s, f(SizeAbsorb()))
 
-StackingVertex(b::AbstractVertex) = StackingVertex(OutputsVertex(b))
-StackingVertex(b::Union{OutputsVertex, MutationVertex}) = MutationVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))), SizeStack())
+StackingVertex(b::AbstractVertex, f::Function=identity) = StackingVertex(OutputsVertex(b), f)
+StackingVertex(b::Union{OutputsVertex, MutationVertex}, f::Function=identity) = MutationVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))), f(SizeStack()))
 
-InvariantVertex(b::AbstractVertex) = InvariantVertex(OutputsVertex(b), NoOp())
-InvariantVertex(b::AbstractVertex, op::MutationOp) = MutationVertex(OutputsVertex(b), op, SizeInvariant())
+InvariantVertex(b::AbstractVertex, f::Function=identity) = InvariantVertex(b, NoOp(), f)
+InvariantVertex(b::AbstractVertex, op::MutationOp, f::Function=identity) = MutationVertex(OutputsVertex(b), op, f(SizeInvariant()))
 
 clone(v::MutationVertex, ins::AbstractVertex...; opfun=cloneop, traitfun=clonetrait) = MutationVertex(clone(base(v), ins...), opfun(v), traitfun(v))
 cloneop(v::MutationVertex) = clone(op(v))
@@ -114,3 +134,8 @@ trait(v::MutationVertex) = v.trait
 
 inputs(v::MutationVertex)  = inputs(base(v))
 outputs(v::MutationVertex) = outputs(base(v))
+
+show_less(io::IO, v::MutationVertex) = show_less(io, trait(v), v)
+show_less(io::IO, ::MutationTrait, v::MutationVertex) = summary(io, v)
+show_less(io::IO, t::NamedTrait, v::MutationVertex) = print(io, t.name)
+show_less(io::IO, t::DecoratingTrait, v::MutationVertex) = show_less(io, base(t), v)

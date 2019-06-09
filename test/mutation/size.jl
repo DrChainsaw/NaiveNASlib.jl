@@ -218,26 +218,27 @@
     @testset "Mutate tricky structures" begin
 
         ## Helper functions
-        rb(start, residual) = InvariantVertex(CompVertex(+, residual, start))
-        merge(paths...) = StackingVertex(CompVertex(hcat, paths...))
+        nt(name) = t -> NamedTrait(t, name)
+        rb(start, residual,name="add") = InvariantVertex(CompVertex(+, residual, start), nt(name))
+        merge(paths...;name="merge") = StackingVertex(CompVertex(hcat, paths...), nt(name))
         mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
-        av(op, state, in...) = AbsorbVertex(CompVertex(op, in...), state)
-        function stack(start, nouts...)
+        av(op, state, in...;name="comp") = AbsorbVertex(CompVertex(op, in...), state, nt(name))
+        function stack(start, nouts...; bname = "stack")
             # Can be done on one line with mapfoldl, but it is not pretty...
             next = start
             for i in 1:length(nouts)
                 op = mm(nout(next), nouts[i])
-                next = av(op, IoSize(nout(next), nouts[i]), next)
+                next = av(op, IoSize(nout(next), nouts[i]), next, name="$(bname)_$i")
             end
             return next
         end
 
         @testset "Residual fork block" begin
-            start = AbsorbVertex(InputVertex(1), InvSize(9))
-            p1 = stack(start, 3,4)
-            p2 = stack(start, 4,5)
+            start = av(mm(3,9), IoSize(3,9), InputSizeVertex("in", 3), name="start")
+            p1 = stack(start, 3,4, bname = "p1")
+            p2 = stack(start, 4,5, bname = "p2")
             resout = rb(start, merge(p1, p2))
-            out = av(mm(9, 4), IoSize(9,4), resout)
+            out = av(mm(9, 4), IoSize(9,4), resout; name="out")
 
             @test nout(resout) == 9
 
@@ -254,12 +255,12 @@
         end
 
         @testset "Half transparent residual fork block" begin
-            start = AbsorbVertex(InputVertex(1), InvSize(8))
-            split = av(mm(8,4), IoSize(8,4), start)
-            p1 = StackingVertex(CompVertex(identity, split))
-            p2 = stack(split, 3,2,4)
+            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
+            split = av(mm(8,4), IoSize(8,4), start, name="split")
+            p1 = merge(split, name="p1") #Just an identity vertex
+            p2 = stack(split, 3,2,4, bname="p2")
             resout = rb(start, merge(p1, p2))
-            out = av(mm(8, 3), IoSize(8,3), resout)
+            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
 
@@ -275,11 +276,11 @@
         end
 
         @testset "Transparent fork block" begin
-            start = AbsorbVertex(CompVertex(identity, inpt(4)), InvSize(4))
-            p1 = StackingVertex(CompVertex(identity, start))
-            p2 = StackingVertex(CompVertex(identity, start))
+            start = av(mm(3,4), IoSize(3,4), InputSizeVertex("in", 3), name="start")
+            p1 = merge(start, name="p1")
+            p2 = merge(start, name="p2")
             join = merge(p1, p2)
-            out = av(mm(8, 3), IoSize(8,3), join)
+            out = av(mm(8, 3), IoSize(8,3), join, name="out")
 
             @test nout(join) == 8
 
@@ -297,12 +298,12 @@
         end
 
         @testset "Transparent residual fork block" begin
-            start = AbsorbVertex(CompVertex(identity, inpt(8)), InvSize(8))
-            split = av(mm(8,4), IoSize(8,4), start)
-            p1 = StackingVertex(CompVertex(identity, split))
-            p2 = StackingVertex(CompVertex(identity, split))
+            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
+            split = av(mm(8,4), IoSize(8,4), start, name="split")
+            p1 = merge(split, name="p1")
+            p2 = merge(split, name="p2")
             resout = rb(start, merge(p1, p2))
-            out = av(mm(8, 3), IoSize(8,3), resout)
+            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
 

@@ -53,4 +53,14 @@ using Test
             @test cv_orig(3) == cv_copy(3)
         end
     end
+
+    @testset "Pretty printing" begin
+
+        @testset "CompVertex" begin
+            cv = CompVertex(+, InputVertex.(1:2))
+            @test showstr(show, cv) == "CompVertex(+), inputs=[InputVertex(1), InputVertex(2)]"
+        end
+
+
+    end
 end

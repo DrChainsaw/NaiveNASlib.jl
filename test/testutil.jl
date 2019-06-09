@@ -27,3 +27,9 @@ function issame(s1::T, s2::T, visited=AbstractVertex[]) where T<:MutationOp
     end
     return true
 end
+
+function showstr(f, v)
+    buffer = IOBuffer()
+    f(buffer, v)
+    return String(take!(buffer))
+end
