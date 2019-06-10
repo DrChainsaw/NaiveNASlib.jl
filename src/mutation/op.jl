@@ -83,6 +83,7 @@ mutable struct IoSize <: MutationState
     nin::AbstractArray{Integer,1}
     nout::Integer
 end
+IoSize(size::Integer) = IoSize(size, size)
 IoSize(in::Integer, out::Integer) = IoSize([in], out)
 clone(s::IoSize) = IoSize(copy(nin(s)), nout(s))
 

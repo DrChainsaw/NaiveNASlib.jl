@@ -136,6 +136,7 @@
             @test issame(io1, io1c)
             @test issame(io2, io2c)
         end
+
     end
     @testset "InvariantVertex" begin
 
@@ -331,8 +332,8 @@
         struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
-        av(size, csize, in...) = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(collect(nin.(in)), size))
-        sv(in...) = StackingVertex(CompVertex(hcat, in...))
+        av(size, csize, in...;name = "av") = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(vcat(nout.(in)...), size), t -> NamedTrait(t, name))
+        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
 
         @testset "InputSizeVertex" begin
             @test ismissing(minΔnoutfactor(inpt(3)))
@@ -365,9 +366,9 @@
         end
 
         @testset "StackingVertex multi inputs" begin
-            v1 = av(6,3, inpt(3))
-            v2 = av(7,2, inpt(3))
-            v3 = av(8,2, inpt(3))
+            v1 = av(6,3, inpt(3), name="v1")
+            v2 = av(7,2, inpt(3), name="v2")
+            v3 = av(8,2, inpt(3), name="v3")
 
             sv1 = sv(v1, v2)
             sv2 = sv(v3, v2, v1, v2)
@@ -393,21 +394,19 @@
         end
 
         @testset "Stacked StackingVertices" begin
-            v1 = av(100,1, inpt(3))
-            v2 = av(100,2, inpt(3))
-            v3 = av(100,3, inpt(3))
-            v4 = av(100,5, inpt(3))
+            v1 = av(100,1, inpt(3), name="v1")
+            v2 = av(100,2, inpt(3), name="v2")
+            v3 = av(100,3, inpt(3), name="v3")
+            v4 = av(100,5, inpt(3), name="v4")
 
-            sv1  = sv(v2, v3)
-            sv2 = sv(sv1, v1)
-            sv3 = sv(sv2, v4, v2)
+            sv1  = sv(v2, v3, name="sv1")
+            sv2 = sv(sv1, v1, name="sv2")
+            sv3 = sv(sv2, v4, v2, name="sv3")
             @test minΔnoutfactor(sv1) == 6
             @test minΔnoutfactor(sv2) == 6
             @test minΔnoutfactor(sv3) == 60 # v2 is input twice through sc2->sv1
 
-            @test minΔninfactor(sv1) == 1
-            @test minΔninfactor(sv2) == 1
-            @test minΔninfactor(sv3) == 1
+            @test minΔninfactor(sv1) == minΔninfactor(sv2) == minΔninfactor(sv3) == 1
 
             Δnout(sv3, -60)
             @test nout(v1) == 86
@@ -417,6 +416,30 @@
             @test nout(sv1) == nout(v2) + nout(v3) == 177
             @test nout(sv2) == nout(sv1) + nout(v1) == 263
             @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
+
+            v5 = av(10, 2, sv3)
+            @test minΔninfactor(sv1) == minΔninfactor(sv2) == minΔninfactor(sv3) == 2
+
+            Δnout(v1, 3)
+            @test nout(v1) == 89
+            @test nout(v2) == 92
+            @test nout(v3) == 85
+            @test nout(v4) == 85
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 266
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [443]
+
+            # Evil action! Must have understanding that the change in v2 will propagate
+            # to sv3 input 1 through sv1 and sv2 and hold off updating it through input 3 
+            Δnout(v2, -13)
+            @test nout(v1) == 89
+            @test nout(v2) == 79
+            @test nout(v3) == 85
+            @test nout(v4) == 85
+            @test nout(sv1) == nout(v2) + nout(v3) == 164
+            @test nout(sv2) == nout(sv1) + nout(v1) == 253
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [417]
+
 
         end
 
