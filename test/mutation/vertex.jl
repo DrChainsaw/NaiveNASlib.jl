@@ -48,7 +48,7 @@ import InteractiveUtils:subtypes
     end
 
     @testset "Pretty printing" begin
-                    import NaiveNASlib: show_less
+        import NaiveNASlib: show_less
 
         @testset "OutputsVertex" begin
             iv = OutputsVertex(InputVertex(1))

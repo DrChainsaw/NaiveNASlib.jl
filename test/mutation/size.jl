@@ -1,7 +1,7 @@
 
 @testset "Size mutations" begin
 
-    inpt(size, id=1) = InputSizeVertex(InputVertex(id), size)
+    inpt(size, id=1) = InputSizeVertex(id, size)
 
     @testset "AbsorbVertex" begin
         iv = AbsorbVertex(InputVertex(1), InvSize(2))
@@ -298,30 +298,30 @@
         end
 
         @testset "Transparent residual fork block" begin
-            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
-            split = av(mm(8,4), IoSize(8,4), start, name="split")
+            start = av(mm(3,10), IoSize(3,10), InputSizeVertex("in", 3), name="start")
+            split = av(mm(10,5), IoSize(10,5), start, name="split")
             p1 = merge(split, name="p1")
             p2 = merge(split, name="p2")
             resout = rb(start, merge(p1, p2))
-            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
+            out = av(mm(10, 3), IoSize(10,3), resout, name="out")
 
-            @test nout(resout) == 8
+            @test nout(resout) == 10
 
             # Evil action: This will propagate to both p1 and p2 which are in
             # turn both input to the merge before resout. Simple dfs will
             # fail as one will hit the merge through p1 before having
             # resolved the path through p2.
             Δnout(split, -1)
-            @test nin(out) == [nout(start)] == nin(split) == [6]
+            @test nin(out) == [nout(start)] == nin(split) == [8]
 
             # Should basically undo the previous mutation
             Δnin(out, +2)
-            @test nin(out) == [nout(start)] == nin(split) == [8]
+            @test nin(out) == [nout(start)] == nin(split) == [10]
 
             @test minΔnoutfactor.(inputs(out)) == [2]
             Δnout(start, -4)
-            @test nin(out) == [nout(start)] == [4]
-            @test nout(split) == 2
+            @test nin(out) == [nout(start)] == [6]
+            @test nout(split) == 3
         end
     end
 
@@ -330,6 +330,7 @@
         # Helpers
         struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
+        NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
         av(size, csize, in...) = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(collect(nin.(in)), size))
         sv(in...) = StackingVertex(CompVertex(hcat, in...))
 
@@ -370,8 +371,8 @@
 
             sv1 = sv(v1, v2)
             sv2 = sv(v3, v2, v1, v2)
-            @test minΔnoutfactor(sv1) == 3
-            @test minΔnoutfactor(sv2) == 4
+            @test minΔnoutfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == 12
 
             # Expect only v1 to change as size change is not compatible with v2
             Δnout(sv1, -3)
@@ -389,6 +390,33 @@
             @test nout(v1) == 5
             @test nout(v2) == 6
             @test nout(v3) == 8
+        end
+
+        @testset "Stacked StackingVertices" begin
+            v1 = av(100,1, inpt(3))
+            v2 = av(100,2, inpt(3))
+            v3 = av(100,3, inpt(3))
+            v4 = av(100,5, inpt(3))
+
+            sv1  = sv(v2, v3)
+            sv2 = sv(sv1, v1)
+            sv3 = sv(sv2, v4, v2)
+            @test minΔnoutfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == 6
+            @test minΔnoutfactor(sv3) == 60 # v2 is input twice through sc2->sv1
+
+            @test minΔninfactor(sv1) == 1
+            @test minΔninfactor(sv2) == 1
+            @test minΔninfactor(sv3) == 1
+
+            Δnout(sv3, -60)
+            @test nout(v1) == 86
+            @test nout(v2) == 92
+            @test nout(v3) == 85
+            @test nout(v4) == 85
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 263
+            @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
 
         end
 

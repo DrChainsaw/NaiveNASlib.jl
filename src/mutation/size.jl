@@ -65,10 +65,18 @@ minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot
 minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
 minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
 minΔnoutfactor(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor(base(v))
-minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔnoutfactor.(inputs(v)))
+minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = lcm(minΔnoutfactor.(inputs(v)))
 function minΔnoutfactor(::SizeStack, v::AbstractVertex)
     absorbing = findterminating(v, inputs)
-    return maximum([count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)])
+
+    # This is not strictly the minimum as using only one of the factors would work as well
+    # However, this would create a bias as the same factor would be used all the time
+    # Life is really hard sometimes :(
+
+    # Count thingy is for duplicate inputs
+    factors = [count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)]
+    isempty(factors) && return 1
+    return any(ismissing.(factors)) ? missing : lcm(factors)
 end
 
 """
@@ -82,12 +90,19 @@ minΔninfactor(v::InputVertex) = missing
 minΔninfactor(v::CompVertex) = minΔninfactor(v.computation)
 minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
 minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
-minΔinfactor(t::DecoratingTrait, v::AbstractVertex) = minΔinfactor(base(t), v)
+minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
 minΔninfactor(::SizeAbsorb, v::AbstractVertex) = minΔninfactor(base(v))
-minΔninfactor(::SizeInvariant, v::AbstractVertex) = maximum(minΔninfactor.(outputs(v)))
+minΔninfactor(::SizeInvariant, v::AbstractVertex) = lcm(minΔninfactor.(outputs(v)))
 function minΔninfactor(::SizeStack, v::AbstractVertex)
     absorbing = findterminating(v, outputs)
-    return maximum([count(x->x==va,absorbing) * minΔninfactor(va) for va in unique(absorbing)])
+    # This is not strictly the minimum as using only one of the factors would work as well
+    # However, this would create a bias as the same factor would be used all the time
+    # Life is really hard sometimes :(
+
+    # Count thingy is for duplicate inputs
+    factors = [count(x->x==va,absorbing) * minΔninfactor(va) for va in unique(absorbing)]
+    isempty(factors) && return 1
+    return any(ismissing.(factors)) ? missing : lcm(factors)
 end
 
 
@@ -103,6 +118,37 @@ findterminating(::SizeAbsorb, v, f::Function) = [v]
 findterminating(::Immutable, v, f::Function) = [v]
 findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
 
+"""
+    lcmv(arr::AbstractArray{<:Integer})
+
+Remove all elements of arr which are a prime factor of some larger element of arr
+
+# Examples
+```julia-repl
+julia> import NaiveNASlib:lcmv
+
+julia> lcmv([7,4,6,3,2,1,14])
+3-element Array{Int64,1}:
+  4
+  6
+ 14
+```
+"""
+function lcmv(arr::AbstractArray{<:Integer})
+    srt = sort(arr, rev=true)
+    res  = lcmv.(srt[1], srt[2:end]...)
+    return arr[findall(x -> x in res, arr)]
+end
+function lcmv(a::Integer, b::Integer...)
+    res = unique(reduce(vcat, lcmv(b...)))
+    unique(reduce(vcat, lcmv.(a, res)))
+end
+
+function lcmv(a::Integer, b::Integer)
+    lm = lcm(a,b)
+    return max(a,b) == lm ? lm : [a,b]
+end
+lcmv() = 1
 
 """
     VisitState
@@ -114,18 +160,23 @@ Remembers visitation for both forward (in) and backward (out) directions.
 struct VisitState{T}
     in::Array{MutationVertex,1}
     out::Array{MutationVertex,1}
-    contexts::OrderedDict{MutationVertex, Vector{Maybe{T}}}
+    nincontexts::OrderedDict{MutationVertex, Vector{Maybe{T}}}
+    noutcontexts::OrderedDict{MutationVertex, Maybe{T}}
 end
-VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{T}}}())
+VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{T}}}(), OrderedDict{MutationVertex, Maybe{T}}())
 visited_in!(s::VisitState, v::MutationVertex) = push!(s.in, v)
 visited_out!(s::VisitState, v::MutationVertex) = push!(s.out, v)
 has_visited_in(s::VisitState, v::MutationVertex) = v in s.in
 has_visited_out(s::VisitState, v::MutationVertex) = v in s.out
 
-no_context(s::VisitState{T}) where T = isempty(s.contexts)
-context!(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get!(defaultfun, s.contexts, v)
-delete_context!(s::VisitState{T}, v::MutationVertex) where T = delete!(s.contexts, v)
-contexts(s::VisitState{T}) where T = s.contexts
+no_nincontext(s::VisitState{T}) where T = isempty(s.nincontexts)
+nincontext!(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get!(defaultfun, s.nincontexts, v)
+delete_nincontext!(s::VisitState{T}, v::MutationVertex) where T = delete!(s.nincontexts, v)
+nincontexts(s::VisitState{T}) where T = s.nincontexts
+
+noutcontext(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get(defaultfun, s.noutcontexts, v)
+noutcontext!(Δ::T, s::VisitState{T}, v::MutationVertex) where T = s.noutcontexts[v] = Δ
+
 
 
 Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(trait(v), v, Δ..., s=s)
@@ -165,7 +216,7 @@ function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitSta
     Δnout(op(v), Δ)
 
     propagate_nin(v, Δ, s=s) # If there are multiple outputs they must all be updated
-    Δs = split_nout_over_inputs(v, Δ)
+    Δs = split_nout_over_inputs(v, Δ, s)
     Δnin(op(v), Δs...)
     propagate_nout(v, Δs...; s=s)
 end
@@ -187,29 +238,100 @@ function concat(insizes, Δ::Maybe{AbstractArray{T}}...) where T
     return res
 end
 
-function split_nout_over_inputs(v::AbstractVertex, Δ::T) where T<:Integer
-    insizes = nin(v)
-    Δfactors = minΔnoutfactor.(inputs(v))
-
+function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) where T<:Integer
     # All we want is basically a split of Δ weighted by each individual input size
-    # Major annoyance: We must comply to the Δfactors so that Δi for input i is an
+    # Major annoyance #1: We must comply to the Δfactors so that Δi for input i is an
     # integer multiple of Δfactors[i]
-    limits = ceil.(insizes ./ Δfactors)
+    # Major annoyance #2: Size might already have been propagated to some of the vertices
+    # through another path. Need to account for that...
 
-    objective = function(n)
-        Δ < 0 && any(n .>= limits) && return Inf
-        return std(n .* Δfactors ./ insizes, corrected=false)
+    #println("Begin split $Δ")
+    #@show values(s.noutcontexts)
+
+    # setΔs::AbstractArray{Maybe{T}} = noutcontext.(() -> missing, [s], inputs(v))
+    # @show setΔs
+    # mask = ismissing.(setΔs)
+    # @show mask
+    # all(.!mask) && return setΔs
+    #
+    # Δ -= sum(skipmissing(setΔs))
+    #@show Δ
+
+    inputfilter(v) = v in keys(s.noutcontexts) ? [] : inputs(v)
+    #terminating_vertices = findterminating.(inputs(v)[mask], inputfilter)
+    terminating_vertices = findterminating.(inputs(v), inputfilter)
+
+    #@show terminating_vertices
+
+    #@show inputs(v)
+ # We have already decided all nouts through some other path
+    # if !all(mask)
+    #     Δ -= sum(skipmissing(setΔs))
+    # end
+
+    #@show minΔnoutfactor.(inputs(v))
+    # insizes = nin(v)[mask]
+    # Δfactors = minΔnoutfactor.(inputs(v)[mask], s=s)
+     insizes_a = map(a -> nout.(a), terminating_vertices)
+     #Δfactors_a = map(a -> minΔnoutfactor.(a), terminating_vertices)
+     #@show(insizes_a)
+
+    #ftv = flattened_terminating_vertices, okay?
+    ftv = vcat(terminating_vertices...)
+    uftv = unique(ftv)
+
+    termΔs::AbstractArray{Maybe{T}} = noutcontext.(() -> missing, [s], uftv)
+    missinginds = ismissing.(termΔs)
+    #@show missinginds
+
+    if any(missinginds)
+        muftv = uftv[missinginds]
+        Δ -= sum(skipmissing(termΔs))
+
+        Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor(va) for va in muftv]
+        insizes = nout.(muftv)
+        #@show Δfactors
+
+        #TODO: Floor instead, but tests fail then
+        limits = ceil.(insizes ./ Δfactors)
+        #@show limits
+        #@show insizes
+
+        objective = function(n)
+            Δ < 0 && any(n .>= limits) && return Inf
+            return std(n .* Δfactors ./ insizes, corrected=false)
+        end
+
+        nΔfactors = pick_values(Δfactors, abs(Δ), objective)
+        #@show nΔfactors
+
+        sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
+
+
+        #termΔs = div.(sign(Δ) .* nΔfactors .* Δfactors, Integer[count(x->x==va,ftv) for va in uftv])
+        termΔs[missinginds] = div.(sign(Δ) .* nΔfactors .* Δfactors, Integer[count(x->x==va,ftv) for va in muftv])
     end
 
-    nΔfactors = pick_values(Δfactors, abs(Δ), objective)
+    #termΔs = sign(Δ) .* nΔfactors .* Δfactors
+    #@show termΔs
+     vert2size = Dict(uftv .=> termΔs)
+     #noutcontext!.(termΔs, [s], uftv)
 
-    sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
+    #vert2size = Dict(ftv .=> termΔs)
+    #noutcontext!.(termΔs, [s], ftv)
 
-    Δs = sign(Δ) .* nΔfactors .* Δfactors
+    #setΔs[mask]
+    ret = map(terminating_vertices) do varr
+        res = mapreduce(va -> vert2size[va], +, varr)
+        return res
+    end
+    #setΔs[mask] = sign(Δ) .* nΔfactors .* Δfactors
+    #@show ret
+    return ret
 end
 
 
-function split_nout_over_inputs(v::AbstractVertex, Δ::AbstractArray{T,1}) where T<:Integer
+function split_nout_over_inputs(v::AbstractVertex, Δ::AbstractVector{T}, s::VisitState{<:AbstractVector{T}}) where T<:Integer
     insizes = nin(v)
 
     Δs = ntuple(i -> T[], length(insizes))
@@ -282,10 +404,10 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # If not, the "if first" block in the end will propagate anyways, leaving
     # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" for a motivation
-    first = no_context(s)
+    first = no_nincontext(s)
     for vi in outputs(v)
         ins = inputs(vi)
-        Δs = context!(s, vi) do
+        Δs = nincontext!(s, vi) do
             Array{Union{Missing, T},1}(missing, length(ins))
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
@@ -299,10 +421,10 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         # New contexts might be added as we traverse though, so after
         # we are done with the current batch we need to check again
         # if there are new contexts, hence the while loop
-        while !no_context(s)
-            tmpctxs = copy(contexts(s))
+        while !no_nincontext(s)
+            tmpctxs = copy(nincontexts(s))
             for (vn, ctx) in tmpctxs
-                delete_context!(s, vn)
+                delete_nincontext!(s, vn)
                 # Note: Other contexts may be "completed" as a consequence of this
                 # However, if that happens the call below should just return immediately
                 # due to vertex having been visited.
@@ -315,6 +437,9 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
 end
 
 function propagate_nout(v::MutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+
+    noutcontext!.(Δ, [s], inputs(v))
+
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end
