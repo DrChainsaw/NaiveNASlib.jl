@@ -403,22 +403,28 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         # by the size change
         foreach(pathfinder, vcat(findterminating.(outputs(v), tracer)...))
 
-        # Must delete from contexts before further traversal and we don't  wanna delete from the collection we're iterating over
+        # Must delete from contexts before further traversal and we don't wanna delete from the collection we're iterating over
         # New contexts might be added as we traverse though, so after we are done with the current batch we need to check again if there are new contexts, hence the while loop
+        last_keys = Set() # For infinite loop protection
         while !isempty(ninΔs(s))
-            tmpctxs = copy(ninΔs(s))
+            tmpΔs = copy(ninΔs(s))
 
-            for (vn, ctx) in tmpctxs
+            for (vn, Δs) in tmpΔs
                 delete!(ninΔs(s), vn)
                 has_visited_in(s, vn) && continue
 
-                if (vn in keys(expected_inputs)) && .!ismissing.(ctx) < expected_inputs[vn]
-                    ninΔs(s)[vn] = ctx
-                    continue
+                if (vn in keys(expected_inputs)) && .!ismissing.(Δs) < expected_inputs[vn]
+                    # Infinite loop protection
+                    if Set(keys(ninΔs(s))) != last_keys
+                        ninΔs(s)[vn] = Δs
+                        continue
+                    end
+                    @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys))"
                 end
 
-                Δnin(vn, ctx..., s=s)
+                Δnin(vn, Δs..., s=s)
             end
+            last_keys = Set(keys(ninΔs(s)))
         end
     end
 end
