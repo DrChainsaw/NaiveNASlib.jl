@@ -298,28 +298,28 @@
         end
 
         @testset "Transparent residual fork block" begin
-            start = av(mm(3,10), IoSize(3,10), InputSizeVertex("in", 3), name="start")
-            split = av(mm(10,5), IoSize(10,5), start, name="split")
+            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
+            split = av(mm(8,4), IoSize(8,4), start, name="split")
             p1 = merge(split, name="p1")
             p2 = merge(split, name="p2")
             resout = rb(start, merge(p1, p2))
-            out = av(mm(10, 3), IoSize(10,3), resout, name="out")
+            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
-            @test nout(resout) == 10
+            @test nout(resout) == 8
 
             # Evil action: This will propagate to both p1 and p2 which are in
             # turn both input to the merge before resout. Simple dfs will
             # fail as one will hit the merge through p1 before having
             # resolved the path through p2.
             Δnout(split, -1)
-            @test nin(out) == [nout(start)] == nin(split) == [8]
+            @test nin(out) == [nout(start)] == nin(split) == [6]
 
             # Should basically undo the previous mutation
             Δnin(out, +2)
-            @test nin(out) == [nout(start)] == nin(split) == [10]
+            @test nin(out) == [nout(start)] == nin(split) == [8]
 
             @test minΔnoutfactor.(inputs(out)) == [2]
-            Δnout(start, -4)
+            Δnout(start, -2)
             @test nin(out) == [nout(start)] == [6]
             @test nout(split) == 3
         end
@@ -365,8 +365,8 @@
         end
 
         @testset "StackingVertex multi inputs" begin
-            v1 = av(5,3, inpt(3))
-            v2 = av(6,2, inpt(3))
+            v1 = av(6,3, inpt(3))
+            v2 = av(7,2, inpt(3))
             v3 = av(8,2, inpt(3))
 
             sv1 = sv(v1, v2)
@@ -376,20 +376,20 @@
 
             # Expect only v1 to change as size change is not compatible with v2
             Δnout(sv1, -3)
-            @test nout(v1) == 2
-            @test nout(v2) == 6
+            @test nout(v1) == 3
+            @test nout(v2) == 7
 
             # v1 can't change as it is too small already
             # v3 makes a larger change as it is larger than v1
             Δnout(sv2, -6)
-            @test nout(v1) == 2
-            @test nout(v2) == 4
-            @test nout(v3) == 6
+            @test nout(v1) == 3
+            @test nout(v2) == 7
+            @test nout(v3) == 2
 
             Δnout(sv2, +9)
-            @test nout(v1) == 5
-            @test nout(v2) == 6
-            @test nout(v3) == 8
+            @test nout(v1) == 6
+            @test nout(v2) == 9
+            @test nout(v3) == 4
         end
 
         @testset "Stacked StackingVertices" begin

@@ -266,20 +266,23 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
         Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor(va) for va in muftv]
         insizes = nout.(muftv)
 
-        #TODO: Floor instead, but tests fail then
-        limits = ceil.(insizes ./ Δfactors)
+        # floor is due to assumption the minimum size is 1 * Δfactors
+        limits = floor.(insizes ./ Δfactors)
 
         objective = function(n)
+            # If decreasing (Δ < 0) consider any solution which would result in a nin[i] < Δfactors[i] to be invalid
             Δ < 0 && any(n .>= limits) && return Inf
+            # Minimize standard deviation of Δs weighted by input size so larger input sizes get larger Δs
             return std(n .* Δfactors ./ insizes, corrected=false)
         end
 
         nΔfactors = pick_values(Δfactors, abs(Δ), objective)
 
-        sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
+        sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors) and limits $(limits)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
 
         # Remap any duplicated vertices Δi =>  Δi / 2
-        termΔs[missinginds] = div.(sign(Δ) .* nΔfactors .* Δfactors, Integer[count(x->x==va,ftv) for va in muftv])
+        scale_duplicate = Integer[count(x->x==va,ftv) for va in muftv]
+        termΔs[missinginds] = div.(sign(Δ) .* nΔfactors .* Δfactors, scale_duplicate)
     end
 
     # Now its time to accumulate all Δs for each terminating_vertices array. Remember that terminating_vertices[i] is an array of the terminating vertices seen through input vertex i
