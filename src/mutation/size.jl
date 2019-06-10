@@ -160,8 +160,8 @@ Remembers visitation for both forward (in) and backward (out) directions.
 struct VisitState{T}
     in::Array{MutationVertex,1}
     out::Array{MutationVertex,1}
-    nincontexts::OrderedDict{MutationVertex, Vector{Maybe{T}}}
-    noutcontexts::OrderedDict{MutationVertex, Maybe{T}}
+    ninΔs::OrderedDict{MutationVertex, Vector{Maybe{T}}}
+    noutΔs::OrderedDict{MutationVertex, Maybe{T}}
 end
 VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{T}}}(), OrderedDict{MutationVertex, Maybe{T}}())
 visited_in!(s::VisitState, v::MutationVertex) = push!(s.in, v)
@@ -169,13 +169,12 @@ visited_out!(s::VisitState, v::MutationVertex) = push!(s.out, v)
 has_visited_in(s::VisitState, v::MutationVertex) = v in s.in
 has_visited_out(s::VisitState, v::MutationVertex) = v in s.out
 
-no_nincontext(s::VisitState{T}) where T = isempty(s.nincontexts)
-nincontext!(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get!(defaultfun, s.nincontexts, v)
-delete_nincontext!(s::VisitState{T}, v::MutationVertex) where T = delete!(s.nincontexts, v)
-nincontexts(s::VisitState{T}) where T = s.nincontexts
+ninΔs(s::VisitState{T}) where T = s.ninΔs
+noutΔs(s::VisitState{T}) where T = s.noutΔs
 
-noutcontext(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get(defaultfun, s.noutcontexts, v)
-noutcontext!(Δ::T, s::VisitState{T}, v::MutationVertex) where T = s.noutcontexts[v] = Δ
+# Only so it is possible to broadcast since broadcasting over dics is reserved
+getnoutΔ(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get(defaultfun, s.noutΔs, v)
+setnoutΔ!(Δ::T, s::VisitState{T}, v::MutationVertex) where T = s.noutΔs[v] = Δ
 
 
 
@@ -247,7 +246,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
 
     # Note: terminating_vertices is an array of arrays so that terminating_vertices[i] are all terminating vertices seen through input vertex i
     # We will use it later to accumulate all individual size changes in that direction
-    inputfilter(v) = v in keys(s.noutcontexts) ? [] : inputs(v)
+    inputfilter(v) = v in keys(noutΔs(s)) ? [] : inputs(v)
     terminating_vertices = findterminating.(inputs(v), inputfilter)
 
     #ftv = flattened_terminating_vertices, okay?
@@ -255,7 +254,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
     uftv = unique(ftv)
 
     # Find which sizes has not been determined through some other path; those are the ones we shall consider here
-    termΔs::AbstractArray{Maybe{T}} = noutcontext.(() -> missing, [s], uftv)
+    termΔs::AbstractArray{Maybe{T}} = getnoutΔ.(() -> missing, [s], uftv)
     missinginds = ismissing.(termΔs)
 
     if any(missinginds)
@@ -365,10 +364,10 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # If not, the "if first" block in the end will propagate anyways, leaving
     # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" for a motivation
-    first = no_nincontext(s)
+    first = isempty(ninΔs(s))
     for vi in outputs(v)
         ins = inputs(vi)
-        Δs = nincontext!(s, vi) do
+        Δs = get!(ninΔs(s), vi) do
             Array{Union{Missing, T},1}(missing, length(ins))
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
@@ -382,10 +381,10 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         # New contexts might be added as we traverse though, so after
         # we are done with the current batch we need to check again
         # if there are new contexts, hence the while loop
-        while !no_nincontext(s)
-            tmpctxs = copy(nincontexts(s))
+        while !isempty(ninΔs(s))
+            tmpctxs = copy(ninΔs(s))
             for (vn, ctx) in tmpctxs
-                delete_nincontext!(s, vn)
+                delete!(ninΔs(s), vn)
                 # Note: Other contexts may be "completed" as a consequence of this
                 # However, if that happens the call below should just return immediately
                 # due to vertex having been visited.
@@ -398,7 +397,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
 end
 
 function propagate_nout(v::MutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
-    noutcontext!.(Δ, [s], inputs(v))
+    setnoutΔ!.(Δ, [s], inputs(v))
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end
@@ -407,8 +406,7 @@ end
 
 # Yeah, this is an exhaustive search. Non-linear objective (such as std) makes
 # DP not feasible (or maybe I'm just too stupid to figure out the optimal substructure).
-# Shouldn't matter as any remotely sane application of this library should call this function
-# with relatively small targets and few values
+# Shouldn't matter as any remotely sane application of this library should call this function with relatively small targets and few values
 function pick_values(
     values::Vector{T},
     target::T,
