@@ -368,7 +368,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" for a motivation
     first = isempty(ninΔs(s))
-    #println("propagate nin from $(trait(v).name)")
+
     for vi in outputs(v)
         ins = inputs(vi)
         Δs = get!(ninΔs(s), vi) do
@@ -382,16 +382,13 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     if first
         # Ok, we might have partial output and we are not sure if this is correct or not (it mostly is)
         # Lets see which inputs we are expected to hit from here and hold of propagation
-        # until we have inputs for all
+        # until we have hit them all
         # See testset "Stacked StackingVertices" for motivation
 
-        #println("Proceed from $(trait(v).name)")
         expected_inputs = Dict{AbstractVertex, BitArray}()
         inputmemo = Dict(outputs(v) .=> [v])
         pathfinder = function(vn::AbstractVertex)
-            #println("\ttrace $(trait(vn).name) with input $(trait(inputmemo[vn]).name)")
             inmap = inputs(vn) .== [inputmemo[vn]]
-            #@show inmap
             stored_inmap = get!(() -> inmap, expected_inputs, vn)
             stored_inmap .|= inmap
             foreach(vo -> inputmemo[vo] = vn, outputs(vn))
@@ -402,33 +399,25 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
             return outputs(vn)
         end
         # This actually hurts my brain a bit, not sure why...
+        # Goal is to populte expected_inputs with all vertices which may be hit
+        # by the size change
         foreach(pathfinder, vcat(findterminating.(outputs(v), tracer)...))
-        # for (k,val) in expected_inputs
-        #     println("\t$(trait(k).name) => $val")
-        # end
 
         # Must delete from contexts before further traversal and we don't  wanna delete from the collection we're iterating over
         # New contexts might be added as we traverse though, so after we are done with the current batch we need to check again if there are new contexts, hence the while loop
         while !isempty(ninΔs(s))
             tmpctxs = copy(ninΔs(s))
+
             for (vn, ctx) in tmpctxs
                 delete!(ninΔs(s), vn)
                 has_visited_in(s, vn) && continue
 
                 if (vn in keys(expected_inputs)) && .!ismissing.(ctx) < expected_inputs[vn]
-                    #println("Check failed! $ctx vs $(expected_inputs[vn]) for $(trait(v).name) to $(trait(vn).name)")
-                    #display(ninΔs(s))
                     ninΔs(s)[vn] = ctx
-                    #error("Fail!")
                     continue
                 end
-                # Note: Other contexts may be "completed" as a consequence of this
-                # However, if that happens the call below should just return immediately
-                # due to vertex having been visited.
-                # Should be safe to just add a check for this here or maybe remove
-                # completed contexts in the above loop
-                Δnin(vn, ctx..., s=s)
 
+                Δnin(vn, ctx..., s=s)
             end
         end
     end
