@@ -243,59 +243,32 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
     # Major annoyance #1: We must comply to the Δfactors so that Δi for input i is an
     # integer multiple of Δfactors[i]
     # Major annoyance #2: Size might already have been propagated to some of the vertices
-    # through another path. Need to account for that...
+    # through another path. Need to account for that by digging deeply for non-size-transparent vertices (terminating vertices) and distribute sizes for each one of them to ensure things will work out when we get there. Stuff of nightmares!
 
-    #println("Begin split $Δ")
-    #@show values(s.noutcontexts)
-
-    # setΔs::AbstractArray{Maybe{T}} = noutcontext.(() -> missing, [s], inputs(v))
-    # @show setΔs
-    # mask = ismissing.(setΔs)
-    # @show mask
-    # all(.!mask) && return setΔs
-    #
-    # Δ -= sum(skipmissing(setΔs))
-    #@show Δ
-
+    # Note: terminating_vertices is an array of arrays so that terminating_vertices[i] are all terminating vertices seen through input vertex i
+    # We will use it later to accumulate all individual size changes in that direction
     inputfilter(v) = v in keys(s.noutcontexts) ? [] : inputs(v)
-    #terminating_vertices = findterminating.(inputs(v)[mask], inputfilter)
     terminating_vertices = findterminating.(inputs(v), inputfilter)
-
-    #@show terminating_vertices
-
-    #@show inputs(v)
- # We have already decided all nouts through some other path
-    # if !all(mask)
-    #     Δ -= sum(skipmissing(setΔs))
-    # end
-
-    #@show minΔnoutfactor.(inputs(v))
-    # insizes = nin(v)[mask]
-    # Δfactors = minΔnoutfactor.(inputs(v)[mask], s=s)
-     insizes_a = map(a -> nout.(a), terminating_vertices)
-     #Δfactors_a = map(a -> minΔnoutfactor.(a), terminating_vertices)
-     #@show(insizes_a)
 
     #ftv = flattened_terminating_vertices, okay?
     ftv = vcat(terminating_vertices...)
     uftv = unique(ftv)
 
+    # Find which sizes has not been determined through some other path; those are the ones we shall consider here
     termΔs::AbstractArray{Maybe{T}} = noutcontext.(() -> missing, [s], uftv)
     missinginds = ismissing.(termΔs)
-    #@show missinginds
 
     if any(missinginds)
+        #Yeah, muftv = missing_unique_flattened_terminating_vertices
         muftv = uftv[missinginds]
         Δ -= sum(skipmissing(termΔs))
 
+        # Remap any duplicated vertices Δf_i => 2 * Δf_i
         Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor(va) for va in muftv]
         insizes = nout.(muftv)
-        #@show Δfactors
 
         #TODO: Floor instead, but tests fail then
         limits = ceil.(insizes ./ Δfactors)
-        #@show limits
-        #@show insizes
 
         objective = function(n)
             Δ < 0 && any(n .>= limits) && return Inf
@@ -303,31 +276,19 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
         end
 
         nΔfactors = pick_values(Δfactors, abs(Δ), objective)
-        #@show nΔfactors
 
         sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
 
-
-        #termΔs = div.(sign(Δ) .* nΔfactors .* Δfactors, Integer[count(x->x==va,ftv) for va in uftv])
+        # Remap any duplicated vertices Δi =>  Δi / 2
         termΔs[missinginds] = div.(sign(Δ) .* nΔfactors .* Δfactors, Integer[count(x->x==va,ftv) for va in muftv])
     end
 
-    #termΔs = sign(Δ) .* nΔfactors .* Δfactors
-    #@show termΔs
-     vert2size = Dict(uftv .=> termΔs)
-     #noutcontext!.(termΔs, [s], uftv)
-
-    #vert2size = Dict(ftv .=> termΔs)
-    #noutcontext!.(termΔs, [s], ftv)
-
-    #setΔs[mask]
-    ret = map(terminating_vertices) do varr
+    # Now its time to accumulate all Δs for each terminating_vertices array. Remember that terminating_vertices[i] is an array of the terminating vertices seen through input vertex i
+    vert2size = Dict(uftv .=> termΔs)
+    return map(terminating_vertices) do varr
         res = mapreduce(va -> vert2size[va], +, varr)
         return res
     end
-    #setΔs[mask] = sign(Δ) .* nΔfactors .* Δfactors
-    #@show ret
-    return ret
 end
 
 
@@ -437,9 +398,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
 end
 
 function propagate_nout(v::MutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
-
     noutcontext!.(Δ, [s], inputs(v))
-
     for (Δi, vi) in zip(Δ, inputs(v))
         Δnout(vi, Δi; s=s)
     end
