@@ -65,7 +65,7 @@ minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot
 minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
 minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
 minΔnoutfactor(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor(base(v))
-minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = lcm(minΔnoutfactor.(inputs(v)))
+minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔnoutfactor.(inputs(v)))
 function minΔnoutfactor(::SizeStack, v::AbstractVertex)
     absorbing = findterminating(v, inputs)
 
@@ -75,8 +75,7 @@ function minΔnoutfactor(::SizeStack, v::AbstractVertex)
 
     # Count thingy is for duplicate inputs
     factors = [count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)]
-    isempty(factors) && return 1
-    return any(ismissing.(factors)) ? missing : lcm(factors)
+    return lcmsafe(factors)
 end
 
 """
@@ -92,7 +91,7 @@ minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot 
 minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
 minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
 minΔninfactor(::SizeAbsorb, v::AbstractVertex) = minΔninfactor(base(v))
-minΔninfactor(::SizeInvariant, v::AbstractVertex) = lcm(minΔninfactor.(outputs(v)))
+minΔninfactor(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔninfactor.(outputs(v)))
 function minΔninfactor(::SizeStack, v::AbstractVertex)
     absorbing = findterminating(v, outputs)
     # This is not strictly the minimum as using only one of the factors would work as well
@@ -101,8 +100,13 @@ function minΔninfactor(::SizeStack, v::AbstractVertex)
 
     # Count thingy is for duplicate inputs
     factors = [count(x->x==va,absorbing) * minΔninfactor(va) for va in unique(absorbing)]
-    isempty(factors) && return 1
-    return any(ismissing.(factors)) ? missing : lcm(factors)
+    return lcmsafe(factors)
+end
+
+#lcm which also checks for missing and empty arrays of undefined type
+function lcmsafe(x)
+    isempty(x) && return 1
+    return any(ismissing.(x)) ? missing : lcm(x)
 end
 
 

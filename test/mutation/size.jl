@@ -334,6 +334,7 @@
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
         av(size, csize, in...;name = "av") = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(vcat(nout.(in)...), size), t -> NamedTrait(t, name))
         sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
+        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
 
         @testset "InputSizeVertex" begin
             @test ismissing(minΔnoutfactor(inpt(3)))
@@ -417,8 +418,8 @@
             @test nout(sv2) == nout(sv1) + nout(v1) == 263
             @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
 
-            v5 = av(10, 2, sv3)
-            @test minΔninfactor(sv1) == minΔninfactor(sv2) == minΔninfactor(sv3) == 2
+            v5 = av(10, 3, sv3)
+            @test minΔninfactor(sv1) == minΔninfactor(sv2) == minΔninfactor(sv3) == 3
 
             Δnout(v1, 3)
             @test nout(v1) == 89
@@ -430,7 +431,7 @@
             @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [443]
 
             # Evil action! Must have understanding that the change in v2 will propagate
-            # to sv3 input 1 through sv1 and sv2 and hold off updating it through input 3 
+            # to sv3 input 1 through sv1 and sv2 and hold off updating it through input 3
             Δnout(v2, -13)
             @test nout(v1) == 89
             @test nout(v2) == 79
@@ -440,9 +441,40 @@
             @test nout(sv2) == nout(sv1) + nout(v1) == 253
             @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [417]
 
-
         end
+        @testset "Stacked InvariantVertex" begin
+            v1 = av(100,1, inpt(3), name="v1")
+            v2 = av(100,2, inpt(3), name="v2")
+            v3 = av(100,3, inpt(3), name="v3")
+            v4 = av(100,5, inpt(3), name="v4")
 
+            iv1 = iv(v2,v3, name="iv1")
+            iv2 = iv(iv1, v1, name="iv2")
+            iv3 = iv(iv2, v4, v2, name="iv2")
+
+            @test minΔnoutfactor(iv1) == 6
+            @test minΔnoutfactor(iv2) == 6
+            @test minΔnoutfactor(iv3) == 30
+
+            @test minΔninfactor(iv1) == minΔninfactor(iv2) == minΔninfactor(iv3) == 1
+
+            Δnout(iv3, -30)
+            @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
+            @test nout(iv1) == nout(iv2) == nout(iv3) == 70
+
+            v5 = av(10, 3, iv3)
+            @test minΔninfactor(iv1) == minΔninfactor(iv2) == minΔninfactor(iv3) == 3
+
+            Δnout(v1, 3)
+            @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 73
+            @test [nout(iv1)] == [nout(iv2)] == [nout(iv3)] == nin(v5) == [73]
+
+            # Evil action! Must have understanding that the change in v2 will propagate
+            # to iv3 input 1 through iv1 and iv2 and hold off updating it through input 3
+            Δnout(v2, -12)
+            @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 61
+            @test [nout(iv1)] == [nout(iv2)] == [nout(iv3)] == nin(v5) == [61]
+        end
     end
 
 end
