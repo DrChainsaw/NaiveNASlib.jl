@@ -3,10 +3,10 @@
     @testset "Vertex removal" begin
 
         #Helper functions
-        inpt(size, id=1) = InputSizeVertex(InputVertex(1), size)
-        av(in, outsize) = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), outsize))
-        sv(in...) = StackingVertex(CompVertex(hcat, in...))
-        rb(in...) = InvariantVertex(CompVertex(+, in...))
+        inpt(size, id=1) = InputSizeVertex(id, size)
+        av(in, outsize; name="av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
+        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
+        iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
 
         @testset "Remove from linear graph" begin
             v0 = inpt(3)
@@ -74,6 +74,24 @@
             @test outputs(v1) == [v3]
             @test inputs(v3) == [v1]
             @test nin(v3) == [nout(v1)] == [3]
+        end
+
+        @testset "Incompatible size factor" begin
+            v1 = av(inpt(3), 5, name="v1")
+            p1 = iv(v1, name="p1")
+            p2 = iv(v1, name="p2")
+            p3 = iv(v1, name="p3")
+            join = sv(p1,p2,p3, name="join")
+            v2 = av(join, 16, name = "v2") # 16 is not divisible by 3!
+            v3 = av(v2, 4, name="v3")
+
+            @test minΔnoutfactor(v2) == 1
+            @test minΔnoutfactor.(inputs(v2)) == [3]
+
+            # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is a obviously a senseless construct)
+            remove!(v2)
+            @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
+
         end
     end
 end
