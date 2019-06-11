@@ -4,7 +4,7 @@
 
         #Helper functions
         inpt(size, id=1) = InputSizeVertex(id, size)
-        av(in, outsize; name="av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
+        av(in, outsize; name="av", comp = identity) = AbsorbVertex(CompVertex(comp, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
         sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
         iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
 
@@ -57,7 +57,7 @@
             @test outputs(v1) == [v5, v3, v4]
             @test nin(v5) == nin(v3) == nin(v4) == [nout(v1)] == [5]
 
-            # Test that it is possible to remove vertex without and outputs
+            # Test that it is possible to remove vertex without any outputs
             remove!(v3)
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [6]
@@ -85,13 +85,33 @@
             v2 = av(join, 16, name = "v2") # 16 is not divisible by 3!
             v3 = av(v2, 4, name="v3")
 
-            @test minΔnoutfactor(v2) == 1
+            @test minΔnoutfactor.(outputs(v2)) == [1]
             @test minΔnoutfactor.(inputs(v2)) == [3]
 
-            # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is a obviously a senseless construct)
+            # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is obviously a senseless construct)
             remove!(v2)
             @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
+        end
 
+        @testset "Incompatible size constraints" begin
+
+            struct SizeConstraint constraint; end
+            NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
+            NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+
+            v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+            v2 = av(v1, 5, name = "v2")
+            v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
+
+            @test minΔnoutfactor.(outputs(v2)) == [3]
+            @test minΔnoutfactor.(inputs(v2)) == [2]
+
+            # Impossible to increase v1 by 5 due to SizeConstraint(3)
+            # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
+            # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
+            # Fallback to AlignBoth which does just that
+            remove!(v2)
+            @test nin(v3) == [nout(v1)] == [8]
         end
     end
 end

@@ -1,4 +1,4 @@
-
+# Overengineered set of strategy types and structs? Not gonna argue with that, but I do this for fun and sometimes I have a wierd idea of what fun is.
 """
     AbstractConnectStrategy
 
@@ -15,6 +15,45 @@ struct ConnectNone <: AbstractConnectStrategy end
 Base type for strategies for how to align size (nin/nout) when doing structural mutation
 """
 abstract type AbstractAlignSizeStrategy end
+
+"""
+    ChangeNinOfOutputs
+
+Just sets nin of each output to the provided value. Sometimes you just know the answer...
+"""
+struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
+    Δoutsize
+end
+
+"""
+    FailAlignSize
+
+Throws an error.
+"""
+struct FailAlignSize <: AbstractAlignSizeStrategy end
+
+"""
+    AlignSizeBoth
+
+Align sizes by changing both input and output considering any Δfactors.
+Fallback to another strategy (default FailAlignSize) if size change is not possible.
+"""
+struct AlignSizeBoth <: AbstractAlignSizeStrategy
+    fallback
+end
+AlignSizeBoth() = AlignSizeBoth(FailAlignSize())
+
+"""
+    DecreaseBigger
+
+Try to align size by decreasing in the direction (in/out) which has the bigger size.
+Fallback to another strategy (default AlignSizeBoth) if size change is not possible.
+"""
+struct DecreaseBigger <: AbstractAlignSizeStrategy
+    fallback
+end
+DecreaseBigger() = DecreaseBigger(AlignSizeBoth())
+
 """
     IncreaseSmaller
 
@@ -24,33 +63,7 @@ Fallback to another strategy (default DecreaseBigger) if size change is not poss
 struct IncreaseSmaller <: AbstractAlignSizeStrategy
     fallback
 end
-IncreaseSmaller() = IncreaseSmaller(DecreaseBigger(FailAlignSize()))
-
-"""
-    DecreaseBigger
-
-Try to align size by decreasing in the direction (in/out) which has the bigger size.
-Fallback to another strategy (default FailAlignSize) if size change is not possible.
-"""
-struct DecreaseBigger <: AbstractAlignSizeStrategy
-    fallback
-end
-DecreaseBigger() = DecreaseBigger(FailAlignSize())
-
-"""
-    ChangeNinOfOutputs
-
-Just sets nin of each output to the provided value.
-"""
-struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
-    Δoutsize
-end
-"""
-    FailAlignSize
-
-Throws an error.
-"""
-struct FailAlignSize <: AbstractAlignSizeStrategy end
+IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
 
 """
     RemoveStrategy
@@ -129,6 +142,57 @@ proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
 prealignsizes(s::ChangeNinOfOutputs, v) = Δnin.(outputs(v), s.Δoutsize)
 prealignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
+
+function prealignsizes(s::AlignSizeBoth, v)
+
+    Δninfactor = lcmsafe(minΔnoutfactor.(inputs(v)))
+    Δnoutfactor = lcmsafe(minΔninfactor.(outputs(v)))
+    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, v)
+
+    # Ok, for this to work out, we need sum(nin(v)) + Δnin == nout(v) + Δnout where
+    # Δnin = Δninfactor * x and Δnout = Δnoutfactor * y (therefore we we need x, y ∈ Z).
+    # This can be rewritten as a linear diophantine equation a*x + b*y = c where a = Δninfactor, b = -Δnoutfactor and c = nout(v) - sum(nin(v))
+    # Thank you julia for having a built in solver for it (gcdx)
+
+    # Step 1: Rename to manageble variable names
+    a = Δninfactor
+    b = -Δnoutfactor
+    c = nout(v) - sum(nin(v))
+
+    # Step 2: Calculate gcd and Bézout coefficients
+    (d, p, q) = gcdx(a,b)
+
+    # Step 3: Check that the equation has a solution
+    c % d == 0 || return prealignsizes(s.fallback, v)
+
+    # Step 4 get base values
+    x = div(c, d) * p
+    y = div(c, d) * q
+
+    # Step 4: Try to find the smallest Δnin and Δnout
+    # We now have the solutions:
+    #   Δnin  =  a(x + bk)
+    #   Δnout = -b(y - ak) (b = -Δnoutfactor, remember?)
+    Δnin_f = k -> a*(x + b*k)
+    Δnout_f = k -> -b*(y - a*k)
+
+    # Lets minimize the sum of squares:
+    #   min wrt k: a(x + bk)^2 + b(y - ak)^2
+    # Just round the result, it should be close enough
+    k = round(Int,-2*a*b*(x + y) / (2a*b^2 - 2a^2*b))
+
+    # Step 5: Fine tune if needed
+    while -Δnin_f(k) > sum(nin(v));  k += 1 end
+    while -Δnout_f(k) > nout(v); k -= 1 end
+
+    # Step 6: One last check if size change is possible
+    -Δnin_f(k) > sum(nin(v)) && -Δnout_f(k) > nout(v) && return prealignsizes(s.fallback, v)
+
+    # Step 7: Make the change
+    s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
+    Δnin(v, Δnin_f(k), s=s)
+    Δnout(v, Δnout_f(k), s=s)
+end
 
 function postalignsizes(s::AbstractAlignSizeStrategy, v) end
 postalignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
