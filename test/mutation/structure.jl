@@ -113,5 +113,26 @@
             remove!(v2)
             @test nin(v3) == [nout(v1)] == [8]
         end
+
+        @testset "Incompatible size constraints transparent vertex" begin
+
+            struct SizeConstraint constraint; end
+            NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
+            NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+
+            v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+            v2 = sv(v1, name = "v2")
+            v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
+
+            @test minΔnoutfactor.(outputs(v2)) == [3]
+            @test minΔnoutfactor.(inputs(v2)) == [2]
+
+            # Impossible to increase v1 by 5 due to SizeConstraint(3)
+            # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
+            # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
+            # Fallback to AlignBoth which does just that
+            remove!(v2, RemoveStrategy(AlignSizeBoth()))
+            @test nin(v3) == [nout(v1)] == [10]
+        end
     end
 end

@@ -31,7 +31,7 @@ minΔnoutfactor, minΔninfactor, findterminating,
 remove!, RemoveStrategy,
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignLcm, ChangeNinOfOutputs, FailAlignSize,
+AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSize,
 
 # Connect strategies
 AbstractConnectStrategy, ConnectAll, ConnectNone,
