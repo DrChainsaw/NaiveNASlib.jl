@@ -1,5 +1,4 @@
 using NaiveNASlib
-import InteractiveUtils:subtypes
 
 # Testing mock
 mutable struct MatMul

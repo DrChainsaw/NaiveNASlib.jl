@@ -51,55 +51,81 @@ nout(t::SizeInvariant, v::AbstractVertex) = nin(v)[1]
 nout(t::SizeStack, v::AbstractVertex) = sum(nin(v))
 
 
+"""
+    minΔnoutfactor(v::AbstractVertex)
+
+Returns the smallest `k` so that allowed changes to `nout` of `v` as well as `nin` of its outputs are `k * n` where `n` is an integer.
+Returns `missing` if it is not possible to change `nout`.
+"""
+minΔnoutfactor(v::AbstractVertex) = missing
+minΔnoutfactor(v::MutationVertex) = lcmsafe(vcat(minΔninfactor_only_for.(outputs(v))..., minΔnoutfactor_only_for(v)))
+minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
+minΔnoutfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔninfactor_only_for.(outputs(v))..., minΔnoutfactor_only_for(v)))
+minΔnoutfactor(t::SizeTransparent, v::AbstractVertex) = minΔninfactor(t, v)
 
 """
     minΔnoutfactor(v::AbstractVertex)
 
-Returns the smallest n so that allowed changes to nout are n * Z there Z is an integer.
-Returns missing if it is not possible to change nout.
+Returns the smallest `k` so that allowed changes to `nin` of `v` as well as `nout` of its inputs are `k * n` where `n` is an integer.
+Returns `missing` if it is not possible to change `nin`.
 """
-minΔnoutfactor(v::AbstractVertex) = minΔnoutfactor(base(v))
-minΔnoutfactor(v::InputVertex) = missing
-minΔnoutfactor(v::CompVertex) = minΔnoutfactor(v.computation)
+minΔninfactor(v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
+minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
+minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
+minΔninfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
+minΔninfactor(::SizeTransparent, v::AbstractVertex) = lcmsafe([minΔnoutfactor_only_for(v), minΔninfactor_only_for(v)])
+
+
+"""
+    minΔnoutfactor_only_for(v::AbstractVertex)
+
+Returns the smallest `k` so that allowed changes to `nout` of `v` are `k * n` where `n` is an integer.
+Returns `missing` if it is not possible to change `nout`.
+"""
+minΔnoutfactor_only_for(v::AbstractVertex) = minΔnoutfactor_only_for(base(v))
+minΔnoutfactor_only_for(v::InputVertex) = missing
+minΔnoutfactor_only_for(v::CompVertex) = minΔnoutfactor(v.computation)
 minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
-minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
-minΔnoutfactor(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor(base(v))
-minΔnoutfactor(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔnoutfactor.(inputs(v)))
-function minΔnoutfactor(::SizeStack, v::AbstractVertex)
+minΔnoutfactor_only_for(v::MutationVertex) = minΔnoutfactor_only_for(trait(v), v)
+minΔnoutfactor_only_for(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor_only_for(base(t), v)
+minΔnoutfactor_only_for(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor_only_for(base(v))
+minΔnoutfactor_only_for(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
+function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex)
     absorbing = findterminating(v, inputs)
 
     # This is not strictly the minimum as using only one of the factors would work as well
     # However, this would create a bias as the same factor would be used all the time
     # Life is really hard sometimes :(
 
-    # Count thingy is for duplicate inputs
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor(va) for va in unique(absorbing)]
+    # Count thingy is for duplicate outputs. Must be counted twice as it is impossible
+    # to only change one of them, right?
+    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va) for va in unique(absorbing)]
     return lcmsafe(factors)
 end
 
 """
-    minΔninfactor(v::AbstractVertex)
+    minΔninfactor_only_for(v::AbstractVertex)
 
-Returns the smallest n so that allowed changes to nin are n * Z there Z is an integer.
-Returns missing if it is not possible to change nin.
+Returns the smallest `k` so that allowed changes to `nin` of `v` are `k * n` where `n` is an integer.
+Returns `missing` if it is not possible to change `nin`.
 """
-minΔninfactor(v::AbstractVertex) = minΔninfactor(base(v))
-minΔninfactor(v::InputVertex) = missing
-minΔninfactor(v::CompVertex) = minΔninfactor(v.computation)
+minΔninfactor_only_for(v::AbstractVertex) = minΔninfactor_only_for(base(v))
+minΔninfactor_only_for(v::InputVertex) = missing
+minΔninfactor_only_for(v::CompVertex) = minΔninfactor(v.computation)
 minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
-minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
-minΔninfactor(::SizeAbsorb, v::AbstractVertex) = minΔninfactor(base(v))
-minΔninfactor(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔninfactor.(outputs(v)))
-function minΔninfactor(::SizeStack, v::AbstractVertex)
+minΔninfactor_only_for(v::MutationVertex) = minΔninfactor_only_for(trait(v), v)
+minΔninfactor_only_for(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor_only_for(base(t), v)
+minΔninfactor_only_for(::SizeAbsorb, v::AbstractVertex) = minΔninfactor_only_for(base(v))
+minΔninfactor_only_for(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔninfactor_only_for.(outputs(v)))
+function minΔninfactor_only_for(::SizeStack, v::AbstractVertex)
     absorbing = findterminating(v, outputs)
     # This is not strictly the minimum as using only one of the factors would work as well
     # However, this would create a bias as the same factor would be used all the time
     # Life is really hard sometimes :(
 
-    # Count thingy is for duplicate inputs
-    factors = [count(x->x==va,absorbing) * minΔninfactor(va) for va in unique(absorbing)]
+    # Count thingy is for duplicate inputs. Must be counted twice as it is impossible
+    # to only change one of them, right?
+    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va) for va in unique(absorbing)]
     return lcmsafe(factors)
 end
 
@@ -179,6 +205,7 @@ noutΔs(s::VisitState{T}) where T = s.noutΔs
 # Only so it is possible to broadcast since broadcasting over dics is reserved
 getnoutΔ(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get(defaultfun, s.noutΔs, v)
 setnoutΔ!(Δ::T, s::VisitState{T}, v::MutationVertex) where T = s.noutΔs[v] = Δ
+function setnoutΔ!(missing, s::VisitState, v::AbstractVertex) end
 
 
 
@@ -204,12 +231,13 @@ end
 function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    insizes = deepcopy(nin(v))
+    # Need to calculate concat value before changing nin
+    Δo = concat(nin(v), Δ...)
 
     Δnin(op(v), Δ...)
-    Δo = concat(insizes, Δ...)
-    Δnout(op(v), Δo)
+    propagate_nout(v, Δ...; s=s)
 
+    Δnout(op(v), Δo)
     propagate_nin(v, Δo; s=s)
 end
 
@@ -267,7 +295,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
         Δ -= sum(skipmissing(termΔs))
 
         # Remap any duplicated vertices Δf_i => 2 * Δf_i
-        Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor(va) for va in muftv]
+        Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor_only_for(va) for va in muftv]
         insizes = nout.(muftv)
 
         # floor is due to assumption the minimum size is 1 * Δfactors
@@ -433,10 +461,12 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     end
 end
 
-function propagate_nout(v::MutationVertex, Δ::T...; s::VisitState{T}=VisitState{T}()) where T
+function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     setnoutΔ!.(Δ, [s], inputs(v))
     for (Δi, vi) in zip(Δ, inputs(v))
-        Δnout(vi, Δi; s=s)
+        if !ismissing(Δi)
+            Δnout(vi, Δi; s=s)
+        end
     end
 end
 

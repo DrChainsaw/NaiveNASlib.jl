@@ -35,12 +35,14 @@
             v4 = sv(v1,v2,v3)
             v5 = av(v4, 7)
 
+            # Note, input to v1 can not be changed, we must decrease
+            # nin of v4 (and v5)
             remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v5) == [nout(v4)] == [3+4+6]
 
             #Now lets try without connecting the inputs to v4
-            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
+            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs((-nout(v1), missing, missing))))
             @test inputs(v4) == [v0, v3]
             @test nin(v5) == [nout(v4)] == [3+6]
         end
@@ -85,54 +87,53 @@
             v2 = av(join, 16, name = "v2") # 16 is not divisible by 3!
             v3 = av(v2, 4, name="v3")
 
-            @test minΔnoutfactor.(outputs(v2)) == [1]
-            @test minΔnoutfactor.(inputs(v2)) == [3]
+            @test minΔnoutfactor_only_for.(outputs(v2)) == [1]
+            @test minΔnoutfactor_only_for.(inputs(v2)) == [3]
 
             # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is obviously a senseless construct)
             remove!(v2)
             @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
         end
 
-        @testset "Incompatible size constraints" begin
+        @testset "Size constraints" begin
 
             struct SizeConstraint constraint; end
             NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
             NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
 
-            v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
-            v2 = av(v1, 5, name = "v2")
-            v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
+            @testset "Incompatible size constraints" begin
 
-            @test minΔnoutfactor.(outputs(v2)) == [3]
-            @test minΔnoutfactor.(inputs(v2)) == [2]
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+                v2 = av(v1, 5, name = "v2")
+                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
 
-            # Impossible to increase v1 by 5 due to SizeConstraint(3)
-            # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
-            # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
-            # Fallback to AlignBoth which does just that
-            remove!(v2)
-            @test nin(v3) == [nout(v1)] == [8]
-        end
+                @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
+                @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
 
-        @testset "Incompatible size constraints transparent vertex" begin
+                # Impossible to increase v1 by 5 due to SizeConstraint(3)
+                # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
+                # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
+                # Fallback to AlignBoth which does just that
+                remove!(v2)
+                @test nin(v3) == [nout(v1)] == [8]
+            end
 
-            struct SizeConstraint constraint; end
-            NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
-            NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+            @testset "Incompatible size constraints transparent vertex" begin
 
-            v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
-            v2 = sv(v1, name = "v2")
-            v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+                v2 = sv(v1, name = "v2")
+                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
 
-            @test minΔnoutfactor.(outputs(v2)) == [3]
-            @test minΔnoutfactor.(inputs(v2)) == [2]
+                @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
+                @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
 
-            # Impossible to increase v1 by 5 due to SizeConstraint(3)
-            # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
-            # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
-            # Fallback to AlignBoth which does just that
-            remove!(v2, RemoveStrategy(AlignSizeBoth()))
-            @test nin(v3) == [nout(v1)] == [10]
+                # Impossible to increase v1 by 5 due to SizeConstraint(3)
+                # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
+                # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
+                # Fallback to AlignBoth which does just that
+                remove!(v2, RemoveStrategy(AlignSizeBoth()))
+                @test nin(v3) == [nout(v1)] == [10]
+            end
         end
     end
 end

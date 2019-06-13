@@ -25,7 +25,7 @@ base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVer
 trait, MutationTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant,
 
 # Size util
-minΔnoutfactor, minΔninfactor, findterminating,
+minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating,
 
 # Connectivity mutation
 remove!, RemoveStrategy,

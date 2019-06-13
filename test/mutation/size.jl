@@ -76,6 +76,12 @@
             Δnin(io, -2)
             @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
 
+            Δnin(tv, +1)
+            @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 4
+
+            Δnout(tv, -1)
+            @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
+
             ivc = clone(iv, inpt(2))
             tvc = clone(tv, ivc)
             ioc = clone(io, tvc)
@@ -122,6 +128,15 @@
             @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 3
 
             Δnin(io1, 3)
+            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
+
+            Δnin(tv, -1, missing)
+            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 5
+
+            Δnin(tv, missing, 2)
+            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 7
+
+            Δnout(tv, -1)
             @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
 
             iv1c = clone(iv1, inpt(2))
@@ -293,7 +308,7 @@
             @test nin(out) == [2nout(start)] == [6]
 
             # Should basically undo the previous mutation
-            @test minΔnoutfactor.(inputs(out)) == [2]
+            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
             Δnin(out, +2)
             @test nin(out) == [2nout(start)] == [8]
         end
@@ -319,7 +334,7 @@
             Δnin(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            @test minΔnoutfactor.(inputs(out)) == [2]
+            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
             Δnout(start, -2)
             @test nin(out) == [nout(start)] == [6]
             @test nout(split) == 3
@@ -341,7 +356,14 @@
         end
 
         @testset "AbsorbVertex" begin
-            @test minΔnoutfactor(av(4, 2, inpt(3))) == 2
+            v1 = av(4, 2, inpt(3))
+            v2 = av(3, 1, v1)
+            v3 = av(5, 3, v2)
+            @test minΔnoutfactor(v1) == 2
+            @test ismissing(minΔninfactor(v1))
+            @test minΔnoutfactor(v3) == minΔninfactor(v3) == 3
+            @test minΔnoutfactor(v2) == 3
+            @test minΔninfactor(v2) == 2
         end
 
         @testset "Pick values" begin
@@ -403,12 +425,9 @@
             sv1  = sv(v2, v3, name="sv1")
             sv2 = sv(sv1, v1, name="sv2")
             sv3 = sv(sv2, v4, v2, name="sv3")
-            @test minΔnoutfactor(sv1) == 6
-            @test minΔnoutfactor(sv2) == 6
-            @test minΔnoutfactor(sv3) == 60 # v2 is input twice through sc2->sv1
-
-            @test minΔninfactor(sv1) == minΔninfactor(sv2) == minΔninfactor(sv3) == 1
-
+            @test minΔnoutfactor(sv1) == minΔninfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == minΔninfactor(sv2)== 6
+            @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60 # v2 is input twice through sc2->sv1
             Δnout(sv3, -60)
             @test nout(v1) == 86
             @test nout(v2) == 92
@@ -419,7 +438,9 @@
             @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
 
             v5 = av(10, 3, sv3)
-            @test minΔninfactor(sv1) == minΔninfactor(sv2) == minΔninfactor(sv3) == 3
+            @test minΔnoutfactor(sv1) == minΔninfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == minΔninfactor(sv2)== 6
+            @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60
 
             Δnout(v1, 3)
             @test nout(v1) == 89
@@ -452,18 +473,16 @@
             iv2 = iv(iv1, v1, name="iv2")
             iv3 = iv(iv2, v4, v2, name="iv2")
 
-            @test minΔnoutfactor(iv1) == 6
-            @test minΔnoutfactor(iv2) == 6
-            @test minΔnoutfactor(iv3) == 30
+            @test minΔnoutfactor(iv1) == minΔninfactor(iv1) == 6
+            @test minΔnoutfactor(iv2) == minΔninfactor(iv2) == 6
+            @test minΔnoutfactor(iv3) == minΔninfactor(iv3) == 30
 
-            @test minΔninfactor(iv1) == minΔninfactor(iv2) == minΔninfactor(iv3) == 1
 
             Δnout(iv3, -30)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
             @test nout(iv1) == nout(iv2) == nout(iv3) == 70
 
             v5 = av(10, 3, iv3)
-            @test minΔninfactor(iv1) == minΔninfactor(iv2) == minΔninfactor(iv3) == 3
 
             Δnout(v1, 3)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 73

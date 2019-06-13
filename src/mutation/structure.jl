@@ -130,23 +130,23 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
     can_change(Δ, factor::Integer) = Δ % factor == 0
     can_change(Δ, ::Missing) = false
 
-    insize_can_change = all( can_change.(Δinsize, minΔnoutfactor.(inputs(v))))
+    insize_can_change = all( can_change.(Δinsize, minΔnoutfactor_only_for.(inputs(v))))
     insize_can_change && proceedwith(s, Δinsize) && return Δnin(v, Δinsize)
 
-    outsize_can_change = all( can_change.(Δoutsize, minΔninfactor.(outputs(v))))
+    outsize_can_change = all( can_change.(Δoutsize, minΔninfactor_only_for.(outputs(v))))
     outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(v, Δoutsize)
     prealignsizes(s.fallback, v)
 end
 proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
 proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
-prealignsizes(s::ChangeNinOfOutputs, v) = Δnin.(outputs(v), s.Δoutsize)
+prealignsizes(s::ChangeNinOfOutputs, v) = Δnin.(outputs(v), s.Δoutsize...)
 prealignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
 
 function prealignsizes(s::AlignSizeBoth, v)
 
-    Δninfactor = lcmsafe(minΔnoutfactor.(inputs(v)))
-    Δnoutfactor = lcmsafe(minΔninfactor.(outputs(v)))
+    Δninfactor = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
+    Δnoutfactor = lcmsafe(minΔninfactor_only_for.(outputs(v)))
     ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, v)
 
     # Ok, for this to work out, we need sum(nin(v)) + Δnin == nout(v) + Δnout where
