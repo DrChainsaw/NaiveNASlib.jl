@@ -28,6 +28,7 @@ function apply_mutation(v::MutationVertex)
     mutate_inputs(v)
     mutate_outputs(v)
 end
+apply_mutation(g::CompGraph) = apply_mutation.(unique(mapfoldl(flatten, vcat, g.outputs)))
 
 ## Input mutation. Basically just boilerplate-y traversal of the vertex composition hierachy
 # until we hit the computation to mutate, then someone else will do the actual work

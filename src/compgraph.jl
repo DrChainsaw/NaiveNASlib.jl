@@ -21,9 +21,12 @@ julia> CompGraph(inputs(cv), [cv, CompVertex(x -> 3x, cv)])(2,3)
 
 """
 struct CompGraph
-    inputs::Array{AbstractVertex,1}
-    outputs::Array{AbstractVertex,1}
+    inputs::AbstractVector{<:AbstractVertex}
+    outputs::AbstractVector{<:AbstractVertex}
 end
+CompGraph(input::AbstractVertex, output::AbstractVertex) = CompGraph([input], [output])
+CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex) = CompGraph(input, [output])
+CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = CompGraph([input], output)
 
 function (g::CompGraph)(x...) where T <:Integer
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
