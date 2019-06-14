@@ -382,6 +382,7 @@
 
         @testset "InputSizeVertex" begin
             @test ismissing(minΔnoutfactor(inpt(3)))
+            @test ismissing(minΔninfactor(inpt(3)))
         end
 
         @testset "AbsorbVertex" begin
