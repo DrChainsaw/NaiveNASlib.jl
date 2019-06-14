@@ -236,7 +236,7 @@
         ## Helper functions
         nt(name) = t -> NamedTrait(t, name)
         rb(start, residual,name="add") = InvariantVertex(CompVertex(+, residual, start), nt(name))
-        merge(paths...;name="merge") = StackingVertex(CompVertex(hcat, paths...), nt(name))
+        conc(paths...;name="conc") = StackingVertex(CompVertex(hcat, paths...), nt(name))
         mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
         av(op, state, in...;name="comp") = AbsorbVertex(CompVertex(op, in...), state, nt(name))
         function stack(start, nouts...; bname = "stack")
@@ -253,7 +253,7 @@
             start = av(mm(3,9), IoSize(3,9), InputSizeVertex("in", 3), name="start")
             p1 = stack(start, 3,4, bname = "p1")
             p2 = stack(start, 4,5, bname = "p2")
-            resout = rb(start, merge(p1, p2))
+            resout = rb(start, conc(p1, p2))
             out = av(mm(9, 4), IoSize(9,4), resout; name="out")
 
             @test nout(resout) == 9
@@ -273,9 +273,9 @@
         @testset "Half transparent residual fork block" begin
             start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
             split = av(mm(8,4), IoSize(8,4), start, name="split")
-            p1 = merge(split, name="p1") #Just an identity vertex
+            p1 = conc(split, name="p1") #Just an identity vertex
             p2 = stack(split, 3,2,4, bname="p2")
-            resout = rb(start, merge(p1, p2))
+            resout = rb(start, conc(p1, p2))
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
@@ -293,22 +293,22 @@
 
         @testset "Transparent fork block" begin
             start = av(mm(3,4), IoSize(3,4), InputSizeVertex("in", 3), name="start")
-            p1 = merge(start, name="p1")
-            p2 = merge(start, name="p2")
-            join = merge(p1, p2)
+            p1 = conc(start, name="p1")
+            p2 = conc(start, name="p2")
+            join = conc(p1, p2)
             out = av(mm(8, 3), IoSize(8,3), join, name="out")
 
             @test nout(join) == 8
 
             # Evil action: This will propagate to both p1 and p2 which are in
-            # turn both input to the merge before resout. Simple dfs will
-            # fail as one will hit the merge through p1 before having
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
             # resolved the path through p2.
             Δnout(start, -1)
             @test nin(out) == [2nout(start)] == [6]
 
             # Should basically undo the previous mutation
-            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
+            @test minΔninfactor(out) == 2
             Δnin(out, +2)
             @test nin(out) == [2nout(start)] == [8]
         end
@@ -316,16 +316,16 @@
         @testset "Transparent residual fork block" begin
             start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
             split = av(mm(8,4), IoSize(8,4), start, name="split")
-            p1 = merge(split, name="p1")
-            p2 = merge(split, name="p2")
-            resout = rb(start, merge(p1, p2))
+            p1 = conc(split, name="p1")
+            p2 = conc(split, name="p2")
+            resout = rb(start, conc(p1, p2))
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
 
             # Evil action: This will propagate to both p1 and p2 which are in
-            # turn both input to the merge before resout. Simple dfs will
-            # fail as one will hit the merge through p1 before having
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
             # resolved the path through p2.
             Δnout(split, -1)
             @test nin(out) == [nout(start)] == nin(split) == [6]
@@ -334,10 +334,39 @@
             Δnin(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
+            @test minΔninfactor(out) == 2
             Δnout(start, -2)
             @test nin(out) == [nout(start)] == [6]
             @test nout(split) == 3
+        end
+
+        @testset "Transparent residual fork block with single absorbing path" begin
+            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
+            split = av(mm(8,3), IoSize(8,3), start, name="split")
+            p1 = conc(split, name="p1")
+            p2 = conc(split, name="p2")
+            p3 = av(mm(3, 2), IoSize(3,2), split)
+            resout = rb(start, conc(p1, p2, p3))
+            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+
+            @test minΔninfactor(out) == 2
+            Δnout(start, -2)
+            @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)] == [6]
+            @test nout(split) == 2
+            @test nout(p3) == 2
         end
     end
 
@@ -353,6 +382,7 @@
 
         @testset "InputSizeVertex" begin
             @test ismissing(minΔnoutfactor(inpt(3)))
+            @test ismissing(minΔninfactor(inpt(3)))
         end
 
         @testset "AbsorbVertex" begin

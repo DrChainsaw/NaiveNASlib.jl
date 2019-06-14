@@ -2,12 +2,6 @@ import NaiveNASlib:CompGraph, CompVertex, InputVertex, SimpleDiGraph
 import LightGraphs:adjacency_matrix,is_cyclic
 using Test
 
-mutable struct SimpleLayer
-    W
-end
-SimpleLayer(nin, nout) = SimpleLayer(ones(Int, nin,nout))
-(l::SimpleLayer)(x) = x * l.W
-
 @testset "Computation graph tests" begin
 
     @testset "Scalar computation graphs" begin
@@ -125,13 +119,12 @@ SimpleLayer(nin, nout) = SimpleLayer(ones(Int, nin,nout))
         @testset "Second and third examples" begin
 
             # First we need something to mutate. Batteries excluded, remember?
-            # The below gives error ""
-            # mutable struct SimpleLayer
-            #     W
-            # end
-            # SimpleLayer(nin, nout) = SimpleLayer(ones(Int, nin,nout))
-            # (l::SimpleLayer)(x) = x * l.W
-
+            mutable struct SimpleLayer
+                W
+                SimpleLayer(W) = new(W)
+                SimpleLayer(nin, nout) = new(ones(Int, nin,nout))
+            end
+            (l::SimpleLayer)(x) = x * l.W
 
             # Helper function which creates a mutable layer
             layer(in, outsize) = MutationVertex(CompVertex(SimpleLayer(nout(in), outsize), in), IoSize(nout(in), outsize), SizeAbsorb())
@@ -181,7 +174,7 @@ SimpleLayer(nin, nout) = SimpleLayer(ones(Int, nin,nout))
 
             #In some cases it is useful to hold on to the old graph before mutating
             # To do so, we need to define the clone operation for our SimpleLayer
-            NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(copy(l.W))
+            NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(l.W)
             parentgraph = copy(graph)
 
             Δnin(out, 3)

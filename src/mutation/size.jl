@@ -58,7 +58,7 @@ Returns the smallest `k` so that allowed changes to `nout` of `v` as well as `ni
 Returns `missing` if it is not possible to change `nout`.
 """
 minΔnoutfactor(v::AbstractVertex) = missing
-minΔnoutfactor(v::MutationVertex) = lcmsafe(vcat(minΔninfactor_only_for.(outputs(v))..., minΔnoutfactor_only_for(v)))
+minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
 minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
 minΔnoutfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔninfactor_only_for.(outputs(v))..., minΔnoutfactor_only_for(v)))
 minΔnoutfactor(t::SizeTransparent, v::AbstractVertex) = minΔninfactor(t, v)
@@ -147,38 +147,6 @@ findterminating(t::DecoratingTrait, v, f::Function) = findterminating(base(t), v
 findterminating(::SizeAbsorb, v, f::Function) = [v]
 findterminating(::Immutable, v, f::Function) = [v]
 findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
-
-"""
-    lcmv(arr::AbstractArray{<:Integer})
-
-Remove all elements of arr which are a prime factor of some larger element of arr
-
-# Examples
-```julia-repl
-julia> import NaiveNASlib:lcmv
-
-julia> lcmv([7,4,6,3,2,1,14])
-3-element Array{Int64,1}:
-  4
-  6
- 14
-```
-"""
-function lcmv(arr::AbstractArray{<:Integer})
-    srt = sort(arr, rev=true)
-    res  = lcmv.(srt[1], srt[2:end]...)
-    return arr[findall(x -> x in res, arr)]
-end
-function lcmv(a::Integer, b::Integer...)
-    res = unique(reduce(vcat, lcmv(b...)))
-    unique(reduce(vcat, lcmv.(a, res)))
-end
-
-function lcmv(a::Integer, b::Integer)
-    lm = lcm(a,b)
-    return max(a,b) == lm ? lm : [a,b]
-end
-lcmv() = 1
 
 """
     VisitState

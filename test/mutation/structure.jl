@@ -127,12 +127,93 @@
                 @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
                 @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
 
-                # Impossible to increase v1 by 5 due to SizeConstraint(3)
-                # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
-                # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
-                # Fallback to AlignBoth which does just that
+                # Size is already aligned due to transparent. Just test that this
+                # does not muck things up
                 remove!(v2, RemoveStrategy(AlignSizeBoth()))
                 @test nin(v3) == [nout(v1)] == [10]
+            end
+        end
+
+        @testset "Tricky structures" begin
+
+            @testset "Remove residual layers" begin
+                v1 = av(inpt(3, "in"), 10, name="v1")
+                v2 = av(v1, 3, name="v2")
+                v3 = sv(v2, name="v3")
+                v4 = av(v3, 10, name="v4")
+                v5 = iv(v4, v1, name="v5")
+                v6 = av(v5, 4, name="v6")
+
+                remove!(v4)
+                @test inputs(v5) == [v3, v1]
+                @test nin(v5) == [nout(v3), nout(v1)] == [10, 10]
+                @test nin(v6) == [nout(v5)] == [10]
+
+                remove!(v3)
+                @test inputs(v5) == [v2, v1]
+                @test nin(v5) == [nout(v2), nout(v1)] == [10, 10]
+                @test nin(v6) == [nout(v5)] == [10]
+
+                remove!(v2)
+                @test inputs(v5) == [v1, v1]
+                @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
+                @test nin(v6) == [nout(v5)] == [10]
+
+                v7 = av(v6, 13, name="v7")
+                remove!(v6)
+                @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
+                @test nin(v7) == [nout(v5)] == [10]
+
+                v8 = av(v7, 3, name="v8")
+                remove!(v7)
+                @test nin(v5) == [nout(v1), nout(v1)] == [13, 13]
+                @test nin(v7) == [nout(v5)] == [13]
+            end
+
+            @testset "Remove after transparent fork" begin
+                v1 = av(inpt(3, "in"), 5, name="v1")
+                p1 = iv(v1, name="p1")
+                p2 = iv(v1, name="p2")
+                v2 = sv(p1,p2, name="v2")
+                v3 = iv(v2, name="v3")
+                v4 = av(v3, 12, name="v4")
+                v5 = av(v4, 7, name="v5")
+
+                remove!(v4)
+                @test inputs(v5) == [v3]
+                @test outputs(v3) == [v5]
+
+                @test nin(v5) == [nout(v3)] == [nout(p1) + nout(p2)] == [2 * nout(v1)] == [12]
+            end
+
+            @testset "Remove before half transparent resblock" begin
+                v1 = av(inpt(2, "in"), 5, name="v1")
+                v2 = av(v1, 3, name="v2")
+                v3 = iv(v2, name="v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = iv(v4, name="v5")
+                v6 = iv(v3, v4, name="v6")
+                v7 = av(v6, 2, name="v7")
+
+                remove!(v5)
+                @test inputs(v6) == [v3, v4]
+                @test nin(v6) == [nout(v3), nout(v4)] == [3, 3]
+            end
+
+            @testset "Remove right before fork" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                p1 = iv(v2, name="p1")
+                p2₁ = iv(v2, name="p2_1")
+                p2₂ = av(p2₁,7, name="p2_2")
+                p2₃ = iv(p2₂, name="p2_3")
+                v3 = sv(p1, p2₃, name="v3")
+                v4 = iv(v3, name="v4")
+                v5 = av(v4, 12, name="v5")
+
+                remove!(v2)
+                @test inputs(p1) == inputs(p2₁) == [v1]
+                @test nin(p1) == nin(p2₁) == [nout(v1)] == [5]
             end
         end
     end
