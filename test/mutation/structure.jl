@@ -127,12 +127,37 @@
                 @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
                 @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
 
-                # Impossible to increase v1 by 5 due to SizeConstraint(3)
-                # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
-                # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
-                # Fallback to AlignBoth which does just that
+                # Size is already aligned due to transparent. Just test that this
+                # does not muck things up
                 remove!(v2, RemoveStrategy(AlignSizeBoth()))
                 @test nin(v3) == [nout(v1)] == [10]
+            end
+        end
+
+        @testset "Tricky structures" begin
+
+            @testset "Remove residual layers" begin
+                v1 = av(inpt(3, "in"), 10, name="v1")
+                v2 = av(v1, 3, name="v2")
+                v3 = sv(v2, name="v3")
+                v4 = av(v3, 10, name="v4")
+                v5 = iv(v4, v1, name="v5")
+                v6 = av(v5, 4, name="v6")
+
+                remove!(v4)
+                @test inputs(v5) == [v3, v1]
+                @test nin(v5) == [nout(v3), nout(v1)] == [10, 10]
+                @test nin(v6) == [nout(v5)] == [10]
+
+                remove!(v3)
+                @test inputs(v5) == [v2, v1]
+                @test nin(v5) == [nout(v2), nout(v1)] == [10, 10]
+                @test nin(v6) == [nout(v5)] == [10]
+
+                remove!(v2)
+                @test inputs(v5) == [v1, v1]
+                @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
+                @test nin(v6) == [nout(v5)] == [10]
             end
         end
     end

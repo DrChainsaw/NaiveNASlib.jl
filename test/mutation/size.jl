@@ -308,7 +308,7 @@
             @test nin(out) == [2nout(start)] == [6]
 
             # Should basically undo the previous mutation
-            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
+            @test minΔninfactor(out) == 2
             Δnin(out, +2)
             @test nin(out) == [2nout(start)] == [8]
         end
@@ -334,7 +334,7 @@
             Δnin(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
+            @test minΔninfactor(out) == 2
             Δnout(start, -2)
             @test nin(out) == [nout(start)] == [6]
             @test nout(split) == 3
@@ -362,10 +362,10 @@
             Δnin(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            @test minΔnoutfactor_only_for.(inputs(out)) == [2]
+            @test minΔninfactor(out) == 2
             Δnout(start, -2)
-            @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)]== [6]
-            @test nout(split)  == 2
+            @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)] == [6]
+            @test nout(split) == 2
             @test nout(p3) == 2
         end
     end
