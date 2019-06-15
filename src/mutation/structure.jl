@@ -103,12 +103,12 @@ end
 ## Helper function to avoid code duplication. I don't expect this to be able to do
 ## anything useful unless f1=inputs and f2=outputs or vise versa.
 function remove!(v::MutationVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
-    for v1 in f1(v)
-        v1_2 = f2(v1)
-        inds = findall(vx -> vx == v, v1_2)
-        deleteat!(v1_2, inds)
-        # E.g connect f2 of v to f2 of v1, e.g connect the inputs to v as inputs to v1 if f2 == inputs
-        connect!(v1, v1_2, inds, f2(v), s)
+    for f1_v in f1(v)
+        f1_f2_v = f2(f1_v)
+        inds = findall(vx -> vx == v, f1_f2_v)
+        deleteat!(f1_f2_v, inds)
+        # Connect f2 of v to f2 of v1, e.g connect the inputs to v as inputs to v1 if f2 == inputs
+        connect!(f1_v, f1_f2_v, inds, f2(v), s)
     end
 end
 
@@ -119,8 +119,14 @@ end
 Does connection of "items" to "to" at position "inds" depending on the given strategy.
 """
 #Not sure broadcasting insert! like this is supposed to work, but it does...
-connect!(v, to, inds, items, ::ConnectAll) = foreach(ind -> insert!.([to], [ind], items), inds)
-function connect!(v, to, inds, items, ::ConnectNone) end
+connect!(v, to, inds, items, ::ConnectAll) = insert!.([to], inds, items)
+function connect!(v, to, inds, items, ::ConnectNone)
+    # Stupid generic function forces me to check this...
+    # ... and no, it is not easy to understand what is going on here...
+    if to == inputs(v) && !isempty(inds)
+        rem_input.(op.(v), inds...)
+    end
+end
 
 function prealignsizes(s::AbstractAlignSizeStrategy, v) end
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
@@ -256,6 +262,9 @@ function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inp
     Δnin(to, Δnins..., s=s)
 end
 
-function add_input(::MutationOp, pos, val=nothing) end
-add_input(s::IoSize, pos, val = 0) = insert!(s.nin, pos, val)
-add_input(s::IoIndices, pos, val = []) = insert!(s.in, pos, val)
+function add_input(::MutationOp, pos) end
+add_input(s::IoSize, pos) = insert!(s.nin, pos, 0)
+add_input(s::IoIndices, pos) = insert!(s.in, pos, [])
+
+function rem_input(::MutationOp, pos) end
+rem_input(s::Union{IoSize, IoIndices}, pos...) = deleteat!(s.nin, collect(pos))
