@@ -17,6 +17,13 @@ Base type for strategies for how to align size (nin/nout) when doing structural 
 abstract type AbstractAlignSizeStrategy end
 
 """
+    NoSizeChange
+
+Don't do any size change.
+"""
+struct NoSizeChange <: AbstractAlignSizeStrategy end
+
+"""
     ChangeNinOfOutputs
 
 Just sets nin of each output to the provided value. Sometimes you just know the answer...
@@ -124,7 +131,7 @@ function connect!(v, to, inds, items, ::ConnectNone)
     # Stupid generic function forces me to check this...
     # ... and no, it is not easy to understand what is going on here...
     if to == inputs(v) && !isempty(inds)
-        rem_input.(op.(v), inds...)
+        rem_input!.(op.(v), inds...)
     end
 end
 
@@ -250,7 +257,7 @@ end
 function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inputs(to))+1 )
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
-    add_input(op(to), pos)
+    add_input!(op(to), pos)
 
     # Now adjust the size.
     Δnins = zeros(Int, length(inputs(to)))
@@ -262,9 +269,9 @@ function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inp
     Δnin(to, Δnins..., s=s)
 end
 
-function add_input(::MutationOp, pos) end
-add_input(s::IoSize, pos) = insert!(s.nin, pos, 0)
-add_input(s::IoIndices, pos) = insert!(s.in, pos, [])
+function add_input!(::MutationOp, pos) end
+add_input!(s::IoSize, pos) = insert!(s.nin, pos, 0)
+add_input!(s::IoIndices, pos) = insert!(s.in, pos, [])
 
-function rem_input(::MutationOp, pos) end
-rem_input(s::Union{IoSize, IoIndices}, pos...) = deleteat!(s.nin, collect(pos))
+function rem_input!(::MutationOp, pos...) end
+rem_input!(s::Union{IoSize, IoIndices}, pos...) = deleteat!(s.nin, collect(pos))

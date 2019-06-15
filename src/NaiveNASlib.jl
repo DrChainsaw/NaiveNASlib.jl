@@ -31,7 +31,7 @@ minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_f
 remove!, RemoveStrategy, insert!, create_edge!,
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSize,
+AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSize, NoSizeChange,
 
 # Connect strategies
 AbstractConnectStrategy, ConnectAll, ConnectNone,

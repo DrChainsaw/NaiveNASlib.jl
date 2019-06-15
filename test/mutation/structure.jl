@@ -15,12 +15,17 @@
             v2 = av(v0, 4, name="v2")
             v3 = sv(v1, name = "v3")
             v4 = av(v3, 3, name="v4")
+            v5 = av(v2, 2, name="v5")
 
             @test inputs(v3) == [v1]
             create_edge!(v2, v3)
 
             @test inputs(v3) == [v1, v2]
             @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
+
+            @test outputs(v2) == [v5, v3]
+            @test inputs(v5) == [v2]
+            @test nin(v5) == [nout(v2)] == [4]
         end
     end
 
@@ -114,7 +119,7 @@
             @test nin(v3) == [nout(v0)] == [3]
         end
 
-        @testset "Remove one of many inputs" begin
+        @testset "Remove one of many inputs to stacking" begin
             v0 = inpt(3, "v0")
             v1 = av(v0, 4, name="v1")
             v2 = av(v0, 5, name="v2")
@@ -136,7 +141,73 @@
             @test nin(v5) == [nout(v4)] == [3+6]
         end
 
-        @testset "Remove input duplicated" begin
+        @testset "Remove one of many inputs to stacking increase size" begin
+            v0 = inpt(7, "v0")
+            v1 = av(v0, 4, name="v1")
+            v2 = av(v0, 5, name="v2")
+            v3 = av(v0, 6, name="v3")
+            v4 = sv(v1,v2,v3, name="v4")
+            v5 = av(v4, 7, name="v5")
+
+            # Note, input to v1 can not be changed, we must decrease
+            # nin of v4 (and v5)
+            remove!(v2)
+            @test inputs(v4) == [v1, v0, v3]
+            @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [4,7,6]
+            @test nin(v5) == [nout(v4)] == [4+7+6]
+
+            #Now lets try without connecting the inputs to v4
+            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs((-nout(v1), missing, missing))))
+            @test inputs(v4) == [v0, v3]
+            @test nin(v4) == [nout(v0), nout(v3)] == [7, 6]
+            @test nin(v5) == [nout(v4)] == [7+6]
+        end
+
+        @testset "Remove one of many inputs to invariant" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 5, name="v2")
+            v3 = av(v0, 5, name="v3")
+            v4 = iv(v1,v2,v3, name="v4")
+            v5 = av(v4, 7, name="v5")
+
+            # Note, input to v1 can not be changed, we must decrease
+            # nin of v4 (and v5)
+            remove!(v2)
+            @test inputs(v4) == [v1, v0, v3]
+            @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [3,3,3]
+            @test nin(v5) == [nout(v4)] == [3]
+
+            #Now lets try without connecting the inputs to v4
+            remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test inputs(v4) == [v0, v3]
+            @test nin(v4) == [nout(v0), nout(v3)] == [3, 3]
+            @test nin(v5) == [nout(v4)] == [3]
+        end
+
+        @testset "Remove one of many inputs to invariant increase size" begin
+            v0 = inpt(7, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 5, name="v2")
+            v3 = av(v0, 5, name="v3")
+            v4 = iv(v1,v2,v3, name="v4")
+            v5 = av(v4, 7, name="v5")
+
+            # Note, input to v1 can not be changed, we must decrease
+            # nin of v4 (and v5)
+            remove!(v2)
+            @test inputs(v4) == [v1, v0, v3]
+            @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [7,7,7]
+            @test nin(v5) == [nout(v4)] == [7]
+
+            #Now lets try without connecting the inputs to v4
+            remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test inputs(v4) == [v0, v3]
+            @test nin(v4) == [nout(v0), nout(v3)] == [7, 7]
+            @test nin(v5) == [nout(v4)] == [7]
+        end
+
+        @testset "Remove input duplicated stacking" begin
             v0 = inpt(3, "v0")
             v1 = av(v0, 4, name="v1")
             v2 = av(v0, 5, name="v2")
@@ -153,9 +224,26 @@
             @test inputs(v3) == [v0, v0]
             @test nin(v3) == [nout(v0), nout(v0)] == [3,3]
             @test nin(v4) == [nout(v3)] == [3+3]
-
         end
 
+        @testset "Remove input duplicated invariant" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 5, name="v2")
+            v3 = iv(v1,v2,v2,v1, name="v3")
+            v4 = av(v3, 7, name="v4")
+
+            remove!(v1)
+            @test inputs(v3) == [v0, v2, v2, v0]
+            @test nin(v3) == [nout(v0), nout(v2), nout(v2), nout(v0)] == [3,3,3,3]
+            @test nin(v4) == [nout(v3)] == [3]
+
+            #Now lets try without connecting the inputs to v3
+            remove!(v2, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test inputs(v3) == [v0, v0]
+            @test nin(v3) == [nout(v0), nout(v0)] == [3,3]
+            @test nin(v4) == [nout(v3)] == [3]
+        end
 
         @testset "Remove one of many outputs" begin
             v0 = inpt(3)
