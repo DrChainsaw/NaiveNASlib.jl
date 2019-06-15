@@ -7,6 +7,23 @@
     sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
     iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
 
+    @testset "Edge addition" begin
+
+        @testset "Add to single output" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 4, name="v2")
+            v3 = sv(v1, name = "v3")
+            v4 = av(v3, 3, name="v4")
+
+            @test inputs(v3) == [v1]
+            create_edge!(v2, v3)
+
+            @test inputs(v3) == [v1, v2]
+            @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
+        end
+    end
+
     @testset "Vertex addition"  begin
 
         @testset "Add to linear graph" begin

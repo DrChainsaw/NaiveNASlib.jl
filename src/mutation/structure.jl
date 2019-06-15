@@ -217,10 +217,7 @@ After:
     vin
      |
    vnew₁
-     .
-     .
-     .
-     |
+     ⋮
    vnewₖ
    / | \\
   /  |  \\
@@ -243,3 +240,22 @@ function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Functio
         push!(outputs(vnew), vout)
     end
 end
+
+function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inputs(to))+1 )
+    push!(outputs(from), to) # Order should never matter for outputs
+    insert!(inputs(to), pos, from)
+    add_input(op(to), pos)
+
+    # Now adjust the size.
+    Δnins = zeros(Int, length(inputs(to)))
+    Δnins[pos] = nout(from)
+
+    # Dont touch the inputs!
+    s = VisitState{Int}()
+    visited_out!.(s, inputs(to))
+    Δnin(to, Δnins..., s=s)
+end
+
+function add_input(::MutationOp, pos, val=nothing) end
+add_input(s::IoSize, pos, val = 0) = insert!(s.nin, pos, val)
+add_input(s::IoIndices, pos, val = []) = insert!(s.in, pos, val)

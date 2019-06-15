@@ -162,6 +162,8 @@ struct VisitState{T}
     noutΔs::OrderedDict{MutationVertex, Maybe{T}}
 end
 VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{T}}}(), OrderedDict{MutationVertex, Maybe{T}}())
+Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
+
 visited_in!(s::VisitState, v::MutationVertex) = push!(s.in, v)
 visited_out!(s::VisitState, v::MutationVertex) = push!(s.out, v)
 has_visited_in(s::VisitState, v::MutationVertex) = v in s.in
@@ -253,7 +255,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
     uftv = unique(ftv)
 
     # Find which sizes has not been determined through some other path; those are the ones we shall consider here
-    termΔs::AbstractArray{Maybe{T}} = getnoutΔ.(() -> missing, [s], uftv)
+    termΔs::AbstractArray{Maybe{T}} = getnoutΔ.(() -> missing, s, uftv)
     missinginds = ismissing.(termΔs)
 
     if any(missinginds)
@@ -371,7 +373,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     for vi in outputs(v)
         ins = inputs(vi)
         Δs = get!(ninΔs(s), vi) do
-            Array{Union{Missing, T},1}(missing, length(ins))
+            Vector{Maybe{T}}(missing, length(ins))
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
@@ -429,7 +431,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
 end
 
 function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
-    setnoutΔ!.(Δ, [s], inputs(v))
+    setnoutΔ!.(Δ, s, inputs(v))
     for (Δi, vi) in zip(Δ, inputs(v))
         if !ismissing(Δi)
             Δnout(vi, Δi; s=s)
