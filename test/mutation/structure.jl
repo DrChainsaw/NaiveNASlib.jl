@@ -64,6 +64,15 @@
 
                 @test inputs(v1) == inputs(v2) == inputs(v3) == [vnew2]
                 @test outputs(vnew2) == [v1, v2, v3]
+
+                insert!(vnew2, v -> av(v, nout(v), name="vnew3"), vouts -> vouts[[1, 3]])
+
+                @test length(outputs(vnew2)) == 2
+                @test outputs(vnew2)[1] == v2
+                vnew3 = outputs(vnew2)[2]
+
+                @test outputs(vnew3) == [v1, v3]
+                @test inputs(v4) == [v1, vnew1, v3]
         end
     end
 
