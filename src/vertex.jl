@@ -5,6 +5,8 @@ Vertex base type
 """
 abstract type AbstractVertex end
 
+Base.Broadcast.broadcastable(v::AbstractVertex) = Ref(v)
+
 """
     inputs(v::AbstractVertex)
 
@@ -78,7 +80,7 @@ clone(v::InputVertex, ins::AbstractVertex...) = isempty(ins) ? InputVertex(v.nam
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 
-show_less(io::IO, v::InputVertex) = show_less(io, v, v.name)   
+show_less(io::IO, v::InputVertex) = show_less(io, v, v.name)
 show_less(io::IO, v::InputVertex, name::String) = print(io, name)
 show_less(io::IO, v::InputVertex, name) = print(io, "InputVertex($(v.name))")
 

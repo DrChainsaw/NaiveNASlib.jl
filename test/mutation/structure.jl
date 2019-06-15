@@ -1,12 +1,82 @@
 
 @testset "Structure tests" begin
-    @testset "Vertex removal" begin
 
-        #Helper functions
-        inpt(size, id=1) = InputSizeVertex(id, size)
-        av(in, outsize; name="av", comp = identity) = AbsorbVertex(CompVertex(comp, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
-        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
-        iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
+    #Helper functions
+    inpt(size, id=1) = InputSizeVertex(id, size)
+    av(in, outsize; name="av", comp = identity) = AbsorbVertex(CompVertex(comp, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
+    sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
+    iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
+
+    @testset "Vertex addition"  begin
+
+        @testset "Add to linear graph" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+
+            @test inputs(v2) != outputs(v1)
+            graph = CompGraph(v0, v2)
+
+            @test graph(3) == 3
+
+            insert!(v1, v -> av(v, nout(v), name="vnew1"))
+
+            @test inputs(v2) == outputs(v1)
+            vnew1 = inputs(v2)[]
+            @test [nout(v1)] == nin(vnew1) == [nout(vnew1)] == nin(v2) == [5]
+
+            @test graph(3) == 3
+
+            @test inputs(vnew1) == [v1]
+            @test outputs(vnew1) == [v2]
+
+            # Add two consecutive vertices
+            insert!(vnew1, v -> av(av(v, 3, name="vnew2"), nout(v), name="vnew3"))
+
+            @test [inputs(v2)] == outputs.(outputs(vnew1))
+            vnew2 = outputs(vnew1)[]
+            vnew3 = outputs(vnew2)[]
+
+            @test [nout(vnew1)] == nin(vnew2) == [nout(vnew3)] == nin(v2) == [5]
+
+            @test graph(3) == 3
+
+        end
+
+        @testset "Add to one of many inputs" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 5, name="v2")
+                v3 = av(v0, 6, name="v3")
+                v4 = sv(v1,v2,v3, name="v4")
+                v5 = av(v4, 7, name="v5")
+
+                insert!(v2, v -> av(v, nout(v), name="vnew1"))
+                vnew1 = outputs(v2)[]
+
+                @test vnew1 != v2
+                @test inputs(v4) == [v1, vnew1, v3]
+
+                insert!(v0, v -> av(v, nout(v), name="vnew2"))
+
+                @test length(outputs(v0)) == 1
+                vnew2 = outputs(v0)[]
+
+                @test inputs(v1) == inputs(v2) == inputs(v3) == [vnew2]
+                @test outputs(vnew2) == [v1, v2, v3]
+
+                insert!(vnew2, v -> av(v, nout(v), name="vnew3"), vouts -> vouts[[1, 3]])
+
+                @test length(outputs(vnew2)) == 2
+                @test outputs(vnew2)[1] == v2
+                vnew3 = outputs(vnew2)[2]
+
+                @test outputs(vnew3) == [v1, v3]
+                @test inputs(v4) == [v1, vnew1, v3]
+        end
+    end
+
+    @testset "Vertex removal" begin
 
         @testset "Remove from linear graph" begin
             v0 = inpt(3)

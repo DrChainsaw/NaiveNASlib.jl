@@ -196,3 +196,50 @@ end
 
 function postalignsizes(s::AbstractAlignSizeStrategy, v) end
 postalignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
+
+"""
+    insert!(vin::AbstractVertex, factory::Function, outselect::Function=identity)
+
+Replace `vin` as input to all outputs of `vin` with vertex produced by `factory`
+
+Example:
+
+```text
+Before:
+
+    vin
+   / | \\
+  /  |  \\
+ v₁ ... vₙ
+
+After:
+
+    vin
+     |
+   vnew₁
+     .
+     .
+     .
+     |
+   vnewₖ
+   / | \\
+  /  |  \\
+ v₁ ... vₙ
+```
+Note that the connection `vin` -> `vnew₁` as well as all connections `vnewₚ -> vnewₚ₊₁` is done by `factory` in the above example.
+
+The function `outselect` can be used to select a subset of outputs to replace (default all).
+
+"""
+function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Function=identity)
+
+    prevouts = copy(outselect(outputs(vin)))
+    deleteat!(outputs(vin), findall(vx -> vx in prevouts, outputs(vin)))
+
+    vnew = factory(vin)
+    for vout in prevouts
+        inds = findall(vx -> vx == vin, inputs(vout))
+        inputs(vout)[inds] .= vnew
+        push!(outputs(vnew), vout)
+    end
+end
