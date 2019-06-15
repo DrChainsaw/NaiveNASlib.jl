@@ -28,7 +28,7 @@ trait, MutationTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, Size
 minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating,
 
 # Connectivity mutation
-remove!, RemoveStrategy,
+remove!, RemoveStrategy, insert!,
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
 AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSize,

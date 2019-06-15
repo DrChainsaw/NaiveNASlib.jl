@@ -241,8 +241,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
     # All we want is basically a split of Δ weighted by each individual input size
     # Major annoyance #1: We must comply to the Δfactors so that Δi for input i is an
     # integer multiple of Δfactors[i]
-    # Major annoyance #2: Size might already have been propagated to some of the vertices
-    # through another path. Need to account for that by digging deeply for non-size-transparent vertices (terminating vertices) and distribute sizes for each one of them to ensure things will work out when we get there. Stuff of nightmares!
+    # Major annoyance #2: Size might already have been propagated to some of the vertices through another path. Need to account for that by digging deeply for non-size-transparent vertices (terminating vertices) and distribute sizes for each one of them to ensure things will work out when we get there. Stuff of nightmares!
 
     # Note: terminating_vertices is an array of arrays so that terminating_vertices[i] are all terminating vertices seen through input vertex i
     # We will use it later to accumulate all individual size changes in that direction
