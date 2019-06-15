@@ -9,7 +9,7 @@
 
     @testset "Edge addition" begin
 
-        @testset "Add to single output" begin
+        @testset "Add to single output stacking" begin
             v0 = inpt(3, "v0")
             v1 = av(v0, 5, name="v1")
             v2 = av(v0, 4, name="v2")
@@ -24,6 +24,63 @@
             @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
 
             @test outputs(v2) == [v5, v3]
+            @test inputs(v5) == [v2]
+            @test nin(v5) == [nout(v2)] == [4]
+        end
+
+        @testset "Add duplicate to single output stacking" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 4, name="v2")
+            v3 = sv(v1, v2, name = "v3")
+            v4 = av(v3, 3, name="v4")
+            v5 = av(v2, 2, name="v5")
+
+            @test inputs(v3) == [v1, v2]
+            create_edge!(v1, v3)
+
+            @test inputs(v3) == [v1, v2, v1]
+            @test nin(v4) == [nout(v3)] == [2nout(v1) + nout(v2)] == [14]
+
+            @test outputs(v2) == [v3, v5]
+            @test inputs(v5) == [v2]
+            @test nin(v5) == [nout(v2)] == [4]
+        end
+
+        @testset "Add to single output invariant" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 4, name="v2")
+            v3 = iv(v1, name = "v3")
+            v4 = av(v3, 3, name="v4")
+            v5 = av(v2, 2, name="v5")
+
+            @test inputs(v3) == [v1]
+            create_edge!(v2, v3)
+
+            @test inputs(v3) == [v1, v2]
+            @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [5]
+
+            @test outputs(v2) == [v5, v3]
+            @test inputs(v5) == [v2]
+            @test nin(v5) == [nout(v2)] == [5]
+        end
+
+        @testset "Add duplicate to single output invariant" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 4, name="v1")
+            v2 = av(v0, 4, name="v2")
+            v3 = iv(v1, v2, name = "v3")
+            v4 = av(v3, 3, name="v4")
+            v5 = av(v2, 2, name="v5")
+
+            @test inputs(v3) == [v1, v2]
+            create_edge!(v1, v3)
+
+            @test inputs(v3) == [v1, v2, v1]
+            @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
+
+            @test outputs(v2) == [v3, v5]
             @test inputs(v5) == [v2]
             @test nin(v5) == [nout(v2)] == [4]
         end
@@ -179,6 +236,7 @@
             @test nin(v5) == [nout(v4)] == [3]
 
             #Now lets try without connecting the inputs to v4
+            # NoSizeChange is just to avoid touching the input vertex
             remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [3, 3]
@@ -201,6 +259,7 @@
             @test nin(v5) == [nout(v4)] == [7]
 
             #Now lets try without connecting the inputs to v4
+            # NoSizeChange is just to avoid touching the input vertex
             remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [7, 7]
@@ -239,6 +298,7 @@
             @test nin(v4) == [nout(v3)] == [3]
 
             #Now lets try without connecting the inputs to v3
+            # NoSizeChange is just to avoid touching the input vertex
             remove!(v2, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v3) == [v0, v0]
             @test nin(v3) == [nout(v0), nout(v0)] == [3,3]

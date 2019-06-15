@@ -12,7 +12,11 @@ struct ConnectNone <: AbstractConnectStrategy end
 """
     AbstractAlignSizeStrategy
 
-Base type for strategies for how to align size (nin/nout) when doing structural mutation
+Base type for strategies for how to align size (nin/nout) when doing structural mutation.
+
+Note that all strategies are not guaranteed to work in all cases. 
+
+Default strategies should however be selected based on case so that things always work out.
 """
 abstract type AbstractAlignSizeStrategy end
 
@@ -71,6 +75,15 @@ struct IncreaseSmaller <: AbstractAlignSizeStrategy
     fallback
 end
 IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
+
+"""
+    AdjustOutputsToCurrentSize
+
+Adjust nin of all outputs to the current output size while preventing changes from happening to inputs.
+
+This is a post-align strategy, i.e it will be applied after a structural change has been made.
+"""
+struct AdjustOutputsToCurrentSize <: AbstractAlignSizeStrategy end
 
 """
     RemoveStrategy
@@ -135,32 +148,40 @@ function connect!(v, to, inds, items, ::ConnectNone)
     end
 end
 
-function prealignsizes(s::AbstractAlignSizeStrategy, v) end
-function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, v)
-    Δinsize = nout(v) - sum(nin(v))
+prealignsizes(s::AbstractAlignSizeStrategy, v) = prealignsizes(s, v, v)
+function prealignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
+function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout)
+    Δinsize = nout(vin) - tot_nin(vout)
     Δoutsize = -Δinsize
 
     can_change(Δ, factor::Integer) = Δ % factor == 0
     can_change(Δ, ::Missing) = false
 
-    insize_can_change = all( can_change.(Δinsize, minΔnoutfactor_only_for.(inputs(v))))
-    insize_can_change && proceedwith(s, Δinsize) && return Δnin(v, Δinsize)
+    insize_can_change = all( can_change.(Δinsize, minΔnoutfactor_only_for.(inputs(vout))))
+    insize_can_change && proceedwith(s, Δinsize) && return Δnin(vout, Δinsize)
 
-    outsize_can_change = all( can_change.(Δoutsize, minΔninfactor_only_for.(outputs(v))))
-    outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(v, Δoutsize)
-    prealignsizes(s.fallback, v)
+    outsize_can_change = all( can_change.(Δoutsize, minΔninfactor_only_for.(outputs(vin))))
+    outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(vin, Δoutsize)
+    prealignsizes(s.fallback, vin, vout)
 end
 proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
 proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
-prealignsizes(s::ChangeNinOfOutputs, v) = Δnin.(outputs(v), s.Δoutsize...)
-prealignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
+tot_nin(v) = tot_nin(trait(v), v)
+tot_nin(t::DecoratingTrait, v) = tot_nin(base(t), v)
+tot_nin(::MutationTrait, v) = nin(v)[]
+tot_nin(::SizeInvariant, v) = unique(nin(v))[]
+tot_nin(::SizeTransparent, v) = sum(nin(v))
 
-function prealignsizes(s::AlignSizeBoth, v)
 
-    Δninfactor = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
-    Δnoutfactor = lcmsafe(minΔninfactor_only_for.(outputs(v)))
-    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, v)
+prealignsizes(s::ChangeNinOfOutputs, vin, vout) = Δnin.(outputs(vin), s.Δoutsize...)
+prealignsizes(::FailAlignSize, vin, vout) = error("Could not align sizes of $(v)!")
+
+function prealignsizes(s::AlignSizeBoth, vin, vout)
+
+    Δninfactor = lcmsafe(minΔnoutfactor_only_for.(inputs(vout)))
+    Δnoutfactor = lcmsafe(minΔninfactor_only_for.(outputs(vin)))
+    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout)
 
     # Ok, for this to work out, we need sum(nin(v)) + Δnin == nout(v) + Δnout where
     # Δnin = Δninfactor * x and Δnout = Δnoutfactor * y (therefore we we need x, y ∈ Z).
@@ -170,13 +191,13 @@ function prealignsizes(s::AlignSizeBoth, v)
     # Step 1: Rename to manageble variable names
     a = Δninfactor
     b = -Δnoutfactor
-    c = nout(v) - sum(nin(v))
+    c = nout(vin) - tot_nin(vout)
 
     # Step 2: Calculate gcd and Bézout coefficients
     (d, p, q) = gcdx(a,b)
 
     # Step 3: Check that the equation has a solution
-    c % d == 0 || return prealignsizes(s.fallback, v)
+    c % d == 0 || return prealignsizes(s.fallback, vin, vout)
 
     # Step 4 get base values
     x = div(c, d) * p
@@ -195,20 +216,36 @@ function prealignsizes(s::AlignSizeBoth, v)
     k = round(Int,-2*a*b*(x + y) / (2a*b^2 - 2a^2*b))
 
     # Step 5: Fine tune if needed
-    while -Δnin_f(k) > sum(nin(v));  k += 1 end
-    while -Δnout_f(k) > nout(v); k -= 1 end
+    while -Δnin_f(k) > sum(nin(vout));  k += 1 end
+    while -Δnout_f(k) > nout(vin); k -= 1 end
 
     # Step 6: One last check if size change is possible
-    -Δnin_f(k) > sum(nin(v)) && -Δnout_f(k) > nout(v) && return prealignsizes(s.fallback, v)
+    -Δnin_f(k) > sum(nin(vout)) && -Δnout_f(k) > nout(vin) && return prealignsizes(s.fallback, vin, vout)
 
     # Step 7: Make the change
     s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
-    Δnin(v, Δnin_f(k), s=s)
-    Δnout(v, Δnout_f(k), s=s)
+    Δnin(vout, Δnin_f(k), s=s)
+    Δnout(vin, Δnout_f(k), s=s)
 end
 
-function postalignsizes(s::AbstractAlignSizeStrategy, v) end
+postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
+function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
 postalignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
+
+function postalignsizes(::AdjustOutputsToCurrentSize, vin, vout)
+
+    for voo in outputs(vout)
+        # Dont touch the parts which already have the correct size
+        s = VisitState{Int}()
+        visited_out!.(s, vcat(inputs(vout), vout))
+
+        inds = inputs(voo) .== vout
+        Δ = nout(vout) - sum(nin(voo)[inds])
+
+        Δnin(voo, Δ, s=s)
+    end
+
+end
 
 """
     insert!(vin::AbstractVertex, factory::Function, outselect::Function=identity)
@@ -254,24 +291,33 @@ function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Functio
     end
 end
 
-function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inputs(to))+1 )
+function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inputs(to))+1, strategy = default_create_edge_strat(to))
+
+    prealignsizes(strategy, from, to)
+
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
-    add_input!(op(to), pos)
 
-    # Now adjust the size.
-    Δnins = zeros(Int, length(inputs(to)))
-    Δnins[pos] = nout(from)
+    add_input!(op(to), pos, nout(from))
+    add_output!(op(to), trait(to), nout(from))
 
-    # Dont touch the inputs!
-    s = VisitState{Int}()
-    visited_out!.(s, inputs(to))
-    Δnin(to, Δnins..., s=s)
+    postalignsizes(strategy, from, to)
 end
 
-function add_input!(::MutationOp, pos) end
-add_input!(s::IoSize, pos) = insert!(s.nin, pos, 0)
-add_input!(s::IoIndices, pos) = insert!(s.in, pos, [])
+default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
+default_create_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
+default_create_edge_strat(::SizeStack,v) = AdjustOutputsToCurrentSize()
+default_create_edge_strat(::SizeInvariant,v) = IncreaseSmaller()
+
+function add_input!(::MutationOp, pos, size) end
+add_input!(s::IoSize, pos, size) = insert!(s.nin, pos, size)
+add_input!(s::IoIndices, pos, size) = insert!(s.in, pos, collect(1:size+1))
+
+function add_output!(::MutationOp, t::MutationTrait, size) end
+add_output!(s::MutationOp, t::DecoratingTrait, size) = add_output!(s, base(t), size)
+add_output!(s::IoSize, ::SizeStack, size) = Δnout(s, size)
+add_output!(s::IoIndices, ::SizeStack, size) = Δnout(s, vcat(s.out, (length(s.out):length(s.out)+size)))
+
 
 function rem_input!(::MutationOp, pos...) end
 rem_input!(s::Union{IoSize, IoIndices}, pos...) = deleteat!(s.nin, collect(pos))
