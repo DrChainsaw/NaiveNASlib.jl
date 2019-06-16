@@ -503,10 +503,10 @@
             iv2 = iv(iv1, v1, name="iv2")
             iv3 = iv(iv2, v4, v2, name="iv2")
 
-            @test minΔnoutfactor(iv1) == minΔninfactor(iv1) == 6
-            @test minΔnoutfactor(iv2) == minΔninfactor(iv2) == 6
-            @test minΔnoutfactor(iv3) == minΔninfactor(iv3) == 30
-
+            # Everything thouches everything in this setup
+            @test minΔnoutfactor(iv1) == minΔninfactor(iv1) == 1*2*3*5
+            @test minΔnoutfactor(iv2) == minΔninfactor(iv2) == 1*2*3*5
+            @test minΔnoutfactor(iv3) == minΔninfactor(iv3) == 1*2*3*5
 
             Δnout(iv3, -30)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
@@ -523,6 +523,32 @@
             Δnout(v2, -12)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 61
             @test [nout(iv1)] == [nout(iv2)] == [nout(iv3)] == nin(v5) == [61]
+        end
+
+        @testset "Stacked input to Invariant" begin
+            v0 = inpt(3, "in")
+            v1 = av(20, 2, v0, name="v1")
+            v2 = av(30, 3, v0, name="v2")
+            v3 = sv(v1,v2,v1, name="v3")
+            v4 = av(70, 5, v0, name="v4")
+            v5 = iv(v4,v3, name="v5")
+            v6 = av(10, 7, v5, name="v6")
+
+            # Evilness: Invariant vertex must change all its inputs and therefore it must take their minΔnoutfactors into account when computing minΔninfactor.
+            @test minΔnoutfactor(v4) == 2*2*3*5*7
+        end
+
+        @testset "Invariant input to Invariant" begin
+            v0 = inpt(3, "in")
+            v1 = av(20, 2, v0, name="v1")
+            v2 = av(20, 3, v0, name="v2")
+            v3 = iv(v1,v2, name="v3")
+            v4 = av(70, 5, v0, name="v4")
+            v5 = iv(v4,v3, name="v5")
+            v6 = av(10, 7, v5, name="v6")
+
+            # Evilness: Infinite recursion without memoization
+            @test minΔnoutfactor(v4) == 2*3*5*7
         end
     end
 
