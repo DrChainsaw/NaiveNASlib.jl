@@ -14,7 +14,7 @@ struct ConnectNone <: AbstractConnectStrategy end
 
 Base type for strategies for how to align size (nin/nout) when doing structural mutation.
 
-Note that all strategies are not guaranteed to work in all cases. 
+Note that all strategies are not guaranteed to work in all cases.
 
 Default strategies should however be selected based on case so that things always work out.
 """
@@ -211,12 +211,12 @@ function prealignsizes(s::AlignSizeBoth, vin, vout)
     Δnout_f = k -> -b*(y - a*k)
 
     # Lets minimize the sum of squares:
-    #   min wrt k: a(x + bk)^2 + b(y - ak)^2
+    #   min wrt k: (a(x + bk))^2 + (b(y - ak))^2
     # Just round the result, it should be close enough
-    k = round(Int,-2*a*b*(x + y) / (2a*b^2 - 2a^2*b))
+    k = round(Int, 2a*b*(b*y - a*x) / (4a^2*b^2))
 
     # Step 5: Fine tune if needed
-    while -Δnin_f(k) > sum(nin(vout));  k += 1 end
+    while -Δnin_f(k) > tot_nin(vout);  k += 1 end
     while -Δnout_f(k) > nout(vin); k -= 1 end
 
     # Step 6: One last check if size change is possible
