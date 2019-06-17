@@ -32,15 +32,15 @@
             v0 = inpt(3, "v0")
             v1 = av(v0, 5, name="v1")
             v2 = av(v0, 4, name="v2")
-            v3 = sv(v1, v2, name = "v3")
+            v3 = sv(v1, v1, v2, name = "v3")
             v4 = av(v3, 3, name="v4")
             v5 = av(v2, 2, name="v5")
 
-            @test inputs(v3) == [v1, v2]
+            @test inputs(v3) == [v1, v1, v2]
             create_edge!(v1, v3)
 
-            @test inputs(v3) == [v1, v2, v1]
-            @test nin(v4) == [nout(v3)] == [2nout(v1) + nout(v2)] == [14]
+            @test inputs(v3) == [v1, v1, v2, v1]
+            @test nin(v4) == [nout(v3)] == [3nout(v1) + nout(v2)] == [19]
 
             @test outputs(v2) == [v3, v5]
             @test inputs(v5) == [v2]
@@ -70,19 +70,47 @@
             v0 = inpt(3, "v0")
             v1 = av(v0, 4, name="v1")
             v2 = av(v0, 4, name="v2")
-            v3 = iv(v1, v2, name = "v3")
+            v3 = iv(v1, v1, v2, name = "v3")
             v4 = av(v3, 3, name="v4")
             v5 = av(v2, 2, name="v5")
 
-            @test inputs(v3) == [v1, v2]
+            @test inputs(v3) == [v1, v1, v2]
             create_edge!(v1, v3)
 
-            @test inputs(v3) == [v1, v2, v1]
+            @test inputs(v3) == [v1, v1, v2, v1]
             @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
 
             @test outputs(v2) == [v3, v5]
             @test inputs(v5) == [v2]
             @test nin(v5) == [nout(v2)] == [4]
+        end
+
+        @testset "Size constraints" begin
+
+            struct SizeConstraint constraint; end
+            NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
+            NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+            # Can't have kwarg due to https://github.com/JuliaLang/julia/issues/32350
+             av(in, outsize, constr, name="avs") = av(in, outsize, name=name, comp = SizeConstraint(constr))
+
+            @testset "Add to nout-constrained stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 2, "v1")
+                v2 = av(v0, 6, 3, "v2")
+                v3 = sv(v1, name="v3")
+                v4 = av(v3, 5, 5, "v4")
+                v5 = av(v3, 7, 7, "v5")
+
+                @test inputs(v3) == [v1]
+                @test minΔninfactor(v3) == 70
+
+                create_edge!(v2, v3)
+                @test inputs(v3) == [v1, v2]
+
+                @test nin(v3) == [nout(v1), nout(v2)] == [8, 105]
+                @test [nout(v3)] == nin(v4) == nin(v5) == [113]
+            end
+
         end
     end
 

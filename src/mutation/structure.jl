@@ -83,7 +83,10 @@ Adjust nin of all outputs to the current output size while preventing changes fr
 
 This is a post-align strategy, i.e it will be applied after a structural change has been made.
 """
-struct AdjustOutputsToCurrentSize <: AbstractAlignSizeStrategy end
+struct AdjustOutputsToCurrentSize <: AbstractAlignSizeStrategy
+    fallback
+end
+AdjustOutputsToCurrentSize() = AdjustOutputsToCurrentSize(FailAlignSize())
 
 """
     RemoveStrategy
@@ -216,14 +219,14 @@ function prealignsizes(s::AlignSizeBoth, vin, vout)
     k = round(Int, 2a*b*(b*y - a*x) / (4a^2*b^2))
 
     # Step 5: Fine tune if needed
-    while -Δnin_f(k) > tot_nin(vout);  k += 1 end
-    while -Δnout_f(k) > nout(vin); k -= 1 end
+    while -Δnin_f(k) > tot_nin(vout);  k += sign(b) end
+    while -Δnout_f(k) > nout(vin); k -= sign(a) end
 
     # Step 6: One last check if size change is possible
     -Δnin_f(k) > sum(nin(vout)) && -Δnout_f(k) > nout(vin) && return prealignsizes(s.fallback, vin, vout)
 
     # Step 7: Make the change
-    s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
+     s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
     Δnin(vout, Δnin_f(k), s=s)
     Δnout(vin, Δnout_f(k), s=s)
 end
@@ -232,19 +235,109 @@ postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
 function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
 postalignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
 
-function postalignsizes(::AdjustOutputsToCurrentSize, vin, vout)
+postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout) = postalignsizes(s, vin, vout, trait(vout))
+postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, t::DecoratingTrait) = postalignsizes(s, vin, vout, base(t))
 
-    for voo in outputs(vout)
+function postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, ::SizeStack)
+
+    # At this point we expect to have nout(vout) - nout(vin) = nin of all output edges of vout and we need to fix this so nout(vout) == nin while nin(vout) = nout of all its inputs.
+
+    # Therefore the equations we want to solve are nout(vin) + Δnoutfactor * x + nin(voo[i]) = nin(voo[i]) +  Δninfactor[i] * y[i] for where voo[i] is output #i of vout. As nin(voo[i]) is eliminated this leaves us with the zeros below.
+    nins = zeros(Int, length(outputs(vout)))
+    Δninfactors = minΔninfactor_only_for.(outputs(vout))
+
+    # This probably does not have to be this complicated.
+    # All nins are the same and then one could just do a single linear
+    # diophantine equation with lcm of all Δninfactors
+    X = alignfor(nout(vin) , minΔnoutfactor_only_for(vin), nins, Δninfactors)
+
+    ismissing(X) && postalignsizes(s.fallback, vin, vout)
+
+    s = VisitState{Int}()
+    visited_in!.(s, outputs(vout))
+    Δnout(vin, X[1], s=s)
+
+    for (i, voo) in enumerate(outputs(vout))
         # Dont touch the parts which already have the correct size
         s = VisitState{Int}()
-        visited_out!.(s, vcat(inputs(vout), vout))
+        visited_out!(s, vout)
+        Δvec = Vector{Maybe{Int}}(missing, length(inputs(voo)))
+        Δvec[inputs(voo) .== vout] .= X[i+1]
 
-        inds = inputs(voo) .== vout
-        Δ = nout(vout) - sum(nin(voo)[inds])
-
-        Δnin(voo, Δ, s=s)
+        Δnin(voo, Δvec..., s=s)
     end
 
+end
+
+function alignfor(nout, Δnoutfactor, nins, Δninfactors)
+    # System of linear diophantine equations.. fml!
+    # nout + Δnoutfactor*x = nins + Δninfactors[0] * y0
+    # nout + Δnoutfactor*x = nins + Δninfactors[1] * y1
+    # ...
+    # Thus we have:
+    # A:
+    # Δnoutfactor -Δninfactors[0] 0               0 ...
+    # Δnoutfactor  0              -Δninfactors[1] 0 ...
+    # ...
+    # B:
+    # nout - nins[0]
+    n = length(nins)
+    A = hcat(repeat([Δnoutfactor], n), -Diagonal(Δninfactors))
+    B = nins .- nout
+
+    res = solve_lin_dio_eq(A,B)
+    ismissing(res) && return res
+
+    V, T, dof = res
+    # So here's the deal:
+    # [x, y0, y1, ...] =  V[:,1:end-dof] * T + V[:,end-dof+1:end] * K
+    # K is the degrees of freedom due to overdetermined system
+    # In fact, any K ∈ Z will yield a solution.
+    # Which one do I want?
+
+    # Answer: The one which makes the smallest but positive change
+    # As I'm really sick of this problem right now, lets
+    # make a heuristic which should get me near enough:
+    # Solve the above system for [x, y0,..] = 0 without
+    # an integer constraint, then round to nearest integer
+    # and increase K until values are positive. Note that
+    # that last part probably only works for dof = 1, but
+    # it always is for this system (as Δfactors are > 0) (or?)
+    VT = V[:, 1:end-dof] * T
+    VK = V[:,end-dof+1:end]
+    K = round.(Int, -VK \ VT)
+
+    f = k -> (VT + VK * k)
+
+    # Search for non-negatives within bounds
+    X = f(K)
+    within_bounds(a,b) = a < 0 && b < 100
+    while within_bounds(extrema(X)...)
+        K .+= 1
+        X = f(K)
+    end
+    return X .* vcat(Δnoutfactor, Δninfactors)
+end
+
+
+# Return V, T, dof so that X = V * vcat(T, K) and AX = C where A, X and C are matrices of integers where K is a vector of arbitrary integers of length dof (note that dof might be 0 though meaning no freedom for you)
+function solve_lin_dio_eq(A,C)
+    B,U,V = snf_with_transform(matrix(ZZ, A))     # B = UAV
+
+    # AbstractAlgebra works with BigInt...
+    D = Int.(U.entries) * C
+
+    # Check that solution exists which is only if
+    # 1) B[i.i] divides D[i] for i <= k
+    # 2) D[i] = 0 for i > k
+    BD = LinearAlgebra.diag(Int.(B.entries))
+    k = findall(BD .!= 0)
+    n = length(k)+1 : min(size(A)...)
+
+    all(D[k] .% BD[k] .== 0) ||  all(D[n] .== 0) || return missing
+
+    # We have a solution!
+    return Int.(V.entries), div.(D[k], BD[k]), size(A,2) - length(k)
 end
 
 """

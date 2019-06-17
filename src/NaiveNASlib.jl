@@ -3,6 +3,10 @@ module NaiveNASlib
 using LightGraphs
 using DataStructures
 using Statistics
+# For solving diophantine equations which pop up here and there when mutating size under constraints
+using AbstractAlgebra
+using LinearAlgebra
+
 
 export
 #Interface
