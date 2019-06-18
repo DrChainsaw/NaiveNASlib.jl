@@ -182,53 +182,24 @@ prealignsizes(::FailAlignSize, vin, vout) = error("Could not align sizes of $(v)
 
 function prealignsizes(s::AlignSizeBoth, vin, vout)
 
+    # TODO: This is assuming vin == vout and that we are to remove it
     Δninfactor = lcmsafe(minΔnoutfactor_only_for.(inputs(vout)))
     Δnoutfactor = lcmsafe(minΔninfactor_only_for.(outputs(vin)))
+
     ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout)
 
-    # Ok, for this to work out, we need sum(nin(v)) + Δnin == nout(v) + Δnout where
-    # Δnin = Δninfactor * x and Δnout = Δnoutfactor * y (therefore we we need x, y ∈ Z).
-    # This can be rewritten as a linear diophantine equation a*x + b*y = c where a = Δninfactor, b = -Δnoutfactor and c = nout(v) - sum(nin(v))
-    # Thank you julia for having a built in solver for it (gcdx)
+    sizes = [nout(vin), tot_nin(vout)]
+    accept(Δs) = all(-Δs .< sizes) || any(Δs .> 0.2 .* sizes)
 
-    # Step 1: Rename to manageble variable names
-    a = Δninfactor
-    b = -Δnoutfactor
-    c = nout(vin) - tot_nin(vout)
+    Δs = alignfor(nout(vin) , Δnoutfactor, [tot_nin(vout)], [Δninfactor], accept)
 
-    # Step 2: Calculate gcd and Bézout coefficients
-    (d, p, q) = gcdx(a,b)
+    # One last check if size change is possible
+    -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout)
 
-    # Step 3: Check that the equation has a solution
-    c % d == 0 || return prealignsizes(s.fallback, vin, vout)
-
-    # Step 4 get base values
-    x = div(c, d) * p
-    y = div(c, d) * q
-
-    # Step 4: Try to find the smallest Δnin and Δnout
-    # We now have the solutions:
-    #   Δnin  =  a(x + bk)
-    #   Δnout = -b(y - ak) (b = -Δnoutfactor, remember?)
-    Δnin_f = k -> a*(x + b*k)
-    Δnout_f = k -> -b*(y - a*k)
-
-    # Lets minimize the sum of squares:
-    #   min wrt k: (a(x + bk))^2 + (b(y - ak))^2
-    # Just round the result, it should be close enough
-    k = round(Int, 2a*b*(b*y - a*x) / (4a^2*b^2))
-
-    # Step 5: Fine tune if needed
-    while -Δnin_f(k) > tot_nin(vout);  k += sign(b) end
-    while -Δnout_f(k) > nout(vin); k -= sign(a) end
-
-    # Step 6: One last check if size change is possible
-    -Δnin_f(k) > sum(nin(vout)) && -Δnout_f(k) > nout(vin) && return prealignsizes(s.fallback, vin, vout)
-
-    # Step 7: Make the change
-     s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
-    Δnin(vout, Δnin_f(k), s=s)
-    Δnout(vin, Δnout_f(k), s=s)
+    # Ok, lets make the change
+    s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
+    Δnin(vout, Δs[2], s=s)
+    Δnout(vin, Δs[1], s=s)
 end
 
 postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
@@ -249,43 +220,98 @@ function postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, ::SizeStack)
     # This probably does not have to be this complicated.
     # All nins are the same and then one could just do a single linear
     # diophantine equation with lcm of all Δninfactors
-    X = alignfor(nout(vin) , minΔnoutfactor_only_for(vin), nins, Δninfactors)
+    Δs = alignfor(nout(vin) , minΔnoutfactor_only_for(vin), nins, Δninfactors)
 
-    ismissing(X) && postalignsizes(s.fallback, vin, vout)
+    ismissing(Δs) && postalignsizes(s.fallback, vin, vout)
 
     s = VisitState{Int}()
     visited_in!.(s, outputs(vout))
-    Δnout(vin, X[1], s=s)
+    Δnout(vin, Δs[1], s=s)
 
     for (i, voo) in enumerate(outputs(vout))
         # Dont touch the parts which already have the correct size
         s = VisitState{Int}()
         visited_out!(s, vout)
         Δvec = Vector{Maybe{Int}}(missing, length(inputs(voo)))
-        Δvec[inputs(voo) .== vout] .= X[i+1]
+        Δvec[inputs(voo) .== vout] .= Δs[i+1]
 
         Δnin(voo, Δvec..., s=s)
     end
 
 end
 
-function alignfor(nout, Δnoutfactor, nins, Δninfactors)
-    # System of linear diophantine equations.. fml!
-    # nout + Δnoutfactor*x = nins + Δninfactors[0] * y0
-    # nout + Δnoutfactor*x = nins + Δninfactors[1] * y1
-    # ...
-    # Thus we have:
+function all_positive(x, bound=200)
+    minval,maxval = extrema(x)
+    return minval >= 0 || maxval > bound
+end
+
+"""
+    alignfor(nout, Δnoutfactor, nins, Δninfactors, accept = all_positive)
+
+Returns `Δ` so that `vcat(nout, nins) .+ Δ |> unique |> length == 1` and so that `all(Δ .% vcat(Δnoutfactor, Δninfactors) .== 0)`.
+
+In other words, return the `Δ` which makes `nout` equal to all `nins` while still being evenly divisible by the `Δfactors`.
+
+Solves the following system of linear diophantine equations:
+```text
+nout + Δnoutfactor*x = nins + Δninfactors[0] * y0
+nout + Δnoutfactor*x = nins + Δninfactors[1] * y1
+...
+```
+where `Δ = [x, y0, y1, ...]`
+
+# Examples
+
+```
+julia> Δ = NaiveNASlib.alignfor(2,2,[3], [3])
+2-element Array{Int64,1}:
+ 4
+ 3
+
+julia> [2, 3] .+ Δ
+2-element Array{Int64,1}:
+ 6
+ 6
+
+ julia> Δ .% [2, 3]
+ 2-element Array{Int64,1}:
+  0
+  0
+
+julia> Δ = NaiveNASlib.alignfor(2,2,[3, 7], [11, 13])
+3-element Array{Int64,1}:
+ 122
+ 121
+ 117
+
+julia> [2, 3, 7] .+ Δ
+3-element Array{Int64,1}:
+ 124
+ 124
+ 124
+
+julia> Δ .% [2, 11, 13]
+3-element Array{Int64,1}:
+ 0
+ 0
+ 0
+```
+
+"""
+function alignfor(nout, Δnoutfactor, nins, Δninfactors, accept = all_positive)
+
+    # System is
     # A:
     # Δnoutfactor -Δninfactors[0] 0               0 ...
     # Δnoutfactor  0              -Δninfactors[1] 0 ...
     # ...
     # B:
-    # nout - nins[0]
+    # nins .- nout
     n = length(nins)
     A = hcat(repeat([Δnoutfactor], n), -Diagonal(Δninfactors))
-    B = nins .- nout
+    C = nins .- nout
 
-    res = solve_lin_dio_eq(A,B)
+    res = solve_lin_dio_eq(A,C)
     ismissing(res) && return res
 
     V, T, dof = res
@@ -295,46 +321,81 @@ function alignfor(nout, Δnoutfactor, nins, Δninfactors)
     # In fact, any K ∈ Z will yield a solution.
     # Which one do I want?
 
-    # Answer: The one which makes the smallest but positive change
+    # Answer: The one which makes the smallest change
     # As I'm really sick of this problem right now, lets
-    # make a heuristic which should get me near enough:
+    # make a heuristic which should get near enough:
     # Solve the above system for [x, y0,..] = 0 without
     # an integer constraint, then round to nearest integer
-    # and increase K until values are positive. Note that
+    # and increase K until values are accepted. Note that
     # that last part probably only works for dof = 1, but
     # it always is for this system (as Δfactors are > 0) (or?)
     VT = V[:, 1:end-dof] * T
     VK = V[:,end-dof+1:end]
     K = round.(Int, -VK \ VT)
 
-    f = k -> (VT + VK * k)
+    f = k -> (VT + VK * k) .* vcat(Δnoutfactor, Δninfactors)
 
-    # Search for non-negatives within bounds
-    X = f(K)
-    within_bounds(a,b) = a < 0 && b < 100
-    while within_bounds(extrema(X)...)
+    # Search for an accepted solution
+    Δs = f(K)
+    while !accept(Δs)
         K .+= 1
-        X = f(K)
+        Δs = f(K)
     end
-    return X .* vcat(Δnoutfactor, Δninfactors)
+    return Δs
 end
 
 
-# Return V, T, dof so that X = V * vcat(T, K) and AX = C where A, X and C are matrices of integers where K is a vector of arbitrary integers of length dof (note that dof might be 0 though meaning no freedom for you)
+"""
+    solve_lin_dio_eq(A,C)
+
+Return `V`, `T`, `dof` so that `X` = `V` * `vcat(T,K)` and `AX` = `C` where `A`, `X` and `C` are matrices of integers where `K` is a vector of arbitrary integers of length `dof` or `missing` if no solution is possible.
+
+Note that `dof` might be 0, meaning no freedom for you.
+
+# Examples
+```julia
+julia> A = [1 2 3; 3 2 1; 2 4 6] # Note: A[1,:] == 2*A[3,:]
+3×3 Array{Int64,2}:
+ 1  2  3
+ 3  2  1
+ 2  4  6
+
+ julia> NaiveNASlib.solve_lin_dio_eq(A, [1,2,3]) # Note: B[1] != 2*[B3]
+missing
+
+julia> V, T, dof = NaiveNASlib.solve_lin_dio_eq(A, [1,3,2]) # Now it is!
+([1 -5 1; 0 1 -2; 0 0 1], [3, 1], 1)
+
+julia> A * V * vcat(T, ones(Int, dof))
+3-element Array{Int64,1}:
+ 1
+ 3
+ 2
+
+ julia> A * V * vcat(T, 666ones(Int, dof))
+3-element Array{Int64,1}:
+ 1
+ 3
+ 2
+
+```
+"""
 function solve_lin_dio_eq(A,C)
+
     B,U,V = snf_with_transform(matrix(ZZ, A))     # B = UAV
 
     # AbstractAlgebra works with BigInt...
     D = Int.(U.entries) * C
 
+    BD = LinearAlgebra.diag(Int.(B.entries))
+    k = findall(BD .!= 0)
+    n = length(k)+1 : length(D)
+
     # Check that solution exists which is only if
     # 1) B[i.i] divides D[i] for i <= k
     # 2) D[i] = 0 for i > k
-    BD = LinearAlgebra.diag(Int.(B.entries))
-    k = findall(BD .!= 0)
-    n = length(k)+1 : min(size(A)...)
-
-    all(D[k] .% BD[k] .== 0) ||  all(D[n] .== 0) || return missing
+    all(D[k] .% BD[k] .== 0) || return missing
+    all(D[n] .== 0) || return missing
 
     # We have a solution!
     return Int.(V.entries), div.(D[k], BD[k]), size(A,2) - length(k)
