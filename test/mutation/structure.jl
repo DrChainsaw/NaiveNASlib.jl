@@ -189,6 +189,24 @@
                 @test [nout(v3)] == nin(v4) == nin(v5) == [113]
             end
 
+            @testset "Add to nout-constrained invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 2, "v1")
+                v2 = av(v0, 6, 3, "v2")
+                v3 = iv(v1, name="v3")
+                v4 = av(v3, 5, 5, "v4")
+                v5 = av(v3, 7, 7, "v5")
+
+                @test inputs(v3) == [v1]
+                @test minΔninfactor(v3) == 70
+
+                create_edge!(v2, v3)
+                @test inputs(v3) == [v1, v2]
+
+                @test nin(v3) == [nout(v1), nout(v2)] == [78, 78]
+                @test [nout(v3)] == nin(v4) == nin(v5) == [78]
+            end
+
         end
     end
 

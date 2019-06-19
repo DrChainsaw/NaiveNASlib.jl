@@ -117,7 +117,7 @@ Default strategy is to first set nin==nout for v and then connect all its inputs
 to all its outputs.
 """
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
-    prealignsizes(strategy.align, v)
+    prealignsizes(strategy.align, v, vx -> vx == v)
     remove!(v, inputs, outputs, strategy.reconnect)
     remove!(v, outputs, inputs, strategy.reconnect)
     postalignsizes(strategy.align, v)
@@ -151,21 +151,30 @@ function connect!(v, to, inds, items, ::ConnectNone)
     end
 end
 
-prealignsizes(s::AbstractAlignSizeStrategy, v) = prealignsizes(s, v, v)
-function prealignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
-function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout)
+# I don't like if-statements anymore, ok?
+minΔninfactor_if(remove, v) = minΔninfactor_if(Val(remove), v)
+minΔninfactor_if(::Val{true}, v) = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
+minΔninfactor_if(::Val{false}, v) = minΔninfactor(v)
+
+minΔnoutfactor_if(remove, v) = minΔnoutfactor_if(Val(remove), v)
+minΔnoutfactor_if(::Val{true}, v) = lcmsafe(minΔninfactor_only_for.(outputs(v)))
+minΔnoutfactor_if(::Val{false}, v) = minΔnoutfactor(v)
+
+prealignsizes(s::AbstractAlignSizeStrategy, v, will_rm::Function) = prealignsizes(s, v, v, will_rm)
+function prealignsizes(s::AbstractAlignSizeStrategy, vin, vout, will_rm) end
+function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, will_rm)
     Δinsize = nout(vin) - tot_nin(vout)
     Δoutsize = -Δinsize
 
     can_change(Δ, factor::Integer) = Δ % factor == 0
     can_change(Δ, ::Missing) = false
 
-    insize_can_change = all( can_change.(Δinsize, minΔnoutfactor_only_for.(inputs(vout))))
+    insize_can_change = all( can_change.(Δinsize, minΔninfactor_if(will_rm(vout), vout)))
     insize_can_change && proceedwith(s, Δinsize) && return Δnin(vout, Δinsize)
 
-    outsize_can_change = all( can_change.(Δoutsize, minΔninfactor_only_for.(outputs(vin))))
+    outsize_can_change = all( can_change.(Δoutsize, minΔnoutfactor_if(will_rm(vin), vin)))
     outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(vin, Δoutsize)
-    prealignsizes(s.fallback, vin, vout)
+    prealignsizes(s.fallback, vin, vout, will_rm)
 end
 proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
 proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
@@ -177,16 +186,15 @@ tot_nin(::SizeInvariant, v) = unique(nin(v))[]
 tot_nin(::SizeTransparent, v) = sum(nin(v))
 
 
-prealignsizes(s::ChangeNinOfOutputs, vin, vout) = Δnin.(outputs(vin), s.Δoutsize...)
-prealignsizes(::FailAlignSize, vin, vout) = error("Could not align sizes of $(v)!")
+prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm) = Δnin.(outputs(vin), s.Δoutsize...)
+prealignsizes(::FailAlignSize, vin, vout, will_rm) = error("Could not align sizes of $(v)!")
 
-function prealignsizes(s::AlignSizeBoth, vin, vout)
+function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
-    # TODO: This is assuming vin == vout and that we are to remove it
-    Δninfactor = lcmsafe(minΔnoutfactor_only_for.(inputs(vout)))
-    Δnoutfactor = lcmsafe(minΔninfactor_only_for.(outputs(vin)))
+    Δninfactor = minΔninfactor_if(will_rm(vout), vout)
+    Δnoutfactor = minΔnoutfactor_if(will_rm(vin), vin)
 
-    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout)
+    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout, will_rm)
 
     sizes = [nout(vin), tot_nin(vout)]
     accept(Δs) = all(-Δs .< sizes) || any(Δs .> 0.2 .* sizes)
@@ -194,7 +202,7 @@ function prealignsizes(s::AlignSizeBoth, vin, vout)
     Δs = alignfor(nout(vin) , Δnoutfactor, [tot_nin(vout)], [Δninfactor], accept)
 
     # One last check if size change is possible
-    -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout)
+    -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
 
     # Ok, lets make the change
     s = VisitState{Int}() # Just in case we happen to be inside a transparent vertex
@@ -204,7 +212,7 @@ end
 
 postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
 function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
-postalignsizes(::FailAlignSize, v) = error("Could not align sizes of $(v)!")
+postalignsizes(::FailAlignSize, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
 
 postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout) = postalignsizes(s, vin, vout, trait(vout))
 postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, t::DecoratingTrait) = postalignsizes(s, vin, vout, base(t))
@@ -447,7 +455,7 @@ end
 
 function create_edge!(from::AbstractVertex, to::AbstractVertex, pos = length(inputs(to))+1, strategy = default_create_edge_strat(to))
 
-    prealignsizes(strategy, from, to)
+    prealignsizes(strategy, from, to, v -> false)
 
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
