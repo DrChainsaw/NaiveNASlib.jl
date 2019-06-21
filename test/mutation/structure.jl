@@ -120,6 +120,7 @@
     av(in, outsize; name="av", comp = identity) = AbsorbVertex(CompVertex(comp, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
     sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
     iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
+    imu(in, outsize; name="imu") = MutationVertex(CompVertex(identity, in), IoSize(nout(in), outsize), NamedTrait(Immutable(), name))
 
     @testset "Edge addition" begin
 
@@ -235,8 +236,7 @@
             NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
             NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
             # Can't have kwarg due to https://github.com/JuliaLang/julia/issues/32350
-             av(in, outsize, constr, name="avs") = av(in, outsize, name=name, comp = SizeConstraint(constr))
-             imu(in, outsize, name="imu") = MutationVertex(CompVertex(identity, in), IoSize(nout(in), outsize), NamedTrait(Immutable(), name))
+            av(in, outsize, constr, name="avs") = av(in, outsize, name=name, comp = SizeConstraint(constr))
 
             @testset "Add to nout-constrained stacking" begin
                 v0 = inpt(3, "v0")
@@ -278,7 +278,7 @@
                 v2 = av(v0, 10, 2, "v2")
                 v3 = sv(v1, name="v3")
                 v4 = av(v3, 5, 5, "v4")
-                v5 = imu(v3, 3, "v5")
+                v5 = imu(v3, 3, name="v5")
 
                 @test inputs(v3) == [v1]
                 @test ismissing(minΔnoutfactor(v3))
@@ -296,7 +296,7 @@
                 v2 = av(v0, 10, 2, "v2")
                 v3 = av(v0, 5, 5, "v3")
                 v4 = sv(v1,v2, name="v4")
-                v5 = imu(v4, 3, "v5")
+                v5 = imu(v4, 3, name="v5")
 
                 @test inputs(v4) == [v1, v2]
                 @test ismissing(minΔnoutfactor(v4))
@@ -313,12 +313,29 @@
                 v1 = av(v0, 8, 3, "v1")
                 v2 = av(v0, 11, 2, "v2")
                 v3 = sv(v1, name="v3")
-                v4 = imu(v3, 3, "v4")
+                v4 = imu(v3, 3, name="v4")
 
                 @test inputs(v3) == [v1]
                 @test ismissing(minΔnoutfactor(v3))
 
                 @test_throws ErrorException create_edge!(v2, v3)
+            end
+
+            @testset "Warn for impossible size constraint and revert" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 11, 2, "v2")
+                v3 = sv(v1, name="v3")
+                v4 = imu(v3, 3, name="v4")
+
+                @test inputs(v3) == [v1]
+                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                @test ismissing(minΔnoutfactor(v3))
+
+                @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = AdjustToCurrentSize(FailAlignSizeWarn()))
+
+                @test inputs(v3) == [v1]
+                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
             end
 
             @testset "Add to nout-constrained invariant" begin
@@ -361,7 +378,7 @@
                 v2 = av(v0, 13, 5, "v2")
                 v3 = iv(v1, name="v3")
                 v4 = av(v3, 5, 5, "v4")
-                v5 = imu(v3, 3, "v5")
+                v5 = imu(v3, 3, name="v5")
 
                 @test inputs(v3) == [v1]
                 @test ismissing(minΔnoutfactor(v3))
@@ -379,7 +396,7 @@
                 v2 = av(v0, 10, 2, "v2")
                 v3 = av(v0, 5, 5, "v3")
                 v4 = iv(v1,v2, name="v4")
-                v5 = imu(v4, 3, "v5")
+                v5 = imu(v4, 3, name="v5")
 
                 @test inputs(v4) == [v1, v2]
                 @test ismissing(minΔnoutfactor(v4))
@@ -396,12 +413,29 @@
                 v1 = av(v0, 8, 3, "v1")
                 v2 = av(v0, 11, 2, "v2")
                 v3 = iv(v1, name="v3")
-                v4 = imu(v3, 3, "v4")
+                v4 = imu(v3, 3, name="v4")
 
                 @test inputs(v3) == [v1]
                 @test ismissing(minΔnoutfactor(v3))
 
                 @test_throws ErrorException create_edge!(v2, v3)
+            end
+
+            @testset "Warn for impossible size constraint and ignore" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 11, 2, "v2")
+                v3 = iv(v1, name="v3")
+                v4 = imu(v3, 3, name="v4")
+
+                @test inputs(v3) == [v1]
+                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                @test ismissing(minΔnoutfactor(v3))
+
+                @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = AlignSizeBoth(FailAlignSizeWarn()))
+
+                @test inputs(v3) == [v1]
+                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
             end
         end
     end
@@ -671,6 +705,29 @@
             # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is obviously a senseless construct)
             remove!(v2)
             @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
+        end
+
+        @testset "Fail for impossible removal" begin
+            v1 = inpt(3, "v1")
+            v2 = av(v1, 5, name="v2")
+            v3 = imu(v2, 4, name="v3")
+
+            @test_throws ErrorException remove!(v2)
+        end
+
+        @testset "Warn for impossible removal and ignore" begin
+            v1 = inpt(3, "v1")
+            v2 = av(v1, 5, name="v2")
+            v3 = imu(v2, 4, name="v3")
+
+            @test_logs (:warn, r"Could not align sizes") remove!(v2, RemoveStrategy(AlignSizeBoth(FailAlignSizeWarn())))
+
+            @test outputs(v1) == [v2]
+            @test inputs(v2) == [v1]
+            @test outputs(v2) == [v3]
+            @test inputs(v3) == [v2]
+            @test [nout(v1)] == nin(v2) == [3]
+            @test [nout(v2)] == nin(v3) == [5]
         end
 
         @testset "Size constraints" begin
