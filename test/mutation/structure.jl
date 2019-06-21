@@ -290,6 +290,37 @@
                 @test [nout(v3)] == nin(v4) == nin(v5) == [8]
             end
 
+            @testset "Add nout-constrained to stacking with immutable output" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 10, 2, "v2")
+                v3 = av(v0, 5, 5, "v3")
+                v4 = sv(v1,v2, name="v4")
+                v5 = imu(v4, 3, "v5")
+
+                @test inputs(v4) == [v1, v2]
+                @test ismissing(minΔnoutfactor(v4))
+
+                create_edge!(v3, v4)
+                @test inputs(v4) == [v1, v2, v3]
+
+                @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [5, 8, 5]
+                @test [nout(v4)] == nin(v5) == [18]
+            end
+
+            @testset "Fail for impossible size constraint" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 11, 2, "v2")
+                v3 = sv(v1, name="v3")
+                v4 = imu(v3, 3, "v4")
+
+                @test inputs(v3) == [v1]
+                @test ismissing(minΔnoutfactor(v3))
+
+                @test_throws ErrorException create_edge!(v2, v3)
+            end
+
             @testset "Add to nout-constrained invariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 8, 2, "v1")
@@ -308,6 +339,70 @@
                 @test [nout(v3)] == nin(v4) == nin(v5) == [78]
             end
 
+            @testset "Add immutable to nout-constrained invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 9, 3, "v1")
+                v2 = iv(v1, name="v2")
+                v3 = av(v2, 5, 6, "v3")
+
+                @test inputs(v2) == [v1]
+                @test minΔninfactor(v2) == 6
+
+                create_edge!(v0, v2)
+                @test inputs(v2) == [v1, v0]
+
+                @test nin(v2) == [nout(v1), nout(v0)] == [3, 3]
+                @test [nout(v2)] == nin(v3) == [3]
+            end
+
+            @testset "Add nout-constrained to invariant with one immutable output" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 13, 5, "v2")
+                v3 = iv(v1, name="v3")
+                v4 = av(v3, 5, 5, "v4")
+                v5 = imu(v3, 3, "v5")
+
+                @test inputs(v3) == [v1]
+                @test ismissing(minΔnoutfactor(v3))
+
+                create_edge!(v2, v3)
+                @test inputs(v3) == [v1, v2]
+
+                @test nin(v3) == [nout(v1), nout(v2)] == [8, 8]
+                @test [nout(v3)] == nin(v4) == nin(v5) == [8]
+            end
+
+            @testset "Add nout-constrained to invariant with immutable output" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 10, 3, "v1")
+                v2 = av(v0, 10, 2, "v2")
+                v3 = av(v0, 5, 5, "v3")
+                v4 = iv(v1,v2, name="v4")
+                v5 = imu(v4, 3, "v5")
+
+                @test inputs(v4) == [v1, v2]
+                @test ismissing(minΔnoutfactor(v4))
+
+                create_edge!(v3, v4)
+                @test inputs(v4) == [v1, v2, v3]
+
+                @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [10, 10, 10]
+                @test [nout(v4)] == nin(v5) == [10]
+            end
+
+            @testset "Fail for impossible size constraint" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 11, 2, "v2")
+                v3 = iv(v1, name="v3")
+                v4 = imu(v3, 3, "v4")
+
+                @test inputs(v3) == [v1]
+                @test ismissing(minΔnoutfactor(v3))
+
+                @test_throws ErrorException create_edge!(v2, v3)
+            end
         end
     end
 

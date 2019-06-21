@@ -255,12 +255,17 @@ function postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, ::SizeStack)
         stop > length(vins) && return missing
         Δnoutfactors =minΔnoutfactor_only_for.(vins[start:stop])
 
-        Δs = alignfor(nout(vin), Δnoutfactors, nins, Δninfactors, select_start)
+        function select(f, k, first=true)
+            Δs = f(k)
+            any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop])) && return f(k .- 1)
+            return Δs
+        end
+        Δs = alignfor(nout(vin), Δnoutfactors, nins, Δninfactors, select)
 
         if ismissing(Δs)
             return alignsize_vin_only(start+1, max(1, stop-1))
         elseif any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop]))
-            return alignsize_vin_only(start, stop+1)
+            return alignsize_all_inputs(start, stop+1)
         end
         return Δs, start, stop
     end
@@ -273,6 +278,7 @@ function postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, ::SizeStack)
     for i in start:stop
         s = VisitState{Int}()
         visited_in!.(s, outputs(vout))
+
         Δnout(vins[i], Δs[i-start+1], s=s)
     end
 
