@@ -365,7 +365,10 @@ julia> Δ .% [2, 11, 13]
 ```
 
 """
-function alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Integer}, nins::Vector{<:Integer}, Δninfactors::Vector{<:Integer}, select = select_start)
+function alignfor(nouts, Δnoutfactors, nins, Δninfactors, select = select_start)
+
+    Δnoutfactors_nm = replace(Δnoutfactors, missing => 0)
+    Δninfactors_nm = replace(Δninfactors, missing => 0)
 
     # System is
     # A:
@@ -375,7 +378,7 @@ function alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Integer}, ni
     # B:
     # nins .- nouts
     n = length(nins)
-    A = hcat(repeat(Δnoutfactors', n), -Diagonal(Δninfactors))
+    A = hcat(repeat(Δnoutfactors_nm', n), -Diagonal(Δninfactors_nm))
 
     C = nins .- sum(nouts)
 
@@ -400,38 +403,16 @@ function alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Integer}, ni
     VK = V[:,end-dof+1:end]
     K = round.(Int, -VK \ VT)
 
-    f = k -> (VT + VK * k) .* vcat(Δnoutfactors, Δninfactors)
+    f = k -> (VT + VK * k) .* vcat(Δnoutfactors_nm, Δninfactors_nm)
 
     return select(f, K)
 end
 
-alignfor(nouts::Integer, Δnoutfactors::Integer, nins, Δninfactors, select = (f, k) -> increase_until(all_positive, f, k)) = alignfor([nouts], [Δnoutfactors], nins,  Δninfactors, select)
-alignfor(nouts::Integer, Δnoutfactors::Vector, nins, Δninfactors, select = select_start) = alignfor([nouts], Δnoutfactors, nins,  Δninfactors, select)
+alignfor(nout::Integer, Δnoutfactor::Integer, nins, Δninfactors, select = (f, k) -> increase_until(all_positive, f, k)) = alignfor([nout], [Δnoutfactor], nins,  Δninfactors, select)
 
-alignfor(nouts, ::Missing, nins, Δninfactors, select = select_start) = alignfor(nouts, 0, nins, Δninfactors, select)
+# Only for better default for select
+alignfor(nout::Integer, ::Missing, nins, Δninfactors, select = select_start) = alignfor(nout, 0, nins, Δninfactors, select)
 
-
-function alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Maybe{<:Integer}}, nins, Δninfactors, select = select_start)
-
-
-    mask = ismissing.(Δnoutfactors)
-    # For this case we will just decrease the degrees of freedom, right?
-    !any(mask) && return missing
-
-    # TODO: This should just be replaced by zeros to avoid remapping stuff? I promise to change it back if one ever has a problem with snf getting to large matrices with all-zero columns in them
-    # Then it can probably be baked into main method as well...
-    Δs = alignfor(nouts, all(mask) ? missing : collect(skipmissing(Δnoutfactors)), nins, Δninfactors, select)
-
-    ismissing(Δs) && return missing
-
-    indmap = vcat(findall(.!mask), length(mask) .+ (1:length(nins)))
-    ret = zeros(Int, length(nouts) + length(nins))
-    ret[indmap] = Δs
-    return ret
-end
-
-# Should probably bake this into main method as this adds little value
-alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Integer}, nins, Δninfactors::Vector{<:Maybe{<:Integer}}, select = select_start) = alignfor(nouts, Δnoutfactors, nins, collect(skipmissing(replace(Δninfactors, (missing => 0)))), select)
 
 """
     solve_lin_dio_eq(A,C)
