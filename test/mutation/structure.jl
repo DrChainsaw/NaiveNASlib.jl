@@ -44,12 +44,27 @@
     @testset "Align sizes" begin
         import NaiveNASlib: alignfor
 
+        @testset "Simple 0 to 1 cases" begin
+            @test alignfor(1, missing, [1], [1]) == [0, 0]
+            @test alignfor(1, missing, [2], [1]) == [0, -1]
+            @test ismissing(alignfor(2, missing, [1], [2]))
+            @test alignfor(5+2*7, missing, [5], [7]) == [0, 14]
+        end
+
+        @testset "Simple 0 to 2 cases" begin
+            @test alignfor(1, missing, [1, 2], [1, 1]) == [0, 0, -1]
+            @test alignfor(1, missing, [2, 3], [1, 2]) == [0, -1, -2]
+            @test ismissing(alignfor(2, missing, [2, 3], [2, 2]))
+            @test alignfor(5+2*7, missing, [5, 7], [7, 6]) == [0, 14, 12]
+        end
+
         @testset "Simple 1 to 1 cases" begin
             @test alignfor(1, 1, [1], [1]) == [0, 0]
             @test alignfor(1, 1, [2], [1]) == [1, 0]
             @test alignfor(1, 2, [2], [1]) == [2, 1]
             @test alignfor(2, 1, [1], [2]) == [1, 2]
             @test alignfor(1, 3, [5], [7]) == [18, 14]
+            @test alignfor(5, 7, [19], [missing]) == [14, 0]
         end
 
         @testset "Simple 1 to 2 cases" begin
@@ -57,6 +72,8 @@
             @test alignfor(1, 1, [2, 2], [1, 1]) == [1,0,0]
             @test alignfor(1, 2, [2, 3], [1, 1]) == [2,1,0]
             @test alignfor(2, 3, [5, 7], [11, 13]) == [135, 132, 130]
+            @test alignfor(3, 3, [9, 18], [9, missing]) == [15, 9, 0]
+            @test alignfor(3, 2, [7, 7], [missing, missing]) == [4, 0, 0]
         end
 
         @testset "Simple 1 to 3 cases" begin
@@ -64,6 +81,25 @@
             @test alignfor(1, 1, [2, 2, 2], [1, 1, 1]) == [1,0,0,0]
             @test alignfor(1, 2, [2, 3, 4], [1, 1, 1]) == [4,3,2,1]
             @test alignfor(2, 3, [5, 7, 11], [13, 17, 19]) == [3201, 3198, 3196, 3192]
+            @test alignfor(2, 2, [4, 8, 16], [3, 4, missing]) == [14, 12, 8, 0]
+            @test alignfor(2, 3, [4, 8, 8], [2, missing, missing]) == [6, 4, 0, 0]
+        end
+
+        @testset "Simple 2 to 1 cases" begin
+            @test alignfor([1, 0], [1, 1], [1], [1]) == [0, 0, 0]
+            @test alignfor([1, 1], [1, 1], [1], [1]) == [0, -1, 0]
+            @test alignfor([2, 3], [5, 7], [11], [13]) == [55, -49, 0]
+            @test alignfor([2, 3], [5, 7], [11], [missing]) == [-15, 21, 0]
+            @test alignfor([2, 5], [7, missing], [8], [1]) == [0, 0, -1]
+            @test alignfor([3, 2], [2, 3], [13], [3]) == [2, 3, -3]
+        end
+
+        @testset "Simple 2 to 3 cases" begin
+            @test alignfor([1, 0], [1, 1], [1, 1, 1], [1, 1, 1]) == [0,0,0,0,0]
+            @test alignfor([1, 0], [1, 1], [2, 2, 2], [1, 1, 1]) == [0,1,0,0,0]
+            @test alignfor([1, 2], [1, 1], [2, 2, 2], [1, 1, 1]) == [0,-1,0,0,0]
+            @test alignfor([1, 3], [2, 5], [2, 3, 4], [3, 5, 7]) == [-206, 255, 51, 50, 49]
+            @test alignfor([2, 3], [3, 5], [11, 8, 8], [3, missing, missing]) == [3, 0, -3, 0, 0]
         end
 
         @testset "Edge cases" begin
@@ -125,6 +161,21 @@
             @test nin(v5) == [nout(v2)] == [4]
         end
 
+        @testset "Add immutable to single output stacking" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = sv(v1, name = "v2")
+            v3 = av(v2, 3, name="v3")
+
+            @test inputs(v2) == [v1]
+            create_edge!(v0, v2)
+
+            @test inputs(v2) == [v1, v0]
+            @test nin(v3) == [nout(v2)] == [nout(v1) + nout(v0)] == [8]
+
+            @test outputs(v0) == [v1, v2]
+        end
+
         @testset "Add to single output invariant" begin
             v0 = inpt(3, "v0")
             v1 = av(v0, 5, name="v1")
@@ -163,6 +214,21 @@
             @test nin(v5) == [nout(v2)] == [4]
         end
 
+        @testset "Add immutable to single output invariant" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = iv(v1, name = "v2")
+            v3 = av(v2, 3, name="v3")
+
+            @test inputs(v2) == [v1]
+            create_edge!(v0, v2)
+
+            @test inputs(v2) == [v1, v0]
+            @test nin(v3) == [nout(v2)] == [nout(v1)] == [nout(v0)] == [3]
+
+            @test outputs(v0) == [v1, v2]
+        end
+
         @testset "Size constraints" begin
 
             struct SizeConstraint constraint; end
@@ -170,6 +236,7 @@
             NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
             # Can't have kwarg due to https://github.com/JuliaLang/julia/issues/32350
              av(in, outsize, constr, name="avs") = av(in, outsize, name=name, comp = SizeConstraint(constr))
+             imu(in, outsize, name="imu") = MutationVertex(CompVertex(identity, in), IoSize(nout(in), outsize), NamedTrait(Immutable(), name))
 
             @testset "Add to nout-constrained stacking" begin
                 v0 = inpt(3, "v0")
@@ -187,6 +254,40 @@
 
                 @test nin(v3) == [nout(v1), nout(v2)] == [8, 105]
                 @test [nout(v3)] == nin(v4) == nin(v5) == [113]
+            end
+
+            @testset "Add immutable to nout-constrained stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 2, "v1")
+                v2 = sv(v1, name="v2")
+                v3 = av(v2, 5, 5, "v3")
+
+                @test inputs(v2) == [v1]
+                @test minΔninfactor(v2) == 10
+
+                create_edge!(v0, v2)
+                @test inputs(v2) == [v1, v0]
+
+                @test nin(v2) == [nout(v1), nout(v0)] == [10, 3]
+                @test [nout(v2)] == nin(v3) == [13]
+            end
+
+            @testset "Add nout-constrained to stacking with one immutable output" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, 3, "v1")
+                v2 = av(v0, 10, 2, "v2")
+                v3 = sv(v1, name="v3")
+                v4 = av(v3, 5, 5, "v4")
+                v5 = imu(v3, 3, "v5")
+
+                @test inputs(v3) == [v1]
+                @test ismissing(minΔnoutfactor(v3))
+
+                create_edge!(v2, v3)
+                @test inputs(v3) == [v1, v2]
+
+                @test nin(v3) == [nout(v1), nout(v2)] == [2, 6]
+                @test [nout(v3)] == nin(v4) == nin(v5) == [8]
             end
 
             @testset "Add to nout-constrained invariant" begin

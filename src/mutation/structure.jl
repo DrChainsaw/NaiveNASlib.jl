@@ -174,6 +174,7 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, wil
 
     outsize_can_change = all( can_change.(Δoutsize, minΔnoutfactor_if(will_rm(vin), vin)))
     outsize_can_change && proceedwith(s, Δoutsize)  && return Δnout(vin, Δoutsize)
+
     prealignsizes(s.fallback, vin, vout, will_rm)
 end
 proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
@@ -187,7 +188,7 @@ tot_nin(::SizeTransparent, v) = sum(nin(v))
 
 
 prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm) = Δnin.(outputs(vin), s.Δoutsize...)
-prealignsizes(::FailAlignSize, vin, vout, will_rm) = error("Could not align sizes of $(v)!")
+prealignsizes(::FailAlignSize, vin, vout, will_rm) = error("Could not align sizes of $(vin) and $(vout)!")
 
 function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
@@ -197,11 +198,12 @@ function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
     ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout, will_rm)
 
     sizes = [nout(vin), tot_nin(vout)]
-    accept(Δs) = all(-Δs .< sizes) || any(Δs .> 0.2 .* sizes)
+    select(f,k) = increase_until(Δs -> all(-Δs .< sizes) || any(Δs .> 0.2 .* sizes), f, k)
 
-    Δs = alignfor(nout(vin) , Δnoutfactor, [tot_nin(vout)], [Δninfactor], accept)
+    Δs = alignfor(nout(vin) , Δnoutfactor, [tot_nin(vout)], [Δninfactor], select)
 
     # One last check if size change is possible
+    ismissing(Δs) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
     -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
 
     # Ok, lets make the change
@@ -217,56 +219,113 @@ postalignsizes(::FailAlignSize, vin, vout) = error("Could not align sizes of $(v
 postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout) = postalignsizes(s, vin, vout, trait(vout))
 postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, t::DecoratingTrait) = postalignsizes(s, vin, vout, base(t))
 
+
 function postalignsizes(s::AdjustOutputsToCurrentSize, vin, vout, ::SizeStack)
 
     # At this point we expect to have nout(vout) - nout(vin) = nin of all output edges of vout and we need to fix this so nout(vout) == nin while nin(vout) = nout of all its inputs.
 
-    # Therefore the equations we want to solve are nout(vin) + Δnoutfactor * x + nin(voo[i]) = nin(voo[i]) +  Δninfactor[i] * y[i] for where voo[i] is output #i of vout. As nin(voo[i]) is eliminated this leaves us with the zeros below.
-    nins = zeros(Int, length(outputs(vout)))
+    # The equations we want to solve are nout(vin) + Δnoutfactor * x + nin(voo[i]) = nin(voo[i]) +  Δninfactor[i] * y[i] for where voo[i] is output #i of vout. As nin(voo[i]) is eliminated this leaves us with the zeros below.
     Δninfactors = minΔninfactor_only_for.(outputs(vout))
+    nins = zeros(Int, length(Δninfactors))
 
-    # This probably does not have to be this complicated.
-    # All nins are the same and then one could just do a single linear
-    # diophantine equation with lcm of all Δninfactors
-    Δs = alignfor(nout(vin) , minΔnoutfactor_only_for(vin), nins, Δninfactors)
+    # What this!? Well, we do want to change vin and vout only, but perhaps this is not possible for one reason or the other (e.g. vin is immutable).
+    # Therefore we will try to change each input to vout, starting with vin, until we find one which succeeds.
 
-    ismissing(Δs) && postalignsizes(s.fallback, vin, vout)
+    # Some implementations of unique give sorted output, but this one preserves the order.
+    vins = unique(vcat(vin, inputs(vout)))
 
-    s = VisitState{Int}()
-    visited_in!.(s, outputs(vout))
-    Δnout(vin, Δs[1], s=s)
+    function alignsize(cnt=1)
+        # Base case: We have tried all inputs and no possible solution was found
+        cnt > length(vins) && return missing
+
+        Δnoutfactors =minΔnoutfactor_only_for.(vins[cnt])
+
+        select(f,k) = increase_until(all_positive, f, k)
+        Δs = alignfor(nout(vin), Δnoutfactors, nins, Δninfactors, select)
+
+        return ismissing(Δs) ? alignsize(cnt+1) : (Δs, cnt, cnt)
+    end
+
+    # TODO: This function and the one above can probably be merged
+    # Obstacles:
+    #     increase_until only works when Δninfactors are missing and there is only one nout
+    #     Search order? First try all nins and then try combinations of them?
+    #       -Doesn't it do that already?
+    function alignsize_all_inputs(start=1, stop=2)
+        stop > length(vins) && return missing
+        Δnoutfactors =minΔnoutfactor_only_for.(vins[start:stop])
+
+        Δs = alignfor(nout(vin), Δnoutfactors, nins, Δninfactors, select_start)
+
+        if ismissing(Δs)
+            return alignsize_vin_only(start+1, max(1, stop-1))
+        elseif any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop]))
+            return alignsize_vin_only(start, stop+1)
+        end
+        return Δs, start, stop
+    end
+
+    res = any(ismissing.(Δninfactors)) ? alignsize_all_inputs() : alignsize()
+    ismissing(res) && return postalignsizes(s.fallback, vin, vout)
+
+    Δs, start, stop = res
+
+    for i in start:stop
+        s = VisitState{Int}()
+        visited_in!.(s, outputs(vout))
+        Δnout(vins[i], Δs[i-start+1], s=s)
+    end
 
     for (i, voo) in enumerate(outputs(vout))
+        Δ = Δs[i+stop-start+1]
+        Δ == 0 && continue
         # Dont touch the parts which already have the correct size
         s = VisitState{Int}()
         visited_out!(s, vout)
         Δvec = Vector{Maybe{Int}}(missing, length(inputs(voo)))
-        Δvec[inputs(voo) .== vout] .= Δs[i+1]
+        Δvec[inputs(voo) .== vout] .= Δ
 
         Δnin(voo, Δvec..., s=s)
     end
 
 end
 
-function all_positive(x, bound=200)
-    minval,maxval = extrema(x)
-    return minval >= 0 || maxval > bound
+function increase_until(cond, f, k_start)
+    # This is pretty coarse and is far from guaranteed to make the solution better
+    k = k_start
+    last = -Inf
+    while true
+        Δs = f(k)
+        cond(Δs) && return Δs
+        sum(Δs) .<= sum(last) && return last
+
+        last = Δs
+        k .+= 1
+    end
 end
 
+function all_positive(x, ubound=200)
+    minval,maxval = extrema(x)
+    return minval >= 0 || maxval > ubound
+end
+
+select_start(f, k) = f(k)
+
+
 """
-    alignfor(nout, Δnoutfactor, nins, Δninfactors, accept = all_positive)
+    alignfor(nouts, Δnoutfactors, nins, Δninfactors, select = all_positive)
 
-Returns `Δ` so that `vcat(nout, nins) .+ Δ |> unique |> length == 1` and so that `all(Δ .% vcat(Δnoutfactor, Δninfactors) .== 0)`.
+Returns `Δ` so that `vcat(nouts, nins) .+ Δ |> unique |> length == 1` and so that `all(Δ .% vcat(Δnoutfactors, Δninfactors) .== 0)`.
 
-In other words, return the `Δ` which makes `nout` equal to all `nins` while still being evenly divisible by the `Δfactors`.
+In other words, return the `Δ` which makes `nouts` equal to all `nins` while still being evenly divisible by the `Δfactors`.
 
 Solves the following system of linear diophantine equations:
 ```text
-nout + Δnoutfactor*x = nins + Δninfactors[0] * y0
-nout + Δnoutfactor*x = nins + Δninfactors[1] * y1
+nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins + Δninfactors[0] * y0
+nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins + Δninfactors[1] * y1
 ...
 ```
-where `Δ = [x, y0, y1, ...]`
+where `Δ = [x0, x1, ..., y0, y1, ...]`
 
 # Examples
 
@@ -306,23 +365,26 @@ julia> Δ .% [2, 11, 13]
 ```
 
 """
-function alignfor(nout, Δnoutfactor, nins, Δninfactors, accept = all_positive)
+function alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Integer}, nins::Vector{<:Integer}, Δninfactors::Vector{<:Integer}, select = select_start)
 
     # System is
     # A:
-    # Δnoutfactor -Δninfactors[0] 0               0 ...
-    # Δnoutfactor  0              -Δninfactors[1] 0 ...
+    # Δnoutfactors -Δninfactors[0] 0               0 ...
+    # Δnoutfactors  0              -Δninfactors[1] 0 ...
     # ...
     # B:
-    # nins .- nout
+    # nins .- nouts
     n = length(nins)
-    A = hcat(repeat([Δnoutfactor], n), -Diagonal(Δninfactors))
-    C = nins .- nout
+    A = hcat(repeat(Δnoutfactors', n), -Diagonal(Δninfactors))
+
+    C = nins .- sum(nouts)
 
     res = solve_lin_dio_eq(A,C)
-    ismissing(res) && return res
+    ismissing(res) && return missing
 
     V, T, dof = res
+
+    dof == 0 && return V * T
     # So here's the deal:
     # [x, y0, y1, ...] =  V[:,1:end-dof] * T + V[:,end-dof+1:end] * K
     # K is the degrees of freedom due to overdetermined system
@@ -333,25 +395,43 @@ function alignfor(nout, Δnoutfactor, nins, Δninfactors, accept = all_positive)
     # As I'm really sick of this problem right now, lets
     # make a heuristic which should get near enough:
     # Solve the above system for [x, y0,..] = 0 without
-    # an integer constraint, then round to nearest integer
-    # and increase K until values are accepted. Note that
-    # that last part probably only works for dof = 1, but
-    # it always is for this system (as Δfactors are > 0) (or?)
+    # an integer constraint, then round to nearest integer.
     VT = V[:, 1:end-dof] * T
     VK = V[:,end-dof+1:end]
     K = round.(Int, -VK \ VT)
 
-    f = k -> (VT + VK * k) .* vcat(Δnoutfactor, Δninfactors)
+    f = k -> (VT + VK * k) .* vcat(Δnoutfactors, Δninfactors)
 
-    # Search for an accepted solution
-    Δs = f(K)
-    while !accept(Δs)
-        K .+= 1
-        Δs = f(K)
-    end
-    return Δs
+    return select(f, K)
 end
 
+alignfor(nouts::Integer, Δnoutfactors::Integer, nins, Δninfactors, select = (f, k) -> increase_until(all_positive, f, k)) = alignfor([nouts], [Δnoutfactors], nins,  Δninfactors, select)
+alignfor(nouts::Integer, Δnoutfactors::Vector, nins, Δninfactors, select = select_start) = alignfor([nouts], Δnoutfactors, nins,  Δninfactors, select)
+
+alignfor(nouts, ::Missing, nins, Δninfactors, select = select_start) = alignfor(nouts, 0, nins, Δninfactors, select)
+
+
+function alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Maybe{<:Integer}}, nins, Δninfactors, select = select_start)
+
+
+    mask = ismissing.(Δnoutfactors)
+    # For this case we will just decrease the degrees of freedom, right?
+    !any(mask) && return missing
+
+    # TODO: This should just be replaced by zeros to avoid remapping stuff? I promise to change it back if one ever has a problem with snf getting to large matrices with all-zero columns in them
+    # Then it can probably be baked into main method as well...
+    Δs = alignfor(nouts, all(mask) ? missing : collect(skipmissing(Δnoutfactors)), nins, Δninfactors, select)
+
+    ismissing(Δs) && return missing
+
+    indmap = vcat(findall(.!mask), length(mask) .+ (1:length(nins)))
+    ret = zeros(Int, length(nouts) + length(nins))
+    ret[indmap] = Δs
+    return ret
+end
+
+# Should probably bake this into main method as this adds little value
+alignfor(nouts::Vector{<:Integer}, Δnoutfactors::Vector{<:Integer}, nins, Δninfactors::Vector{<:Maybe{<:Integer}}, select = select_start) = alignfor(nouts, Δnoutfactors, nins, collect(skipmissing(replace(Δninfactors, (missing => 0)))), select)
 
 """
     solve_lin_dio_eq(A,C)
