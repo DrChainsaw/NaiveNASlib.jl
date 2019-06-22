@@ -124,6 +124,26 @@
 
     @testset "Edge addition" begin
 
+        @testset "Add to absorbing" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v0, 4, name="v2")
+            v3 = av(v1, 7, name = "v3")
+            v4 = av(v3, 3, name="v4")
+            v5 = av(v2, 2, name="v5")
+
+            @test inputs(v3) == [v1]
+            create_edge!(v2, v3)
+
+            @test inputs(v3) == [v1, v2]
+            @test nin(v3) == [nout(v1), nout(v2)] == [5, 4]
+            @test nin(v4) == [nout(v3)] == [7]
+
+            @test outputs(v2) == [v5, v3]
+            @test inputs(v5) == [v2]
+            @test nin(v5) == [nout(v2)] == [4]
+        end
+
         @testset "Add to single output stacking" begin
             v0 = inpt(3, "v0")
             v1 = av(v0, 5, name="v1")

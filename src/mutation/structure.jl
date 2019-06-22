@@ -591,6 +591,7 @@ default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v
 default_create_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
 default_create_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
 default_create_edge_strat(::SizeInvariant,v) = IncreaseSmaller()
+default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
 function add_input!(::MutationOp, pos, size) end
 add_input!(s::IoSize, pos, size) = insert!(s.nin, pos, size)
