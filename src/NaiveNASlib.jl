@@ -3,6 +3,10 @@ module NaiveNASlib
 using LightGraphs
 using DataStructures
 using Statistics
+# For solving diophantine equations which pop up here and there when mutating size under constraints
+using AbstractAlgebra
+using LinearAlgebra
+
 
 export
 #Interface
@@ -28,10 +32,10 @@ trait, MutationTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, Size
 minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating,
 
 # Connectivity mutation
-remove!, RemoveStrategy, insert!,
+remove!, RemoveStrategy, insert!, create_edge!, remove_edge!,
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSize,
+AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange,
 
 # Connect strategies
 AbstractConnectStrategy, ConnectAll, ConnectNone,

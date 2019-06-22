@@ -29,6 +29,37 @@ Note that size changes do propagate backward as changing the input size of a ver
 """
 struct SizeAbsorb <: MutationSizeTrait end
 
+"""
+    VisitState
+
+Memoization struct for traversal.
+
+Remembers visitation for both forward (in) and backward (out) directions.
+"""
+struct VisitState{T}
+    in::Vector{AbstractVertex}
+    out::Vector{AbstractVertex}
+    ninΔs::OrderedDict{AbstractVertex, Vector{Maybe{<:T}}}
+    noutΔs::OrderedDict{AbstractVertex, Maybe{<:T}}
+end
+VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}())
+Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
+
+visited_in!(s::VisitState, v::AbstractVertex) = push!(s.in, v)
+visited_out!(s::VisitState, v::AbstractVertex) = push!(s.out, v)
+has_visited_in(s::VisitState, v::AbstractVertex) = v in s.in
+has_visited_out(s::VisitState, v::AbstractVertex) = v in s.out
+
+ninΔs(s::VisitState{T}) where T = s.ninΔs
+noutΔs(s::VisitState{T}) where T = s.noutΔs
+
+# Only so it is possible to broadcast since broadcasting over dics is reserved
+getnoutΔ(defaultfun, s::VisitState{T}, v::AbstractVertex) where T = get(defaultfun, s.noutΔs, v)
+setnoutΔ!(Δ::T, s::VisitState{T}, v::AbstractVertex) where T = s.noutΔs[v] = Δ
+function setnoutΔ!(missing, s::VisitState, v::AbstractVertex) end
+
+
+
 #TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
 # all MutationVertex has state?
 nin(v::InputSizeVertex) = v.size
@@ -64,7 +95,7 @@ minΔnoutfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔninfacto
 minΔnoutfactor(t::SizeTransparent, v::AbstractVertex) = minΔninfactor(t, v)
 
 """
-    minΔnoutfactor(v::AbstractVertex)
+    minΔnoutfactor(v::AbstractVertex, [s=VisitState{Int}()])
 
 Returns the smallest `k` so that allowed changes to `nin` of `v` as well as `nout` of its inputs are `k * n` where `n` is an integer.
 Returns `missing` if it is not possible to change `nin`.
@@ -76,21 +107,25 @@ minΔninfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔnoutfacto
 minΔninfactor(::SizeTransparent, v::AbstractVertex) = lcmsafe([minΔnoutfactor_only_for(v), minΔninfactor_only_for(v)])
 
 
+
+
 """
-    minΔnoutfactor_only_for(v::AbstractVertex)
+    minΔnoutfactor_only_for(v::AbstractVertex, [s=VisitState{Int}()])
 
 Returns the smallest `k` so that allowed changes to `nout` of `v` are `k * n` where `n` is an integer.
 Returns `missing` if it is not possible to change `nout`.
 """
-minΔnoutfactor_only_for(v::AbstractVertex) = minΔnoutfactor_only_for(base(v))
-minΔnoutfactor_only_for(v::InputVertex) = missing
-minΔnoutfactor_only_for(v::CompVertex) = minΔnoutfactor(v.computation)
+minΔnoutfactor_only_for(v::AbstractVertex, s=VisitState{Int}()) = outvisit(v, s) ? 1 : minΔnoutfactor_only_for(base(v),s)
+minΔnoutfactor_only_for(v::MutationVertex,s=VisitState{Int}()) = outvisit(v, s) ? 1 : minΔnoutfactor_only_for(trait(v), v, s)
+minΔnoutfactor_only_for(v::InputVertex,s=VisitState{Int}())= missing
+minΔnoutfactor_only_for(v::CompVertex,s=VisitState{Int}()) = minΔnoutfactor(v.computation)
 minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔnoutfactor_only_for(v::MutationVertex) = minΔnoutfactor_only_for(trait(v), v)
-minΔnoutfactor_only_for(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor_only_for(base(t), v)
-minΔnoutfactor_only_for(::SizeAbsorb, v::AbstractVertex) = minΔnoutfactor_only_for(base(v))
-minΔnoutfactor_only_for(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
-function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex)
+minΔnoutfactor_only_for(t::DecoratingTrait, v::AbstractVertex, s) = minΔnoutfactor_only_for(base(t), v, s)
+minΔnoutfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
+minΔnoutfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔnoutfactor_only_for(base(v),s)
+
+minΔnoutfactor_only_for(::SizeInvariant, v::AbstractVertex, s) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v),s), minΔninfactor_only_for.(outputs(v),s)))
+function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex, s)
     absorbing = findterminating(v, inputs)
 
     # This is not strictly the minimum as using only one of the factors would work as well
@@ -99,7 +134,7 @@ function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex)
 
     # Count thingy is for duplicate outputs. Must be counted twice as it is impossible
     # to only change one of them, right?
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va) for va in unique(absorbing)]
+    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va,s) for va in unique(absorbing)]
     return lcmsafe(factors)
 end
 
@@ -109,15 +144,16 @@ end
 Returns the smallest `k` so that allowed changes to `nin` of `v` are `k * n` where `n` is an integer.
 Returns `missing` if it is not possible to change `nin`.
 """
-minΔninfactor_only_for(v::AbstractVertex) = minΔninfactor_only_for(base(v))
-minΔninfactor_only_for(v::InputVertex) = missing
-minΔninfactor_only_for(v::CompVertex) = minΔninfactor(v.computation)
+minΔninfactor_only_for(v::AbstractVertex, s=VisitState{Int}()) = invisit(v, s) ? 1 : minΔninfactor_only_for(base(v),s)
+minΔninfactor_only_for(v::MutationVertex,s=VisitState{Int}()) = invisit(v, s) ? 1 : minΔninfactor_only_for(trait(v), v, s)
+minΔninfactor_only_for(v::InputVertex,s=VisitState{Int}())  = missing
+minΔninfactor_only_for(v::CompVertex,s=VisitState{Int}()) = minΔninfactor(v.computation)
 minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔninfactor_only_for(v::MutationVertex) = minΔninfactor_only_for(trait(v), v)
-minΔninfactor_only_for(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor_only_for(base(t), v)
-minΔninfactor_only_for(::SizeAbsorb, v::AbstractVertex) = minΔninfactor_only_for(base(v))
-minΔninfactor_only_for(::SizeInvariant, v::AbstractVertex) = lcmsafe(minΔninfactor_only_for.(outputs(v)))
-function minΔninfactor_only_for(::SizeStack, v::AbstractVertex)
+minΔninfactor_only_for(t::DecoratingTrait, v::AbstractVertex, s) = minΔninfactor_only_for(base(t), v, s)
+minΔninfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
+minΔninfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔninfactor_only_for(base(v), s)
+minΔninfactor_only_for(t::SizeInvariant, v::AbstractVertex, s) = minΔnoutfactor_only_for(t, v, s)
+function minΔninfactor_only_for(::SizeStack, v::AbstractVertex, s)
     absorbing = findterminating(v, outputs)
     # This is not strictly the minimum as using only one of the factors would work as well
     # However, this would create a bias as the same factor would be used all the time
@@ -125,14 +161,14 @@ function minΔninfactor_only_for(::SizeStack, v::AbstractVertex)
 
     # Count thingy is for duplicate inputs. Must be counted twice as it is impossible
     # to only change one of them, right?
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va) for va in unique(absorbing)]
+    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va, s) for va in unique(absorbing)]
     return lcmsafe(factors)
 end
 
-#lcm which also checks for missing and empty arrays of undefined type
+#lcm which also checks for missing and arrays of undefined type
 function lcmsafe(x)
     isempty(x) && return 1
-    return any(ismissing.(x)) ? missing : lcm(x)
+    return any(ismissing.(x)) ? missing : lcm(Integer.(x))
 end
 
 
@@ -148,40 +184,15 @@ findterminating(::SizeAbsorb, v, f::Function) = [v]
 findterminating(::Immutable, v, f::Function) = [v]
 findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
 
-"""
-    VisitState
-
-Memoization struct for traversal when mutating.
-
-Remembers visitation for both forward (in) and backward (out) directions.
-"""
-struct VisitState{T}
-    in::Array{MutationVertex,1}
-    out::Array{MutationVertex,1}
-    ninΔs::OrderedDict{MutationVertex, Vector{Maybe{T}}}
-    noutΔs::OrderedDict{MutationVertex, Maybe{T}}
-end
-VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{T}}}(), OrderedDict{MutationVertex, Maybe{T}}())
-visited_in!(s::VisitState, v::MutationVertex) = push!(s.in, v)
-visited_out!(s::VisitState, v::MutationVertex) = push!(s.out, v)
-has_visited_in(s::VisitState, v::MutationVertex) = v in s.in
-has_visited_out(s::VisitState, v::MutationVertex) = v in s.out
-
-ninΔs(s::VisitState{T}) where T = s.ninΔs
-noutΔs(s::VisitState{T}) where T = s.noutΔs
-
-# Only so it is possible to broadcast since broadcasting over dics is reserved
-getnoutΔ(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get(defaultfun, s.noutΔs, v)
-setnoutΔ!(Δ::T, s::VisitState{T}, v::MutationVertex) where T = s.noutΔs[v] = Δ
-function setnoutΔ!(missing, s::VisitState, v::AbstractVertex) end
-
-
 
 Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(trait(v), v, Δ..., s=s)
 Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(trait(v), v, Δ, s=s)
 
 Δnin(t::DecoratingTrait, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(base(t), v, Δ..., s=s)
 Δnout(t::DecoratingTrait, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(base(t), v, Δ, s=s)
+
+Δnin(::Immutable, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = !has_visited_in(s, v) && any(skipmissing(Δ) .!= 0) && error("Tried to change nin of immutable $v to $Δ")
+Δnout(::Immutable, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = !has_visited_out(s, v) && Δ != 0 && error("Tried to change nout of immutable $v to $Δ")
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
@@ -253,7 +264,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
     uftv = unique(ftv)
 
     # Find which sizes has not been determined through some other path; those are the ones we shall consider here
-    termΔs::AbstractArray{Maybe{T}} = getnoutΔ.(() -> missing, [s], uftv)
+    termΔs::AbstractArray{Maybe{T}} = getnoutΔ.(() -> missing, s, uftv)
     missinginds = ismissing.(termΔs)
 
     if any(missinginds)
@@ -338,19 +349,19 @@ end
 
 ## Generic helper methods
 
-function invisit(v::MutationVertex, s::VisitState{T}) where T
+function invisit(v::AbstractVertex, s::VisitState{T}) where T
     has_visited_in(s, v) && return true
     visited_in!(s, v)
     return false
 end
 
-function outvisit(v::MutationVertex, s::VisitState{T}) where T
+function outvisit(v::AbstractVertex, s::VisitState{T}) where T
     has_visited_out(s, v) && return true
     visited_out!(s, v)
     return false
 end
 
-function anyvisit(v::MutationVertex, s::VisitState{T}) where T
+function anyvisit(v::AbstractVertex, s::VisitState{T}) where T
     in = invisit(v, s)
     out = outvisit(v, s)
     return in || out
@@ -371,7 +382,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     for vi in outputs(v)
         ins = inputs(vi)
         Δs = get!(ninΔs(s), vi) do
-            Array{Union{Missing, T},1}(missing, length(ins))
+            Vector{Maybe{T}}(missing, length(ins))
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
@@ -429,7 +440,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
 end
 
 function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
-    setnoutΔ!.(Δ, [s], inputs(v))
+    setnoutΔ!.(Δ, s, inputs(v))
     for (Δi, vi) in zip(Δ, inputs(v))
         if !ismissing(Δi)
             Δnout(vi, Δi; s=s)

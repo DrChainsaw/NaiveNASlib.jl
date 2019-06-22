@@ -137,9 +137,9 @@ Main supported use cases:
 * Change the input/output size of vertex
 * Parameter pruning (policy excluded)
 * Remove a vertex from the graph
+* Add a vertex to the graph
 
 To be added:
-* Add a vertex to the graph
 * Add/remove edges to/from vertex
 
 ## Contributing
