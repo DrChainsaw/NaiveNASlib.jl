@@ -166,6 +166,46 @@
                 @test nin(v5) == [nout(v2)] == [4]
             end
 
+            @testset "Remove duplicate from single output stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, v2, v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1, v2, v1]
+                remove_edge!(v1, v3)
+
+                @test inputs(v3) == [v2, v1]
+                @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [14]
+                @test nin(v3) == [nout(v2), nout(v1)] == [9, 5]
+
+                @test outputs(v2) == [v3, v5]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [9]
+            end
+
+            @testset "Remove other duplicate from single output stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, v2, v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1, v2, v1]
+                remove_edge!(v1, v3, nr=2)
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [14]
+                @test nin(v3) == [nout(v1), nout(v2)] == [10, 4]
+
+                @test outputs(v2) == [v3, v5]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
             @testset "Remove from invariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 8, name="v1")
@@ -182,6 +222,44 @@
                 @test inputs(v5) == [v2]
                 @test outputs(v2) == [v5]
                 @test nin(v5) == [nout(v2)] == [8]
+            end
+
+            @testset "Remove duplicate from single output invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = iv(v1, v2, v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1, v2, v1]
+                remove_edge!(v1, v3)
+
+                @test inputs(v3) == [v2, v1]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
+
+                @test outputs(v2) == [v3, v5]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Remove other duplicate from single output invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = iv(v1, v2, v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1, v2, v1]
+                remove_edge!(v1, v3, nr=2)
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
+
+                @test outputs(v2) == [v3, v5]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
             end
         end
 
@@ -526,6 +604,7 @@
             end
 
             @testset "Edge removal" begin
+                #Why no tests for Invariant here? Because constraints are moot when removing edges as everything has the same size to begin with -> no need to change anything
 
                 @testset "Remove from nout-constrained stacking" begin
                     v0 = inpt(3, "v0")
@@ -558,6 +637,43 @@
 
                     @test nin(v2) == [nout(v0)] == [3]
                     @test [nout(v2)] == nin(v3) == [3]
+                end
+
+                @testset "Remove from nout-constrained to stacking with one immutable output" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 2, "v1")
+                    v2 = av(v0, 10, 1, "v2") # Δfactor of 1 is of no help as v2 will be remove
+                    v3 = sv(v1,v2, name="v3")
+                    v4 = av(v3, 5, 1, "v4") # Δfactor of 1 is of no help as v5 is immutable
+                    v5 = imu(v3, 3, name="v5")
+
+                    @test inputs(v3) == [v1,v2]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    remove_edge!(v2, v3)
+                    @test inputs(v3) == [v1]
+
+                    @test nin(v3) == [nout(v1)] == [18]
+                    @test [nout(v3)] == nin(v4) == nin(v5) == [18]
+                end
+
+                @testset "Remove from nout-constrained to stacking with immutable output" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 1, "v1")
+                    v2 = av(v0, 10, 2, "v2")
+                    v3 = av(v0, 5, 3, "v3")
+                    v4 = sv(v1,v2,v3, name="v4")
+                    v5 = imu(v4, 3, name="v5")
+
+                    @test inputs(v4) == [v1, v2, v3]
+                    @test [nout(v4)] == nin(v5) == [23]
+                    @test ismissing(minΔnoutfactor(v4))
+
+                    remove_edge!(v1, v4)
+                    @test inputs(v4) == [v2, v3]
+
+                    @test nin(v4) == [nout(v2), nout(v3)] == [12, 11]
+                    @test [nout(v4)] == nin(v5) == [23] # No change allowed
                 end
             end
         end

@@ -298,8 +298,8 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
     # What this!? Well, we do want to change vin and vout only, but perhaps this is not possible for one reason or the other (e.g. vin is immutable).
     # Therefore we will try to change each input to vout, starting with vin, until we find one which succeeds.
 
-    # Some implementations of unique give sorted output, but this one preserves the order.
-    vins = unique(vcat(vin, inputs(vout)))
+    # Try vin first if it is one of the inputs to vout. No reason really apart from that it just "feels" more natural to change it over some other vertex which just happens to be input to vout
+    vins = sort(inputs(vout), by = voi -> voi == vin ? 0 : indexin([voi], inputs(vout))[])
 
     function alignsize(cnt=1)
         # Base case: We have tried all inputs and no possible solution was found
@@ -319,9 +319,10 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
     #     Search order? First try all nins and then try combinations of them?
     #       -Doesn't it do that already?
     # Also: Why does solver sometimes fail when adding more inputs? Shouldn't it just set them to zero if they are not usable?
-    function alignsize_all_inputs(start=1, stop=2)
-        stop > length(vins) && return missing
-        Δnoutfactors =minΔnoutfactor_only_for.(vins[start:stop])
+    function alignsize_all_inputs(start=1, stop=min(2, length(vins)))
+        # Base case: We have tried all options we intend to try with and no possible solution was found
+        max(start, stop) > length(vins) && return missing
+        Δnoutfactors = minΔnoutfactor_only_for.(vins[start:stop])
 
         function select(f, k, first=true)
             Δs = f(k)
@@ -331,7 +332,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
         Δs = alignfor(nout(vout), Δnoutfactors, nins, Δninfactors, select)
 
         if ismissing(Δs)
-            return alignsize_vin_only(start+1, max(1, stop-1))
+            return alignsize_all_inputs(start+1, max(1, stop-1))
         elseif any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop]))
             return alignsize_all_inputs(start, stop+1)
         end
