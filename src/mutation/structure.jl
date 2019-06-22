@@ -1,4 +1,5 @@
 # Overengineered set of strategy types and structs? Not gonna argue with that, but I do this for fun and sometimes I have a wierd idea of what fun is.
+# Also, everything is the fault of size transparent vertices, especially SizeStack and those blasted Δnoutfactors!
 """
     AbstractConnectStrategy
 
@@ -106,6 +107,17 @@ end
 AdjustToCurrentSize() = AdjustToCurrentSize(FailAlignSizeError())
 
 """
+    AlignVoutToSelf
+
+Apply `strategy` with `vout` instead of `vin`.
+
+Situations when this is useful is when `vin` is being removed as an input to `vout`.
+"""
+struct AlignVoutToSelf <: AbstractAlignSizeStrategy
+    strategy
+end
+
+"""
     RemoveStrategy
 
 Strategy for removal of a vertex.
@@ -187,6 +199,7 @@ tot_nin(::SizeTransparent, v) = sum(nin(v))
 
 # Boilerplate
 prealignsizes(s::AbstractAlignSizeStrategy, v, will_rm::Function) = prealignsizes(s, v, v, will_rm)
+prealignsizes(s::AlignVoutToSelf, vin, vout, will_rm) = prealignsizes(s.strategy, vout, vout, will_rm)
 prealignsizes(s::AbstractAlignSizeStrategy, vin, vout, will_rm) = true
 
 # Failure cases
@@ -253,6 +266,7 @@ end
 # Boilerplate
 postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
 function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
+postalignsizes(s::AlignVoutToSelf, vin, vout) = postalignsizes(s.strategy, vout, vout)
 postalignsizes(s::AdjustToCurrentSize, vin, vout) = postalignsizes(s, vin, vout, trait(vout))
 postalignsizes(s::AdjustToCurrentSize, vin, vout, t::DecoratingTrait) = postalignsizes(s, vin, vout, base(t))
 
@@ -304,6 +318,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
     #     increase_until only works when Δninfactors are missing and there is only one nout
     #     Search order? First try all nins and then try combinations of them?
     #       -Doesn't it do that already?
+    # Also: Why does solver sometimes fail when adding more inputs? Shouldn't it just set them to zero if they are not usable?
     function alignsize_all_inputs(start=1, stop=2)
         stop > length(vins) && return missing
         Δnoutfactors =minΔnoutfactor_only_for.(vins[start:stop])
@@ -636,13 +651,12 @@ function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy
     rem_input!(op(to), in_inds...)
     add_output!(op(to), trait(to), -nout(from))
 
-    postalignsizes(strategy, to, to)
+    postalignsizes(strategy, from, to)
 end
 
-default_remove_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
-default_remove_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
-#default_remove_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
-#default_remove_edge_strat(::SizeStack,v) = NoSizeChange()
+default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
+default_remove_edge_strat(t::DecoratingTrait,v) = default_remove_edge_strat(base(t),v)
+default_remove_edge_strat(::SizeStack,v) = AlignVoutToSelf(AdjustToCurrentSize())
 default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
