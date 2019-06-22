@@ -13,7 +13,7 @@ struct ConnectNone <: AbstractConnectStrategy end
 """
     AbstractAlignSizeStrategy
 
-Base type for strategies for how to align size (nin/nout) when doing structural mutation.
+Base type for strategies for how to align size (`nin`/`nout`) when doing structural mutation.
 
 Note that all strategies are not guaranteed to work in all cases.
 
@@ -31,7 +31,7 @@ struct NoSizeChange <: AbstractAlignSizeStrategy end
 """
     ChangeNinOfOutputs
 
-Just sets nin of each output to the provided value. Sometimes you just know the answer...
+Just sets `nin` of each output to the provided value. Sometimes you just know the answer...
 """
 struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
     Δoutsize
@@ -57,7 +57,13 @@ FailAlignSizeWarn() = FailAlignSizeWarn(FailAlignSizeRevert())
 """
     FailAlignSizeRevert
 
-Reverts new edges (if any).
+Reverts new/removed edges (if any).
+
+In other words, `create_edge!` and `remove_edge!` with `strategy = FailAlignSizeRevert` is a noop.
+
+Note: Only works if input vertex is only input once to output vertex due to lazy coding.
+For example, if `vout` has inputs `[v1,v2,v1]` and `remove_edge!(v1, vout, startegy=FailAlignSizeRevert)` is called, funtion will exit with graph in invalid state.
+Same if `vout` has inputs `[v1,v2]` and `create_edge!(v1,vout)` is called.
 """
 struct FailAlignSizeRevert <: AbstractAlignSizeStrategy end
 
@@ -65,7 +71,7 @@ struct FailAlignSizeRevert <: AbstractAlignSizeStrategy end
     AlignSizeBoth
 
 Align sizes by changing both input and output considering any Δfactors.
-Fallback to another strategy (default FailAlignSizeError) if size change is not possible.
+Fallback to another strategy (default `FailAlignSizeError`) if size change is not possible.
 """
 struct AlignSizeBoth <: AbstractAlignSizeStrategy
     fallback
@@ -76,7 +82,7 @@ AlignSizeBoth() = AlignSizeBoth(FailAlignSizeError())
     DecreaseBigger
 
 Try to align size by decreasing in the direction (in/out) which has the bigger size.
-Fallback to another strategy (default AlignSizeBoth) if size change is not possible.
+Fallback to another strategy (default `AlignSizeBoth`) if size change is not possible.
 """
 struct DecreaseBigger <: AbstractAlignSizeStrategy
     fallback
@@ -87,7 +93,7 @@ DecreaseBigger() = DecreaseBigger(AlignSizeBoth())
     IncreaseSmaller
 
 Try to align size by increasing in the direction (in/out) which has the smaller size.
-Fallback to another strategy (default DecreaseBigger) if size change is not possible.
+Fallback to another strategy (default `DecreaseBigger`) if size change is not possible.
 """
 struct IncreaseSmaller <: AbstractAlignSizeStrategy
     fallback
@@ -97,7 +103,7 @@ IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
 """
     AdjustToCurrentSize
 
-Adjust nin of all outputs and/or nout of all inputs to the current input/output size so that sum(nin.(inputs(v))) == nout(v) and so that all(nin.(outputs(v)) .== nout(v)).
+Adjust `nin` of all `outputs` and/or `nout` of all `inputs` to the current input/output size so that `sum(nin.(inputs(v))) == nout(v)` and so that `all(nin.(outputs(v)) .== nout(v))`.
 
 This is a post-align strategy, i.e it will be applied after a structural change has been made.
 """
@@ -107,23 +113,12 @@ end
 AdjustToCurrentSize() = AdjustToCurrentSize(FailAlignSizeError())
 
 """
-    AlignVoutToSelf
-
-Apply `strategy` with `vout` instead of `vin`.
-
-Situations when this is useful is when `vin` is being removed as an input to `vout`.
-"""
-struct AlignVoutToSelf <: AbstractAlignSizeStrategy
-    strategy
-end
-
-"""
     RemoveStrategy
 
 Strategy for removal of a vertex.
 
-Consists of an AbstractConnectStrategy for how to treat inputs and outputs of
-the removed vertex and an AbstractAlignSizeStrategy for how to align sizes of
+Consists of an `AbstractConnectStrategy` for how to treat inputs and outputs of
+the removed vertex and an `AbstractAlignSizeStrategy` for how to align sizes of
 inputs and outputs.
 """
 struct RemoveStrategy
@@ -137,13 +132,13 @@ RemoveStrategy(as::AbstractAlignSizeStrategy) = RemoveStrategy(ConnectAll(), as)
 """
     remove!(v::MutationVertex, strategy=RemoveStrategy())
 
-Removes v from the graph by removing it from its inputs and outputs.
+Removes `v` from the graph by removing it from its `inputs` and `outputs`.
 
 It is possible to supply a strategy for how to 1) reconnect the inputs and outputs
-of v and 2) align the input and output sizes of the inputs and outputs of v.
+of `v` and 2) align the input and output sizes of the `inputs` and `outputs` of `v`.
 
-Default strategy is to first set nin==nout for v and then connect all its inputs
-to all its outputs.
+Default strategy is to first set `nin==nout` for `v` and then connect all its `inputs`
+to all its `outputs`.
 """
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v, vx -> vx == v) || return
@@ -170,7 +165,7 @@ end
 """
     connect!(v, to, inds, items, ::AbstractConnectStrategy)
 
-Does connection of "items" to "to" at position "inds" depending on the given strategy.
+Does connection of `items` to `to` at position `inds` depending on the given strategy.
 """
 #Not sure broadcasting insert! like this is supposed to work, but it does...
 connect!(v, to, inds, items, ::ConnectAll) = insert!.([to], inds, items)
@@ -199,7 +194,6 @@ tot_nin(::SizeTransparent, v) = sum(nin(v))
 
 # Boilerplate
 prealignsizes(s::AbstractAlignSizeStrategy, v, will_rm::Function) = prealignsizes(s, v, v, will_rm)
-prealignsizes(s::AlignVoutToSelf, vin, vout, will_rm) = prealignsizes(s.strategy, vout, vout, will_rm)
 prealignsizes(s::AbstractAlignSizeStrategy, vin, vout, will_rm) = true
 
 # Failure cases
@@ -266,7 +260,6 @@ end
 # Boilerplate
 postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
 function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
-postalignsizes(s::AlignVoutToSelf, vin, vout) = postalignsizes(s.strategy, vout, vout)
 postalignsizes(s::AdjustToCurrentSize, vin, vout) = postalignsizes(s, vin, vout, trait(vout))
 postalignsizes(s::AdjustToCurrentSize, vin, vout, t::DecoratingTrait) = postalignsizes(s, vin, vout, base(t))
 
@@ -277,7 +270,9 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout)
      postalignsizes(s.andthen, vin, vout)
  end
  function postalignsizes(s::FailAlignSizeRevert, vin, vout)
-     vin in inputs(vout) && remove_edge!(vin, vout, strategy=NoSizeChange())
+     # TODO: Will fail (silently) in case vin is input to vout many times! CBA to iix that edge case now...
+     vin ∈ inputs(vout) && return remove_edge!(vin, vout, strategy=NoSizeChange())
+     vin ∉ inputs(vout) && return create_edge!(vin, vout, strategy=NoSizeChange())
  end
 
 # Ok, this one actually does something...
@@ -322,7 +317,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
     function alignsize_all_inputs(start=1, stop=min(2, length(vins)))
         # Base case: We have tried all options we intend to try with and no possible solution was found
         max(start, stop) > length(vins) && return missing
-        Δnoutfactors = minΔnoutfactor_only_for.(vins[start:stop])
+        Δnoutfactors::Vector{Maybe{Int}} = minΔnoutfactor_only_for.(vins[start:stop])
 
         function select(f, k, first=true)
             Δs = f(k)
@@ -657,7 +652,7 @@ end
 
 default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
 default_remove_edge_strat(t::DecoratingTrait,v) = default_remove_edge_strat(base(t),v)
-default_remove_edge_strat(::SizeStack,v) = AlignVoutToSelf(AdjustToCurrentSize())
+default_remove_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
 default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 

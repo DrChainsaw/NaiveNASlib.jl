@@ -179,11 +179,11 @@
 
                 @test inputs(v3) == [v2, v1]
                 @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [14]
-                @test nin(v3) == [nout(v2), nout(v1)] == [9, 5]
+                @test nin(v3) == [nout(v2), nout(v1)] == [4, 10]
 
                 @test outputs(v2) == [v3, v5]
                 @test inputs(v5) == [v2]
-                @test nin(v5) == [nout(v2)] == [9]
+                @test nin(v5) == [nout(v2)] == [4]
             end
 
             @testset "Remove other duplicate from single output stacking" begin
@@ -674,6 +674,38 @@
 
                     @test nin(v4) == [nout(v2), nout(v3)] == [12, 11]
                     @test [nout(v4)] == nin(v5) == [23] # No change allowed
+                end
+
+                @testset "Fail for impossible size constraint" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 11, 2, "v2")
+                    v3 = sv(v1,v2, name="v3")
+                    v4 = imu(v3, 3, name="v4")
+
+                    @test inputs(v3) == [v1, v2]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    @test_throws ErrorException remove_edge!(v2, v3)
+                end
+
+                @testset "Warn for impossible size constraint and revert" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 11, 2, "v2")
+                    v3 = sv(v1, v2, name="v3")
+                    v4 = imu(v3, 3, name="v4")
+
+                    @test inputs(v3) == [v1,v2]
+                    @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
+                    @test [nout(v3)] == nin(v4) == [19]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = AdjustToCurrentSize(FailAlignSizeWarn()))
+
+                    @test inputs(v3) == [v1,v2]
+                    @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
+                    @test [nout(v3)] == nin(v4) == [19]
                 end
             end
         end
