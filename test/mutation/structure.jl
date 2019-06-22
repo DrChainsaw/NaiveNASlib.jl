@@ -122,135 +122,199 @@
     iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
     imu(in, outsize; name="imu") = MutationVertex(CompVertex(identity, in), IoSize(nout(in), outsize), NamedTrait(Immutable(), name))
 
-    @testset "Edge addition" begin
+    @testset "Edge mutation" begin
+        @testset "Edge removal" begin
 
-        @testset "Add to absorbing" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 5, name="v1")
-            v2 = av(v0, 4, name="v2")
-            v3 = av(v1, 7, name = "v3")
-            v4 = av(v3, 3, name="v4")
-            v5 = av(v2, 2, name="v5")
+            @testset "Remove from absorbing" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v1, 7, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
 
-            @test inputs(v3) == [v1]
-            create_edge!(v2, v3)
+                #Only because helper method av does not take muliple inputs!
+                create_edge!(v2, v3)
+                @test inputs(v3) == [v1, v2]
 
-            @test inputs(v3) == [v1, v2]
-            @test nin(v3) == [nout(v1), nout(v2)] == [5, 4]
-            @test nin(v4) == [nout(v3)] == [7]
+                #Now for the actual test...
+                remove_edge!(v2, v3)
+                @test inputs(v3) == [v1]
+                @test outputs(v1) == [v3]
+                @test nin(v3) == [nout(v1)] == [5]
 
-            @test outputs(v2) == [v5, v3]
-            @test inputs(v5) == [v2]
-            @test nin(v5) == [nout(v2)] == [4]
+                @test inputs(v5) == [v2]
+                @test outputs(v2) == [v5]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Remove from stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, v2, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                remove_edge!(v2, v3)
+                @test inputs(v3) == [v1]
+                @test outputs(v1) == [v3]
+                @test nin(v4) == [nout(v3)] == nin(v3) == [nout(v1)] == [9]
+
+                @test inputs(v5) == [v2]
+                @test outputs(v2) == [v5]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Remove from invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 8, name="v1")
+                v2 = av(v0, 8, name="v2")
+                v3 = iv(v1, v2, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                remove_edge!(v2, v3)
+                @test inputs(v3) == [v1]
+                @test outputs(v1) == [v3]
+                @test nin(v3) == [nout(v1)] == [8]
+
+                @test inputs(v5) == [v2]
+                @test outputs(v2) == [v5]
+                @test nin(v5) == [nout(v2)] == [8]
+            end
         end
 
-        @testset "Add to single output stacking" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 5, name="v1")
-            v2 = av(v0, 4, name="v2")
-            v3 = sv(v1, name = "v3")
-            v4 = av(v3, 3, name="v4")
-            v5 = av(v2, 2, name="v5")
+        @testset "Edge addition" begin
 
-            @test inputs(v3) == [v1]
-            create_edge!(v2, v3)
+            @testset "Add to absorbing" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v1, 7, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
 
-            @test inputs(v3) == [v1, v2]
-            @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
+                @test inputs(v3) == [v1]
+                create_edge!(v2, v3)
 
-            @test outputs(v2) == [v5, v3]
-            @test inputs(v5) == [v2]
-            @test nin(v5) == [nout(v2)] == [4]
+                @test inputs(v3) == [v1, v2]
+                @test nin(v3) == [nout(v1), nout(v2)] == [5, 4]
+                @test nin(v4) == [nout(v3)] == [7]
+
+                @test outputs(v2) == [v5, v3]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Add to single output stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1]
+                create_edge!(v2, v3)
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
+
+                @test outputs(v2) == [v5, v3]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Add duplicate to single output stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, v1, v2, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1, v1, v2]
+                create_edge!(v1, v3)
+
+                @test inputs(v3) == [v1, v1, v2, v1]
+                @test nin(v4) == [nout(v3)] == [3nout(v1) + nout(v2)] == [19]
+
+                @test outputs(v2) == [v3, v5]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Add immutable to single output stacking" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = sv(v1, name = "v2")
+                v3 = av(v2, 3, name="v3")
+
+                @test inputs(v2) == [v1]
+                create_edge!(v0, v2)
+
+                @test inputs(v2) == [v1, v0]
+                @test nin(v3) == [nout(v2)] == [nout(v1) + nout(v0)] == [8]
+
+                @test outputs(v0) == [v1, v2]
+            end
+
+            @testset "Add to single output invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = iv(v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1]
+                create_edge!(v2, v3)
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [5]
+
+                @test outputs(v2) == [v5, v3]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [5]
+            end
+
+            @testset "Add duplicate to single output invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = iv(v1, v1, v2, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1, v1, v2]
+                create_edge!(v1, v3)
+
+                @test inputs(v3) == [v1, v1, v2, v1]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
+
+                @test outputs(v2) == [v3, v5]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Add immutable to single output invariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = iv(v1, name = "v2")
+                v3 = av(v2, 3, name="v3")
+
+                @test inputs(v2) == [v1]
+                create_edge!(v0, v2)
+
+                @test inputs(v2) == [v1, v0]
+                @test nin(v3) == [nout(v2)] == [nout(v1)] == [nout(v0)] == [3]
+
+                @test outputs(v0) == [v1, v2]
+            end
         end
 
-        @testset "Add duplicate to single output stacking" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 5, name="v1")
-            v2 = av(v0, 4, name="v2")
-            v3 = sv(v1, v1, v2, name = "v3")
-            v4 = av(v3, 3, name="v4")
-            v5 = av(v2, 2, name="v5")
-
-            @test inputs(v3) == [v1, v1, v2]
-            create_edge!(v1, v3)
-
-            @test inputs(v3) == [v1, v1, v2, v1]
-            @test nin(v4) == [nout(v3)] == [3nout(v1) + nout(v2)] == [19]
-
-            @test outputs(v2) == [v3, v5]
-            @test inputs(v5) == [v2]
-            @test nin(v5) == [nout(v2)] == [4]
-        end
-
-        @testset "Add immutable to single output stacking" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 5, name="v1")
-            v2 = sv(v1, name = "v2")
-            v3 = av(v2, 3, name="v3")
-
-            @test inputs(v2) == [v1]
-            create_edge!(v0, v2)
-
-            @test inputs(v2) == [v1, v0]
-            @test nin(v3) == [nout(v2)] == [nout(v1) + nout(v0)] == [8]
-
-            @test outputs(v0) == [v1, v2]
-        end
-
-        @testset "Add to single output invariant" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 5, name="v1")
-            v2 = av(v0, 4, name="v2")
-            v3 = iv(v1, name = "v3")
-            v4 = av(v3, 3, name="v4")
-            v5 = av(v2, 2, name="v5")
-
-            @test inputs(v3) == [v1]
-            create_edge!(v2, v3)
-
-            @test inputs(v3) == [v1, v2]
-            @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [5]
-
-            @test outputs(v2) == [v5, v3]
-            @test inputs(v5) == [v2]
-            @test nin(v5) == [nout(v2)] == [5]
-        end
-
-        @testset "Add duplicate to single output invariant" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 4, name="v1")
-            v2 = av(v0, 4, name="v2")
-            v3 = iv(v1, v1, v2, name = "v3")
-            v4 = av(v3, 3, name="v4")
-            v5 = av(v2, 2, name="v5")
-
-            @test inputs(v3) == [v1, v1, v2]
-            create_edge!(v1, v3)
-
-            @test inputs(v3) == [v1, v1, v2, v1]
-            @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
-
-            @test outputs(v2) == [v3, v5]
-            @test inputs(v5) == [v2]
-            @test nin(v5) == [nout(v2)] == [4]
-        end
-
-        @testset "Add immutable to single output invariant" begin
-            v0 = inpt(3, "v0")
-            v1 = av(v0, 5, name="v1")
-            v2 = iv(v1, name = "v2")
-            v3 = av(v2, 3, name="v3")
-
-            @test inputs(v2) == [v1]
-            create_edge!(v0, v2)
-
-            @test inputs(v2) == [v1, v0]
-            @test nin(v3) == [nout(v2)] == [nout(v1)] == [nout(v0)] == [3]
-
-            @test outputs(v0) == [v1, v2]
-        end
-
-        @testset "Size constraints" begin
+        @testset "With size constraints" begin
 
             struct SizeConstraint constraint; end
             NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
@@ -258,207 +322,247 @@
             # Can't have kwarg due to https://github.com/JuliaLang/julia/issues/32350
             av(in, outsize, constr, name="avs") = av(in, outsize, name=name, comp = SizeConstraint(constr))
 
-            @testset "Add to nout-constrained stacking" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 2, "v1")
-                v2 = av(v0, 6, 3, "v2")
-                v3 = sv(v1, name="v3")
-                v4 = av(v3, 5, 5, "v4")
-                v5 = av(v3, 7, 7, "v5")
+            @testset "Edge addition" begin
 
-                @test inputs(v3) == [v1]
-                @test minΔninfactor(v3) == 70
+                @testset "Add to nout-constrained stacking" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 2, "v1")
+                    v2 = av(v0, 6, 3, "v2")
+                    v3 = sv(v1, name="v3")
+                    v4 = av(v3, 5, 5, "v4")
+                    v5 = av(v3, 7, 7, "v5")
 
-                create_edge!(v2, v3)
-                @test inputs(v3) == [v1, v2]
+                    @test inputs(v3) == [v1]
+                    @test minΔninfactor(v3) == 70
 
-                @test nin(v3) == [nout(v1), nout(v2)] == [8, 105]
-                @test [nout(v3)] == nin(v4) == nin(v5) == [113]
+                    create_edge!(v2, v3)
+                    @test inputs(v3) == [v1, v2]
+
+                    @test nin(v3) == [nout(v1), nout(v2)] == [8, 105]
+                    @test [nout(v3)] == nin(v4) == nin(v5) == [113]
+                end
+
+                @testset "Add immutable to nout-constrained stacking" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 2, "v1")
+                    v2 = sv(v1, name="v2")
+                    v3 = av(v2, 5, 5, "v3")
+
+                    @test inputs(v2) == [v1]
+                    @test minΔninfactor(v2) == 10
+
+                    create_edge!(v0, v2)
+                    @test inputs(v2) == [v1, v0]
+
+                    @test nin(v2) == [nout(v1), nout(v0)] == [10, 3]
+                    @test [nout(v2)] == nin(v3) == [13]
+                end
+
+                @testset "Add nout-constrained to stacking with one immutable output" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 10, 2, "v2")
+                    v3 = sv(v1, name="v3")
+                    v4 = av(v3, 5, 5, "v4")
+                    v5 = imu(v3, 3, name="v5")
+
+                    @test inputs(v3) == [v1]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    create_edge!(v2, v3)
+                    @test inputs(v3) == [v1, v2]
+
+                    @test nin(v3) == [nout(v1), nout(v2)] == [2, 6]
+                    @test [nout(v3)] == nin(v4) == nin(v5) == [8]
+                end
+
+                @testset "Add nout-constrained to stacking with immutable output" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 10, 2, "v2")
+                    v3 = av(v0, 5, 5, "v3")
+                    v4 = sv(v1,v2, name="v4")
+                    v5 = imu(v4, 3, name="v5")
+
+                    @test inputs(v4) == [v1, v2]
+                    @test ismissing(minΔnoutfactor(v4))
+
+                    create_edge!(v3, v4)
+                    @test inputs(v4) == [v1, v2, v3]
+
+                    @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [5, 8, 5]
+                    @test [nout(v4)] == nin(v5) == [18]
+                end
+
+                @testset "Fail for impossible size constraint" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 11, 2, "v2")
+                    v3 = sv(v1, name="v3")
+                    v4 = imu(v3, 3, name="v4")
+
+                    @test inputs(v3) == [v1]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    @test_throws ErrorException create_edge!(v2, v3)
+                end
+
+                @testset "Warn for impossible size constraint and revert" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 11, 2, "v2")
+                    v3 = sv(v1, name="v3")
+                    v4 = imu(v3, 3, name="v4")
+
+                    @test inputs(v3) == [v1]
+                    @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = AdjustToCurrentSize(FailAlignSizeWarn()))
+
+                    @test inputs(v3) == [v1]
+                    @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                end
+
+                @testset "Add to nout-constrained invariant" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 2, "v1")
+                    v2 = av(v0, 6, 3, "v2")
+                    v3 = iv(v1, name="v3")
+                    v4 = av(v3, 5, 5, "v4")
+                    v5 = av(v3, 7, 7, "v5")
+
+                    @test inputs(v3) == [v1]
+                    @test minΔninfactor(v3) == 70
+
+                    create_edge!(v2, v3)
+                    @test inputs(v3) == [v1, v2]
+
+                    @test nin(v3) == [nout(v1), nout(v2)] == [78, 78]
+                    @test [nout(v3)] == nin(v4) == nin(v5) == [78]
+                end
+
+                @testset "Add immutable to nout-constrained invariant" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 9, 3, "v1")
+                    v2 = iv(v1, name="v2")
+                    v3 = av(v2, 5, 6, "v3")
+
+                    @test inputs(v2) == [v1]
+                    @test minΔninfactor(v2) == 6
+
+                    create_edge!(v0, v2)
+                    @test inputs(v2) == [v1, v0]
+
+                    @test nin(v2) == [nout(v1), nout(v0)] == [3, 3]
+                    @test [nout(v2)] == nin(v3) == [3]
+                end
+
+                @testset "Add nout-constrained to invariant with one immutable output" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 13, 5, "v2")
+                    v3 = iv(v1, name="v3")
+                    v4 = av(v3, 5, 5, "v4")
+                    v5 = imu(v3, 3, name="v5")
+
+                    @test inputs(v3) == [v1]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    create_edge!(v2, v3)
+                    @test inputs(v3) == [v1, v2]
+
+                    @test nin(v3) == [nout(v1), nout(v2)] == [8, 8]
+                    @test [nout(v3)] == nin(v4) == nin(v5) == [8]
+                end
+
+                @testset "Add nout-constrained to invariant with immutable output" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 10, 3, "v1")
+                    v2 = av(v0, 10, 2, "v2")
+                    v3 = av(v0, 5, 5, "v3")
+                    v4 = iv(v1,v2, name="v4")
+                    v5 = imu(v4, 3, name="v5")
+
+                    @test inputs(v4) == [v1, v2]
+                    @test ismissing(minΔnoutfactor(v4))
+
+                    create_edge!(v3, v4)
+                    @test inputs(v4) == [v1, v2, v3]
+
+                    @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [10, 10, 10]
+                    @test [nout(v4)] == nin(v5) == [10]
+                end
+
+                @testset "Fail for impossible size constraint" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 11, 2, "v2")
+                    v3 = iv(v1, name="v3")
+                    v4 = imu(v3, 3, name="v4")
+
+                    @test inputs(v3) == [v1]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    @test_throws ErrorException create_edge!(v2, v3)
+                end
+
+                @testset "Warn for impossible size constraint and ignore" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 3, "v1")
+                    v2 = av(v0, 11, 2, "v2")
+                    v3 = iv(v1, name="v3")
+                    v4 = imu(v3, 3, name="v4")
+
+                    @test inputs(v3) == [v1]
+                    @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                    @test ismissing(minΔnoutfactor(v3))
+
+                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = AlignSizeBoth(FailAlignSizeWarn()))
+
+                    @test inputs(v3) == [v1]
+                    @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                end
             end
 
-            @testset "Add immutable to nout-constrained stacking" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 2, "v1")
-                v2 = sv(v1, name="v2")
-                v3 = av(v2, 5, 5, "v3")
+            @testset "Edge removal" begin
 
-                @test inputs(v2) == [v1]
-                @test minΔninfactor(v2) == 10
+                @testset "Remove from nout-constrained stacking" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 5, "v1")
+                    v2 = av(v0, 6, 3, "v2")
+                    v3 = sv(v1, v2, name="v3")
+                    v4 = av(v3, 5, 3, "v4")
+                    v5 = av(v2, 7, 7, "v5")
 
-                create_edge!(v0, v2)
-                @test inputs(v2) == [v1, v0]
+                    @test inputs(v3) == [v1, v2]
+                    @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [14]
 
-                @test nin(v2) == [nout(v1), nout(v0)] == [10, 3]
-                @test [nout(v2)] == nin(v3) == [13]
-            end
+                    remove_edge!(v2, v3)
+                    @test inputs(v3) == [v1]
 
-            @testset "Add nout-constrained to stacking with one immutable output" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 10, 2, "v2")
-                v3 = sv(v1, name="v3")
-                v4 = av(v3, 5, 5, "v4")
-                v5 = imu(v3, 3, name="v5")
+                    @test nin(v4) == nin(v3) == [nout(v1)] == [23]
+                    @test nin(v5) == [nout(v2)] == [6] # Not touched
+                end
 
-                @test inputs(v3) == [v1]
-                @test ismissing(minΔnoutfactor(v3))
+                @testset "Remove from nout-constrained stacking with immutable input" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 8, 2, "v1")
+                    v2 = sv(v0, v1, name="v2")
+                    v3 = av(v2, 5, 2, "v3")
 
-                create_edge!(v2, v3)
-                @test inputs(v3) == [v1, v2]
+                    @test inputs(v2) == [v0, v1]
 
-                @test nin(v3) == [nout(v1), nout(v2)] == [2, 6]
-                @test [nout(v3)] == nin(v4) == nin(v5) == [8]
-            end
+                    remove_edge!(v1, v2)
+                    @test inputs(v2) == [v0]
 
-            @testset "Add nout-constrained to stacking with immutable output" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 10, 2, "v2")
-                v3 = av(v0, 5, 5, "v3")
-                v4 = sv(v1,v2, name="v4")
-                v5 = imu(v4, 3, name="v5")
-
-                @test inputs(v4) == [v1, v2]
-                @test ismissing(minΔnoutfactor(v4))
-
-                create_edge!(v3, v4)
-                @test inputs(v4) == [v1, v2, v3]
-
-                @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [5, 8, 5]
-                @test [nout(v4)] == nin(v5) == [18]
-            end
-
-            @testset "Fail for impossible size constraint" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 11, 2, "v2")
-                v3 = sv(v1, name="v3")
-                v4 = imu(v3, 3, name="v4")
-
-                @test inputs(v3) == [v1]
-                @test ismissing(minΔnoutfactor(v3))
-
-                @test_throws ErrorException create_edge!(v2, v3)
-            end
-
-            @testset "Warn for impossible size constraint and revert" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 11, 2, "v2")
-                v3 = sv(v1, name="v3")
-                v4 = imu(v3, 3, name="v4")
-
-                @test inputs(v3) == [v1]
-                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-                @test ismissing(minΔnoutfactor(v3))
-
-                @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = AdjustToCurrentSize(FailAlignSizeWarn()))
-
-                @test inputs(v3) == [v1]
-                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-            end
-
-            @testset "Add to nout-constrained invariant" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 2, "v1")
-                v2 = av(v0, 6, 3, "v2")
-                v3 = iv(v1, name="v3")
-                v4 = av(v3, 5, 5, "v4")
-                v5 = av(v3, 7, 7, "v5")
-
-                @test inputs(v3) == [v1]
-                @test minΔninfactor(v3) == 70
-
-                create_edge!(v2, v3)
-                @test inputs(v3) == [v1, v2]
-
-                @test nin(v3) == [nout(v1), nout(v2)] == [78, 78]
-                @test [nout(v3)] == nin(v4) == nin(v5) == [78]
-            end
-
-            @testset "Add immutable to nout-constrained invariant" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 9, 3, "v1")
-                v2 = iv(v1, name="v2")
-                v3 = av(v2, 5, 6, "v3")
-
-                @test inputs(v2) == [v1]
-                @test minΔninfactor(v2) == 6
-
-                create_edge!(v0, v2)
-                @test inputs(v2) == [v1, v0]
-
-                @test nin(v2) == [nout(v1), nout(v0)] == [3, 3]
-                @test [nout(v2)] == nin(v3) == [3]
-            end
-
-            @testset "Add nout-constrained to invariant with one immutable output" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 13, 5, "v2")
-                v3 = iv(v1, name="v3")
-                v4 = av(v3, 5, 5, "v4")
-                v5 = imu(v3, 3, name="v5")
-
-                @test inputs(v3) == [v1]
-                @test ismissing(minΔnoutfactor(v3))
-
-                create_edge!(v2, v3)
-                @test inputs(v3) == [v1, v2]
-
-                @test nin(v3) == [nout(v1), nout(v2)] == [8, 8]
-                @test [nout(v3)] == nin(v4) == nin(v5) == [8]
-            end
-
-            @testset "Add nout-constrained to invariant with immutable output" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 10, 3, "v1")
-                v2 = av(v0, 10, 2, "v2")
-                v3 = av(v0, 5, 5, "v3")
-                v4 = iv(v1,v2, name="v4")
-                v5 = imu(v4, 3, name="v5")
-
-                @test inputs(v4) == [v1, v2]
-                @test ismissing(minΔnoutfactor(v4))
-
-                create_edge!(v3, v4)
-                @test inputs(v4) == [v1, v2, v3]
-
-                @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [10, 10, 10]
-                @test [nout(v4)] == nin(v5) == [10]
-            end
-
-            @testset "Fail for impossible size constraint" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 11, 2, "v2")
-                v3 = iv(v1, name="v3")
-                v4 = imu(v3, 3, name="v4")
-
-                @test inputs(v3) == [v1]
-                @test ismissing(minΔnoutfactor(v3))
-
-                @test_throws ErrorException create_edge!(v2, v3)
-            end
-
-            @testset "Warn for impossible size constraint and ignore" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 8, 3, "v1")
-                v2 = av(v0, 11, 2, "v2")
-                v3 = iv(v1, name="v3")
-                v4 = imu(v3, 3, name="v4")
-
-                @test inputs(v3) == [v1]
-                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-                @test ismissing(minΔnoutfactor(v3))
-
-                @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = AlignSizeBoth(FailAlignSizeWarn()))
-
-                @test inputs(v3) == [v1]
-                @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
+                    @test nin(v2) == [nout(v0)] == [3]
+                    @test [nout(v2)] == nin(v3) == [3]
+                end
             end
         end
     end
+
 
     @testset "Vertex addition"  begin
 
@@ -497,35 +601,35 @@
         end
 
         @testset "Add to one of many inputs" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 4, name="v1")
-                v2 = av(v0, 5, name="v2")
-                v3 = av(v0, 6, name="v3")
-                v4 = sv(v1,v2,v3, name="v4")
-                v5 = av(v4, 7, name="v5")
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 4, name="v1")
+            v2 = av(v0, 5, name="v2")
+            v3 = av(v0, 6, name="v3")
+            v4 = sv(v1,v2,v3, name="v4")
+            v5 = av(v4, 7, name="v5")
 
-                insert!(v2, v -> av(v, nout(v), name="vnew1"))
-                vnew1 = outputs(v2)[]
+            insert!(v2, v -> av(v, nout(v), name="vnew1"))
+            vnew1 = outputs(v2)[]
 
-                @test vnew1 != v2
-                @test inputs(v4) == [v1, vnew1, v3]
+            @test vnew1 != v2
+            @test inputs(v4) == [v1, vnew1, v3]
 
-                insert!(v0, v -> av(v, nout(v), name="vnew2"))
+            insert!(v0, v -> av(v, nout(v), name="vnew2"))
 
-                @test length(outputs(v0)) == 1
-                vnew2 = outputs(v0)[]
+            @test length(outputs(v0)) == 1
+            vnew2 = outputs(v0)[]
 
-                @test inputs(v1) == inputs(v2) == inputs(v3) == [vnew2]
-                @test outputs(vnew2) == [v1, v2, v3]
+            @test inputs(v1) == inputs(v2) == inputs(v3) == [vnew2]
+            @test outputs(vnew2) == [v1, v2, v3]
 
-                insert!(vnew2, v -> av(v, nout(v), name="vnew3"), vouts -> vouts[[1, 3]])
+            insert!(vnew2, v -> av(v, nout(v), name="vnew3"), vouts -> vouts[[1, 3]])
 
-                @test length(outputs(vnew2)) == 2
-                @test outputs(vnew2)[1] == v2
-                vnew3 = outputs(vnew2)[2]
+            @test length(outputs(vnew2)) == 2
+            @test outputs(vnew2)[1] == v2
+            vnew3 = outputs(vnew2)[2]
 
-                @test outputs(vnew3) == [v1, v3]
-                @test inputs(v4) == [v1, vnew1, v3]
+            @test outputs(vnew3) == [v1, v3]
+            @test inputs(v4) == [v1, vnew1, v3]
         end
     end
 

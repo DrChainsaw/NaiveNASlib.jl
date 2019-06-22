@@ -54,8 +54,8 @@ ninΔs(s::VisitState{T}) where T = s.ninΔs
 noutΔs(s::VisitState{T}) where T = s.noutΔs
 
 # Only so it is possible to broadcast since broadcasting over dics is reserved
-getnoutΔ(defaultfun, s::VisitState{T}, v::MutationVertex) where T = get(defaultfun, s.noutΔs, v)
-setnoutΔ!(Δ::T, s::VisitState{T}, v::MutationVertex) where T = s.noutΔs[v] = Δ
+getnoutΔ(defaultfun, s::VisitState{T}, v::AbstractVertex) where T = get(defaultfun, s.noutΔs, v)
+setnoutΔ!(Δ::T, s::VisitState{T}, v::AbstractVertex) where T = s.noutΔs[v] = Δ
 function setnoutΔ!(missing, s::VisitState, v::AbstractVertex) end
 
 

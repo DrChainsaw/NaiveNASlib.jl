@@ -263,17 +263,23 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout)
      postalignsizes(s.andthen, vin, vout)
  end
  function postalignsizes(s::FailAlignSizeRevert, vin, vout)
-     vin in inputs(vout) && rem_edge!(vin, vout, strategy=NoSizeChange())
+     vin in inputs(vout) && remove_edge!(vin, vout, strategy=NoSizeChange())
  end
 
 # Ok, this one actually does something...
 function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
 
-    # At this point we expect to have nout(vout) - nout(vin) = nin of all output edges of vout and we need to fix this so nout(vout) == nin while nin(vout) = nout of all its inputs.
+    # At this point we expect to have nout(vout) to be the correct value while nin of the output edges of vout needs to be adjusted. Problem is that there might be Δfactors (I'm really starting to hate them now) or immutable vertices which prevents us from just changing the input size of the output edges to nout(vout) - nin(voo[i]) where voo[i] is output #i of vout.
 
-    # The equations we want to solve are nout(vin) + Δnoutfactor * x + nin(voo[i]) = nin(voo[i]) +  Δninfactor[i] * y[i] for where voo[i] is output #i of vout. As nin(voo[i]) is eliminated this leaves us with the zeros below.
+    # The equations we want to solve are nout(vout) + Δnoutfactor * x = nin(voo[i]) +  Δninfactor[i] * y[i] for all i.
     Δninfactors = minΔninfactor_only_for.(outputs(vout))
     nins = zeros(Int, length(Δninfactors))
+    # Also annoying: We obviously can't use nout(vout) as it is the right size. Instead, we must look at each output(vout), voo[i] and find which input index j of voo[i] is vout and select nin(voo[i])[j]
+    let # Let block just to not have temp variable mask laying around...
+    # This does the same thing as the below in one line, but is incomprehensible: mapfoldl(vo -> (inputs(vo), nin(vo)),(a,b)-> vcat(a[2],b[2][b[1] .== vout]), outputs(vout))
+        mask = mapfoldl(inputs, vcat, outputs(vout)) .== vout
+        nins = mapfoldl(nin, vcat, outputs(vout))[mask]
+    end
 
     # What this!? Well, we do want to change vin and vout only, but perhaps this is not possible for one reason or the other (e.g. vin is immutable).
     # Therefore we will try to change each input to vout, starting with vin, until we find one which succeeds.
@@ -288,7 +294,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
         Δnoutfactors =minΔnoutfactor_only_for.(vins[cnt])
 
         select(f,k) = increase_until(all_positive, f, k)
-        Δs = alignfor(nout(vin), Δnoutfactors, nins, Δninfactors, select)
+        Δs = alignfor(nout(vout), Δnoutfactors, nins, Δninfactors, select)
 
         return ismissing(Δs) ? alignsize(cnt+1) : (Δs, cnt, cnt)
     end
@@ -307,7 +313,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
             any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop])) && return f(k .- 1)
             return Δs
         end
-        Δs = alignfor(nout(vin), Δnoutfactors, nins, Δninfactors, select)
+        Δs = alignfor(nout(vout), Δnoutfactors, nins, Δninfactors, select)
 
         if ismissing(Δs)
             return alignsize_vin_only(start+1, max(1, stop-1))
@@ -323,10 +329,14 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
     Δs, start, stop = res
 
     for i in start:stop
+
+        Δ = Δs[i-start+1]
+        Δ == 0 && continue # To avoid having to support Δnout/Δnin with Δ = 0 for immutable vertices
+
         s = VisitState{Int}()
         visited_in!.(s, outputs(vout))
 
-        Δnout(vins[i], Δs[i-start+1], s=s)
+        Δnout(vins[i], Δ, s=s)
     end
 
     for (i, voo) in enumerate(outputs(vout))
@@ -366,7 +376,7 @@ select_start(f, k) = f(k)
 
 
 """
-    alignfor(nouts, Δnoutfactors, nins, Δninfactors, select = all_positive)
+    alignfor(nouts, Δnoutfactors, nins, Δninfactors, [select])
 
 Returns `Δ` so that `vcat(nouts, nins) .+ Δ |> unique |> length == 1` and so that `all(Δ .% vcat(Δnoutfactors, Δninfactors) .== 0)`.
 
@@ -379,6 +389,8 @@ nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins + �
 ...
 ```
 where `Δ = [x0, x1, ..., y0, y1, ...]`
+
+Argument `select` is a strategy for selecting which solution to use in case the system is underdetermined.
 
 # Examples
 
@@ -604,7 +616,7 @@ add_output!(s::IoIndices, ::SizeStack, size) = Δnout(s, vcat(s.out, (length(s.o
 
 
 """
-    rem_edge!(from::AbstractVertex, to::AbstractVertex; [nr], [strategy])
+    remove_edge!(from::AbstractVertex, to::AbstractVertex; [nr], [strategy])
 
 Remove edge from `from` to `to`.
 
@@ -612,7 +624,7 @@ If there are multiple edges from `from` to `to` then `nr` can be used to disting
 
 Sizes will be adjusted based on given `strategy`.
 """
-function rem_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy = default_rem_edge_strat(to))
+function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy = default_remove_edge_strat(to))
 
     prealignsizes(strategy, from, to, v -> false) || return
 
@@ -624,13 +636,15 @@ function rem_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy = 
     rem_input!(op(to), in_inds...)
     add_output!(op(to), trait(to), -nout(from))
 
-    postalignsizes(strategy, from, to)
+    postalignsizes(strategy, to, to)
 end
 
-default_rem_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
-default_rem_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
-default_rem_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
-default_rem_edge_strat(::SizeInvariant,v) = NoSizeChange()
+default_remove_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
+default_remove_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
+#default_remove_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
+#default_remove_edge_strat(::SizeStack,v) = NoSizeChange()
+default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
+default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
 function rem_input!(::MutationOp, pos...) end
 rem_input!(s::Union{IoSize, IoIndices}, pos...) = deleteat!(s.nin, collect(pos))
