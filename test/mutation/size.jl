@@ -552,4 +552,22 @@
         end
     end
 
+    @testset "SizeChangeLogger" begin
+        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+
+        av(in, size ;name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), size), traitfun(name))
+        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), traitfun(name))
+        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), traitfun(name))
+
+        @testset "Log size change" begin
+                v1 = inpt(3, "v1")
+                v2 = av(v1, 10, name="v2")
+                v3 = av(v2, 4, name="v3")
+
+                @test_logs (:info, "Change nin of v3 by (3,)") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
+
+                @test_logs (:info, "Change nout of v2 by -4") (:info, "Change nin of v3 by (-4,)") Δnout(v2, -4)
+        end
+    end
+
 end

@@ -6,6 +6,7 @@ using Statistics
 # For solving diophantine equations which pop up here and there when mutating size under constraints
 using AbstractAlgebra
 using LinearAlgebra
+using Base.CoreLogging
 
 
 export
@@ -14,6 +15,9 @@ AbstractVertex, AbstractMutationVertex, MutationOp, MutationState,
 
 # Vertex
 InputVertex, CompVertex, inputs, outputs,
+
+# Information strings
+infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr,
 
 # Computation graph
 CompGraph, output!,flatten,
@@ -26,7 +30,7 @@ InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, o
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex,
 
 # Mutation traits
-trait, MutationTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant,
+trait, MutationTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger,
 
 # Size util
 minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating,
