@@ -3,7 +3,6 @@
 
     inpt(size, id=1) = InputSizeVertex(id, size)
     nt(name) = t -> NamedTrait(t, name)
-    tf(name) = nt(name)
     tf(name) = t -> nt(name)(SizeChangeValidation(t))
 
     @testset "AbsorbVertex" begin
@@ -441,6 +440,9 @@
             @test nin(sv1) == [nout(v1), nout(v2)] == [3, 7]
             @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [2, 7, 3, 7]
 
+            # Evil action! Must have understanding that change will propagate to sv1 from
+            # both v1 and v2 and hold off updating sv1 when the first of them (v1 in this case)
+            # is updated
             Δnout(sv2, +9)
             @test nin(sv1) == [nout(v1), nout(v2)] == [6, 9]
             @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [4, 9, 6, 9]

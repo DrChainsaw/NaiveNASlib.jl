@@ -185,10 +185,17 @@ findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminat
 
 # Generic handling: Dispatch on trait and propagate all stashed nins if state says so
 function Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+    prop_stashed_nin = propagate_stashed_nin(s)
+    propagate_stashed_nin!(s,false)
 
     Δnin(trait(v), v, Δ..., s=s)
 
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
+
 function Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
 
     Δnout(trait(v), v, Δ, s=s)
@@ -219,34 +226,34 @@ end
 # Validation
 function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
 
-    newvisit = !has_visited_in(s, v)
-        println("$newvisit nin change $(name(v)) of $Δ. Current nin: $(nin(v)), current nouts: $(nout.(inputs(v)))")
-    if newvisit
+    validvisit = !has_visited_in(s, v)
+        #println("$validvisit nin change $(name(v)) of $Δ. Current nin: $(nin(v)), current nouts: $(nout.(inputs(v)))")
+    if validvisit
         #Δninfactor = minΔninfactor_only_for(v)
         #any(Δi -> Δi % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
     end
 
     Δnin(base(t), v, Δ..., s=s)
 
-    println("\t $newvisit $(name(v)) Post nin: $(nin(v)), Post nouts: $(nout.(inputs(v)))")
+    #println("\t $validvisit $(name(v)) Post nin: $(nin(v)), Post nouts: $(nout.(inputs(v)))")
 
-    if newvisit
+    if validvisit
         nout.(inputs(v)) == nin(v) || error("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")
     end
 end
 
 
 function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
-    newvisit = !has_visited_out(s, v) && !(v in keys(noutΔs(s)))
-        println("$newvisit nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
-    if newvisit
+    validvisit = !has_visited_out(s, v) && !(v in keys(noutΔs(s)))
+        #println("$validvisit nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+    if validvisit
         #Δnoutfactor = minΔnoutfactor_only_for(v)
         # any(Δi -> Δi % Δnoutfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
     end
 
     Δnout(base(t), v, Δ, s=s)
-        println("\t$newvisit post nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
-    if newvisit
+        #println("\t$newvisit post nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+    if validvisit
         nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
 
         nin_of_outputs == [nout(v)] || error("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])")
@@ -258,41 +265,19 @@ end
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
-    prop_stashed_nin = propagate_stashed_nin(s)
-     propagate_stashed_nin!(s,false)
-
-
     Δnin(op(v), Δ...)
     propagate_nout(v, Δ..., s=s)
-
-    if prop_stashed_nin
-        propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function Δnout(::SizeAbsorb, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
-    prop_stashed_nin = propagate_stashed_nin(s)
-     propagate_stashed_nin!(s,false)
-
-
     outvisit(v,s) && return
     Δnout(op(v), Δ)
     propagate_nin(v, Δ, s=s)
-
-    if prop_stashed_nin
-        propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 
 function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
-
-    prop_stashed_nin = propagate_stashed_nin(s)
-     propagate_stashed_nin!(s,false)
-
 
     # Need to calculate concat value before changing nin
     Δo = concat(nin(v), Δ...)
@@ -302,19 +287,10 @@ function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}
 
     Δnout(op(v), Δo)
     propagate_nin(v, Δo; s=s)
-
-    if prop_stashed_nin
-        propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
-
-    prop_stashed_nin = propagate_stashed_nin(s)
-     propagate_stashed_nin!(s,false)
-
 
     Δnout(op(v), Δ)
 
@@ -322,11 +298,6 @@ function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitSta
     Δs = split_nout_over_inputs(v, Δ, s)
     Δnin(op(v), Δs...)
     propagate_nout(v, Δs...; s=s)
-
-    if prop_stashed_nin
-        propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function concat(insizes, Δ::Maybe{<:Integer}...)
@@ -427,10 +398,6 @@ end
 function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    prop_stashed_nin = propagate_stashed_nin(s)
-     propagate_stashed_nin!(s,false)
-
-
     Δnin(op(v), Δ...)
 
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
@@ -438,29 +405,15 @@ function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitStat
 
     propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
     propagate_nin(v, Δprop...; s=s)
-
-    if prop_stashed_nin
-        propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    prop_stashed_nin = propagate_stashed_nin(s)
-     propagate_stashed_nin!(s,false)
-
-
     Δnout(op(v), Δ)
 
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
-
-    if prop_stashed_nin
-        propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 ## Generic helper methods
@@ -493,7 +446,9 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # If not, the "propagate_stashed_nin" function will propagate anyways, leaving
     # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" and "StackingVertex multi inputs" for a motivation
-    first = isempty(ninΔs(s))
+
+    prop_stashed_nin = propagate_stashed_nin(s)
+    propagate_stashed_nin!(s,false)
 
     for vi in outputs(v)
         ins = inputs(vi)
@@ -503,6 +458,11 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         # Add Δ for each input which is the current vertex (at least and typically one)
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
         any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
+    end
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
     end
 end
 
@@ -560,11 +520,21 @@ function propagate_stashed_nin(v::MutationVertex, s::VisitState{T}) where T
 end
 
 function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+    # Propagation of stashed nin has to happen for the nout case as well.
+    # Reason is the not at all convoluted case when both SizeAbsorb vertices  v1 and v2 are input (either directly or through SizeTransparent vertices) to both va and vb and we change one of them (va or vb) so that both v1 and v2 change outsize.
+    prop_stashed_nin = propagate_stashed_nin(s)
+    propagate_stashed_nin!(s,false)
+
     setnoutΔ!.(Δ, s, inputs(v))
     for (Δi, vi) in zip(Δ, inputs(v))
         if !ismissing(Δi)
             Δnout(vi, Δi; s=s)
         end
+    end
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
     end
 end
 
