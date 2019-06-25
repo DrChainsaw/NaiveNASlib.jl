@@ -93,6 +93,11 @@ SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Base.
 base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
 
+struct SizeChangeValidation <: DecoratingTrait
+    base::MutationTrait
+end
+base(t::SizeChangeValidation) = t.base
+
 """
     MutationVertex
 

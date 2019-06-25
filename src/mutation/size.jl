@@ -204,6 +204,44 @@ function Δnout(t::SizeChangeLogger, v::AbstractVertex, Δ::T; s::VisitState{T}=
     Δnout(base(t), v, Δ, s=s)
 end
 
+# Validation
+function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+
+    newvisit = !has_visited_in(s, v)
+        #println("$newvisit nin change $(name(v)) of $Δ. Current nin: $(nin(v)), current nouts: $(nout.(inputs(v)))")
+    if newvisit
+        #Δninfactor = minΔninfactor_only_for(v)
+        #any(Δi -> Δi % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
+    end
+
+    Δnin(base(t), v, Δ..., s=s)
+
+    #println("\t $newvisit $(name(v)) Post nin: $(nin(v)), Post nouts: $(nout.(inputs(v)))")
+
+    if newvisit
+        nout.(inputs(v)) == nin(v) || error("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")
+    end
+end
+
+
+function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+    newvisit = !has_visited_out(s, v)
+        #println("$newvisit nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+    if newvisit
+        #Δnoutfactor = minΔnoutfactor_only_for(v)
+        # any(Δi -> Δi % Δnoutfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
+    end
+
+    Δnout(base(t), v, Δ, s=s)
+        #println("\t$newvisit post nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+    if newvisit
+        nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
+
+        nin_of_outputs == [nout(v)] || error("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])")
+    end
+end
+
+
 # Actual operations
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
@@ -346,8 +384,8 @@ function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitStat
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
     @assert length(Δprop) == 1 "Change must be invariant!"
 
-    propagate_nin(v, Δprop...; s=s)
     propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
+    propagate_nin(v, Δprop...; s=s)
 end
 
 function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
@@ -406,14 +444,18 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         # Lets see which inputs we are expected to hit from here and hold of propagation
         # until we have hit them all
         # See testset "Stacked StackingVertices" for motivation
-
         expected_inputs = Dict{AbstractVertex, BitArray}()
-        inputmemo = Dict(outputs(v) .=> [v])
+        inputmemo = Dict(outputs(v) .=> [[v]])
+
         pathfinder = function(vn::AbstractVertex)
-            inmap = inputs(vn) .== [inputmemo[vn]]
+            inmap = falses(length(inputs(vn)))
+            # Any non-visited vertex we have encountered is an expected input.
+            # Why non-visited? Because we clear contexts then, so there is no Δ for that input available
+            inmap[indexin(filter(vi -> !has_visited_in(s, vi), inputmemo[vn]), inputs(vn))] .= true
             stored_inmap = get!(() -> inmap, expected_inputs, vn)
             stored_inmap .|= inmap
-            foreach(vo -> inputmemo[vo] = vn, outputs(vn))
+
+            foreach(vo -> push!(get!(()-> [], inputmemo, vo), vn), outputs(vn))
         end
 
         tracer = function(vn::AbstractVertex)
@@ -430,7 +472,6 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         last_keys = Set() # For infinite loop protection
         while !isempty(ninΔs(s))
             tmpΔs = copy(ninΔs(s))
-
             for (vn, Δs) in tmpΔs
                 delete!(ninΔs(s), vn)
                 has_visited_in(s, vn) && continue
@@ -441,7 +482,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
                         ninΔs(s)[vn] = Δs
                         continue
                     end
-                    @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys))"
+                    @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys)) vs $(Set(keys(ninΔs(s))))"
                 end
 
                 Δnin(vn, Δs..., s=s)
