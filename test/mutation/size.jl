@@ -3,6 +3,7 @@
 
     inpt(size, id=1) = InputSizeVertex(id, size)
     nt(name) = t -> NamedTrait(t, name)
+    tf(name) = nt(name)
     tf(name) = t -> nt(name)(SizeChangeValidation(t))
 
     @testset "AbsorbVertex" begin
@@ -440,11 +441,9 @@
             @test nin(sv1) == [nout(v1), nout(v2)] == [3, 7]
             @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [2, 7, 3, 7]
 
-            # Fails!
-            #Δnout(sv2, +9)
-            #@test nin(sv1) == [nout(v1), nout(v2)] == [6, 9]
-            #@test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [4, 6, 9, 6]
-
+            Δnout(sv2, +9)
+            @test nin(sv1) == [nout(v1), nout(v2)] == [6, 9]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [4, 9, 6, 9]
         end
 
         @testset "Stacked StackingVertices" begin

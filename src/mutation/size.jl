@@ -31,13 +31,14 @@ Memoization struct for traversal.
 
 Remembers visitation for both forward (in) and backward (out) directions.
 """
-struct VisitState{T}
+mutable struct VisitState{T}
     in::Vector{AbstractVertex}
     out::Vector{AbstractVertex}
     ninΔs::OrderedDict{AbstractVertex, Vector{Maybe{<:T}}}
     noutΔs::OrderedDict{AbstractVertex, Maybe{<:T}}
+    propagate_stashed_nin::Bool
 end
-VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}())
+VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), true)
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
 visited_in!(s::VisitState, v::AbstractVertex) = push!(s.in, v)
@@ -47,6 +48,9 @@ has_visited_out(s::VisitState, v::AbstractVertex) = v in s.out
 
 ninΔs(s::VisitState{T}) where T = s.ninΔs
 noutΔs(s::VisitState{T}) where T = s.noutΔs
+
+propagate_stashed_nin(s::VisitState) = s.propagate_stashed_nin
+propagate_stashed_nin!(s::VisitState, doit::Bool) = s.propagate_stashed_nin = doit
 
 # Only so it is possible to broadcast since broadcasting over dics is reserved
 getnoutΔ(defaultfun, s::VisitState{T}, v::AbstractVertex) where T = get(defaultfun, s.noutΔs, v)
@@ -179,9 +183,17 @@ findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminat
 
 ## Boilerplate
 
-# Dispatch on trait
-Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(trait(v), v, Δ..., s=s)
-Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(trait(v), v, Δ, s=s)
+# Generic handling: Dispatch on trait and propagate all stashed nins if state says so
+function Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+
+    Δnin(trait(v), v, Δ..., s=s)
+
+end
+function Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+
+    Δnout(trait(v), v, Δ, s=s)
+
+end
 
 # Unwrap DecoratingTrait(s)
 Δnin(t::DecoratingTrait, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(base(t), v, Δ..., s=s)
@@ -208,7 +220,7 @@ end
 function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
 
     newvisit = !has_visited_in(s, v)
-        #println("$newvisit nin change $(name(v)) of $Δ. Current nin: $(nin(v)), current nouts: $(nout.(inputs(v)))")
+        println("$newvisit nin change $(name(v)) of $Δ. Current nin: $(nin(v)), current nouts: $(nout.(inputs(v)))")
     if newvisit
         #Δninfactor = minΔninfactor_only_for(v)
         #any(Δi -> Δi % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
@@ -216,7 +228,7 @@ function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::V
 
     Δnin(base(t), v, Δ..., s=s)
 
-    #println("\t $newvisit $(name(v)) Post nin: $(nin(v)), Post nouts: $(nout.(inputs(v)))")
+    println("\t $newvisit $(name(v)) Post nin: $(nin(v)), Post nouts: $(nout.(inputs(v)))")
 
     if newvisit
         nout.(inputs(v)) == nin(v) || error("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")
@@ -225,15 +237,15 @@ end
 
 
 function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
-    newvisit = !has_visited_out(s, v)
-        #println("$newvisit nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+    newvisit = !has_visited_out(s, v) && !(v in keys(noutΔs(s)))
+        println("$newvisit nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
     if newvisit
         #Δnoutfactor = minΔnoutfactor_only_for(v)
         # any(Δi -> Δi % Δnoutfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
     end
 
     Δnout(base(t), v, Δ, s=s)
-        #println("\t$newvisit post nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+        println("\t$newvisit post nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
     if newvisit
         nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
 
@@ -246,19 +258,41 @@ end
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
+    prop_stashed_nin = propagate_stashed_nin(s)
+     propagate_stashed_nin!(s,false)
+
+
     Δnin(op(v), Δ...)
     propagate_nout(v, Δ..., s=s)
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
 
 function Δnout(::SizeAbsorb, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+    prop_stashed_nin = propagate_stashed_nin(s)
+     propagate_stashed_nin!(s,false)
+
+
     outvisit(v,s) && return
     Δnout(op(v), Δ)
     propagate_nin(v, Δ, s=s)
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
 
 
 function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
+
+    prop_stashed_nin = propagate_stashed_nin(s)
+     propagate_stashed_nin!(s,false)
+
 
     # Need to calculate concat value before changing nin
     Δo = concat(nin(v), Δ...)
@@ -268,10 +302,19 @@ function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}
 
     Δnout(op(v), Δo)
     propagate_nin(v, Δo; s=s)
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
 
 function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
+
+    prop_stashed_nin = propagate_stashed_nin(s)
+     propagate_stashed_nin!(s,false)
+
 
     Δnout(op(v), Δ)
 
@@ -279,6 +322,11 @@ function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitSta
     Δs = split_nout_over_inputs(v, Δ, s)
     Δnin(op(v), Δs...)
     propagate_nout(v, Δs...; s=s)
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
 
 function concat(insizes, Δ::Maybe{<:Integer}...)
@@ -379,6 +427,10 @@ end
 function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
+    prop_stashed_nin = propagate_stashed_nin(s)
+     propagate_stashed_nin!(s,false)
+
+
     Δnin(op(v), Δ...)
 
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
@@ -386,15 +438,29 @@ function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitStat
 
     propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
     propagate_nin(v, Δprop...; s=s)
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
 
 function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
+    prop_stashed_nin = propagate_stashed_nin(s)
+     propagate_stashed_nin!(s,false)
+
+
     Δnout(op(v), Δ)
 
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
+
+    if prop_stashed_nin
+        propagate_stashed_nin!(s,true)
+        propagate_stashed_nin(v, s)
+    end
 end
 
 ## Generic helper methods
@@ -424,9 +490,9 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # do we propagate to vi.
     # If we end up here though another input to vi the context will be populated
     # with the new Δ and eventually we have all the Δs
-    # If not, the "if first" block in the end will propagate anyways, leaving
+    # If not, the "propagate_stashed_nin" function will propagate anyways, leaving
     # it up to each vertex implementation to handle the missing value.
-    # See testset "Transparent residual fork block" for a motivation
+    # See testset "Transparent residual fork block" and "StackingVertex multi inputs" for a motivation
     first = isempty(ninΔs(s))
 
     for vi in outputs(v)
@@ -438,57 +504,58 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
         any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
     end
+end
 
-    if first
-        # Ok, we might have partial output and we are not sure if this is correct or not (it mostly is)
-        # Lets see which inputs we are expected to hit from here and hold of propagation
-        # until we have hit them all
-        # See testset "Stacked StackingVertices" for motivation
-        expected_inputs = Dict{AbstractVertex, BitArray}()
-        inputmemo = Dict(outputs(v) .=> [[v]])
+function propagate_stashed_nin(v::MutationVertex, s::VisitState{T}) where T
 
-        pathfinder = function(vn::AbstractVertex)
-            inmap = falses(length(inputs(vn)))
-            # Any non-visited vertex we have encountered is an expected input.
-            # Why non-visited? Because we clear contexts then, so there is no Δ for that input available
-            inmap[indexin(filter(vi -> !has_visited_in(s, vi), inputmemo[vn]), inputs(vn))] .= true
-            stored_inmap = get!(() -> inmap, expected_inputs, vn)
-            stored_inmap .|= inmap
+    # Ok, we might have partial output and we are not sure if this is correct or not (it mostly is)
+    # Lets see which inputs we are expected to hit from here and hold of propagation
+    # until we have hit them all
+    # See testset "Stacked StackingVertices" for motivation
+    expected_inputs = Dict{AbstractVertex, BitArray}()
+    inputmemo = Dict(outputs(v) .=> [[v]])
 
-            foreach(vo -> push!(get!(()-> [], inputmemo, vo), vn), outputs(vn))
-        end
+    pathfinder = function(vn::AbstractVertex)
+        inmap = falses(length(inputs(vn)))
+        # Any non-visited vertex we have encountered is an expected input.
+        # Why non-visited? Because we clear contexts then, so there is no Δ for that input available
+        inmap[indexin(filter(vi -> !has_visited_in(s, vi), inputmemo[vn]), inputs(vn))] .= true
+        stored_inmap = get!(() -> inmap, expected_inputs, vn)
+        stored_inmap .|= inmap
 
-        tracer = function(vn::AbstractVertex)
-            pathfinder(vn)
-            return outputs(vn)
-        end
-        # This actually hurts my brain a bit, not sure why...
-        # Goal is to populte expected_inputs with all vertices which may be hit
-        # by the size change
-        foreach(pathfinder, vcat(findterminating.(outputs(v), tracer)...))
+        foreach(vo -> push!(get!(()-> [], inputmemo, vo), vn), outputs(vn))
+    end
 
-        # Must delete from contexts before further traversal and we don't wanna delete from the collection we're iterating over
-        # New contexts might be added as we traverse though, so after we are done with the current batch we need to check again if there are new contexts, hence the while loop
-        last_keys = Set() # For infinite loop protection
-        while !isempty(ninΔs(s))
-            tmpΔs = copy(ninΔs(s))
-            for (vn, Δs) in tmpΔs
-                delete!(ninΔs(s), vn)
-                has_visited_in(s, vn) && continue
+    tracer = function(vn::AbstractVertex)
+        pathfinder(vn)
+        return outputs(vn)
+    end
+    # This actually hurts my brain a bit, not sure why...
+    # Goal is to populte expected_inputs with all vertices which may be hit
+    # by the size change
+    foreach(pathfinder, vcat(findterminating.(outputs(v), tracer)...))
 
-                if (vn in keys(expected_inputs)) && .!ismissing.(Δs) < expected_inputs[vn]
-                    # Infinite loop protection
-                    if Set(keys(ninΔs(s))) != last_keys
-                        ninΔs(s)[vn] = Δs
-                        continue
-                    end
-                    @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys)) vs $(Set(keys(ninΔs(s))))"
+    # Must delete from contexts before further traversal and we don't wanna delete from the collection we're iterating over
+    # New contexts might be added as we traverse though, so after we are done with the current batch we need to check again if there are new contexts, hence the while loop
+    last_keys = Set() # For infinite loop protection
+    while !isempty(ninΔs(s))
+        tmpΔs = copy(ninΔs(s))
+        for (vn, Δs) in tmpΔs
+            delete!(ninΔs(s), vn)
+            has_visited_in(s, vn) && continue
+
+            if (vn in keys(expected_inputs)) && .!ismissing.(Δs) < expected_inputs[vn]
+                # Infinite loop protection
+                if Set(keys(ninΔs(s))) != last_keys
+                    ninΔs(s)[vn] = Δs
+                    continue
                 end
-
-                Δnin(vn, Δs..., s=s)
+                @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys)) vs $(Set(keys(ninΔs(s))))"
             end
-            last_keys = Set(keys(ninΔs(s)))
+
+            Δnin(vn, Δs..., s=s)
         end
+        last_keys = Set(keys(ninΔs(s)))
     end
 end
 
