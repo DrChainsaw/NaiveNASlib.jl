@@ -218,36 +218,36 @@ end
 function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
 
     validvisit = !has_visited_in(s, v)
-        #println("$validvisit nin change $(name(v)) of $Δ. Current nin: $(nin(v)), current nouts: $(nout.(inputs(v)))")
+
     if validvisit
-        #Δninfactor = minΔninfactor_only_for(v)
-        #any(Δi -> Δi % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
+        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
+        Δninfactor = minΔninfactor_only_for(base(v))
+        any(Δi -> Δi % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
     end
 
     Δnin(base(t), v, Δ..., s=s)
 
-    #println("\t $validvisit $(name(v)) Post nin: $(nin(v)), Post nouts: $(nout.(inputs(v)))")
-
     if validvisit
-        nout.(inputs(v)) == nin(v) || error("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")
+        nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
     end
 end
 
 
 function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     validvisit = !has_visited_out(s, v) && !(v in keys(noutΔs(s)))
-        #println("$validvisit nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+
     if validvisit
-        #Δnoutfactor = minΔnoutfactor_only_for(v)
-        # any(Δi -> Δi % Δnoutfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
+        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
+        Δnoutfactor = minΔnoutfactor_only_for(base(v))
+        Δ % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
     end
 
     Δnout(base(t), v, Δ, s=s)
-        #println("\t$newvisit post nout $(name(v)) of $Δ nin: $(nin(v)) nout: $(nout(v))")
+
     if validvisit
         nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
 
-        nin_of_outputs == [nout(v)] || error("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])")
+        nin_of_outputs == [nout(v)] || throw(ArgumentError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
     end
 end
 

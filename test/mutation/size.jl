@@ -512,14 +512,14 @@
 
             # Evil action! Must have understanding that the change in v2 will propagate
             # to sv3 input 1 through sv1 and sv2 and hold off updating it through input 3
-            Δnout(v2, -13)
+            Δnout(v2, -12)
             @test nout(v1) == 89
-            @test nout(v2) == 79
+            @test nout(v2) == 80
             @test nout(v3) == 85
             @test nout(v4) == 85
-            @test nout(sv1) == nout(v2) + nout(v3) == 164
-            @test nout(sv2) == nout(sv1) + nout(v1) == 253
-            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [417]
+            @test nout(sv1) == nout(v2) + nout(v3) == 165
+            @test nout(sv2) == nout(sv1) + nout(v1) == 254
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [419]
 
         end
         @testset "Stacked InvariantVertex" begin
@@ -579,6 +579,17 @@
             # Evilness: Infinite recursion without memoization
             @test minΔnoutfactor(v4) == 2*3*5*7
         end
+
+        @testset "Fail invalid size change" begin
+            v1 = av(100,3, inpt(3), name="v1")
+            v2 = av(100,2, v1, name="v2")
+
+            @test_throws ArgumentError Δnout(v1, 2)
+            @test_throws ArgumentError Δnout(v1, 3)
+            @test_throws ArgumentError Δnin(v2, 3)
+            @test_throws ArgumentError Δnin(v2, 2)
+        end
+
     end
 
     @testset "SizeChangeLogger" begin
@@ -597,6 +608,28 @@
 
                 @test_logs (:info, "Change nout of v2 by -4") (:info, "Change nin of v3 by (-4,)") Δnout(v2, -4)
         end
+    end
+
+    @testset "SizeChangeValidation" begin
+
+        # Mock for creating invalid size changes
+        struct Ignore <: MutationSizeTrait end
+        NaiveNASlib.Δnin(::Ignore, v, Δ::Union{Missing, T}...; s) where T = Δnout.(inputs(v), Δ, s=s)
+        NaiveNASlib.Δnout(::Ignore, v, Δ::T; s) where T = Δnin.(outputs(v), Δ, s=s)
+        NaiveNASlib.Δnout_touches_nin(::Ignore, v, s) = NaiveNASlib.Δnout_touches_nin(SizeAbsorb(), v, s)
+        NaiveNASlib.Δnout_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnout_touches_nin(SizeAbsorb(), v, from, s)
+        NaiveNASlib.Δnin_touches_nin(::Ignore, v, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, s)
+        NaiveNASlib.Δnin_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, from, s)
+
+        v1 = inpt(3, "v1")
+        v2 = MutationVertex(CompVertex(identity, v1), IoSize(3, 5), Ignore()) # Note, does not catch size errors
+        v3 = AbsorbVertex(CompVertex(identity, v2), IoSize(5,7), tf("v3"))
+        v4 = MutationVertex(CompVertex(identity, v3), IoSize(3, 5), Ignore())
+
+        @test_throws ArgumentError Δnout(v2, 2)
+        @test_throws ArgumentError Δnin(v3, -3)
+        @test_throws ArgumentError Δnin(v4, 5)
+        @test_throws ArgumentError Δnout(v3, -7)
     end
 
 end
