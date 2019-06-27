@@ -68,7 +68,7 @@ mutable struct InvSize <: MutationState
 end
 clone(s::InvSize) = InvSize(s.size)
 
-nin(s::InvSize) = s.size
+nin(s::InvSize) = [s.size]
 nout(s::InvSize) = s.size
 function Δnin(s::InvSize, Δ::Integer...)
     @assert length(Δ) == 1 "Must be single input! Got $Δ"

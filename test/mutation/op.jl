@@ -27,15 +27,15 @@ using Test
 
     @testset "InvSize" begin
         size = InvSize(3)
-        @test nin(size) == 3
+        @test nin(size) == [3]
         @test nout(size) == 3
 
         Δnin(size, 2)
-        @test nin(size) == 5
+        @test nin(size) == [5]
         @test nout(size) == 5
 
         Δnout(size, -3)
-        @test nin(size) == 2
+        @test nin(size) == [2]
         @test nout(size) == 2
 
         @test_throws AssertionError Δnin(size, 1,2)

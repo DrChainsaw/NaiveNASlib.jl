@@ -195,12 +195,12 @@ using NaiveNASlib
 
             Δnin(v, -1)
             apply_mutation(v)
-            @test p.nin == 4
+            @test p.nin == [4]
             @test p.nout == 4
 
             Δnout(v, 2)
             apply_mutation(v)
-            @test p.nin == 6
+            @test p.nin == [6]
             @test p.nout == 6
         end
 
