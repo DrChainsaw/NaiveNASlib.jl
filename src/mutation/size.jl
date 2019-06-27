@@ -36,15 +36,12 @@ mutable struct VisitState{T}
     out::Vector{AbstractVertex}
     ninΔs::OrderedDict{AbstractVertex, Vector{Maybe{<:T}}}
     noutΔs::OrderedDict{AbstractVertex, Maybe{<:T}}
-    stashed_nin::OrderedSet{AbstractVertex}
-    propagate_stashed_nin::Bool
     change_nin::Dict{AbstractVertex, Vector{Bool}}
 end
 VisitState{T}() where T = VisitState{T}(Dict{AbstractVertex, Vector{Bool}}())
-VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), OrderedSet{AbstractVertex}(), true, change_nin)
-VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin).change_nin)
-VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin).change_nin)
-
+VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), change_nin)
+VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin))
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin))
 
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
@@ -259,40 +256,19 @@ end
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
-
-    prop_stashed_nin = propagate_stashed_nin(s)
-    propagate_stashed_nin!(s,false)
-
     Δnin(op(v), Δ...)
     propagate_nout(v, Δ..., s=s)
-
-    if prop_stashed_nin
-        #propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function Δnout(::SizeAbsorb, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     outvisit(v,s) && return
-
-    prop_stashed_nin = propagate_stashed_nin(s)
-    propagate_stashed_nin!(s,false)
-
     Δnout(op(v), Δ)
     propagate_nin(v, Δ, s=s)
-
-    if prop_stashed_nin
-        #propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 
 function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
-
-    prop_stashed_nin = propagate_stashed_nin(s)
-    propagate_stashed_nin!(s,false)
 
     # Need to calculate concat value before changing nin
     Δo = concat(nin(v), Δ...)
@@ -303,18 +279,10 @@ function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}
     Δnout(op(v), Δo)
     propagate_nin(v, Δo; s=s)
 
-    if prop_stashed_nin
-        #propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
-
-    prop_stashed_nin = propagate_stashed_nin(s)
-    propagate_stashed_nin!(s,false)
-
 
     Δnout(op(v), Δ)
 
@@ -322,11 +290,6 @@ function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitSta
     Δs = split_nout_over_inputs(v, Δ, s)
     Δnin(op(v), Δs...)
     propagate_nout(v, Δs...; s=s)
-
-    if prop_stashed_nin
-        #propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function concat(insizes, Δ::Maybe{<:Integer}...)
@@ -427,10 +390,6 @@ end
 function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    prop_stashed_nin = propagate_stashed_nin(s)
-    propagate_stashed_nin!(s,false)
-
-
     Δnin(op(v), Δ...)
 
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
@@ -438,29 +397,15 @@ function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitStat
 
     propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
     propagate_nin(v, Δprop...; s=s)
-
-    if prop_stashed_nin
-        #propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    prop_stashed_nin = propagate_stashed_nin(s)
-    propagate_stashed_nin!(s,false)
-
-
     Δnout(op(v), Δ)
 
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
-
-    if prop_stashed_nin
-        #propagate_stashed_nin!(s,true)
-        propagate_stashed_nin(v, s)
-    end
 end
 
 ## Generic helper methods
@@ -490,8 +435,6 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # do we propagate to vi.
     # If we end up here though another input to vi the context will be populated
     # with the new Δ and eventually we have all the Δs
-    # If not, the "propagate_stashed_nin" function will propagate anyways, leaving
-    # it up to each vertex implementation to handle the missing value.
     # See testset "Transparent residual fork block" and "StackingVertex multi inputs" for a motivation
 
     for vi in outputs(v)
@@ -502,71 +445,13 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         # Add Δ for each input which is the current vertex (at least and typically one)
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
 
-        if .!ismissing.(Δs) == get(() -> [], s.change_nin, vi)
-            Δnin(vi, Δs...; s=s)
-        else
-            stash_nin!(s, v)
-        end
+        validΔs = .!ismissing.(Δs)
+        expectedΔs = get(() -> trues(length(Δs)), s.change_nin, vi)
+
+        all(validΔs[expectedΔs]) && Δnin(vi, Δs...; s=s)
     end
 end
 
-function propagate_stashed_nin(vxxx::MutationVertex, s::VisitState{T}) where T
-    return
-
-    # Must delete from contexts before further traversal and we don't wanna delete from the collection we're iterating over
-    # New contexts might be added as we traverse though, so after we are done with the current batch we need to check again if there are new contexts, hence the while loop
-    last_keys = Set() # For infinite loop protection
-    while !isempty(ninΔs(s))
-        stashed_nin = copy(s.stashed_nin.dict.keys)
-    for v in stashed_nin
-
-        # Ok, we might have partial output and we are not sure if this is correct or not (it mostly is)
-        # Lets see which inputs we are expected to hit from here and hold of propagation
-        # until we have hit them all
-        # See testset "Stacked StackingVertices" for motivation
-        expected_inputs = Dict{AbstractVertex, BitArray}()
-        inputmemo = Dict(outputs(v) .=> [[v]])
-
-        pathfinder = function(vn::AbstractVertex)
-            inmap = falses(length(inputs(vn)))
-            # Any non-visited vertex we have encountered is an expected input.
-            # Why non-visited? Because we clear contexts then, so there is no Δ for that input available
-            inmap[indexin(filter(vi -> !has_visited_in(s, vi), inputmemo[vn]), inputs(vn))] .= true
-            stored_inmap = get!(() -> inmap, expected_inputs, vn)
-            stored_inmap .|= inmap
-
-            foreach(vo -> push!(get!(()-> [], inputmemo, vo), vn), outputs(vn))
-        end
-
-        tracer = function(vn::AbstractVertex)
-            pathfinder(vn)
-            return outputs(vn)
-        end
-        # This actually hurts my brain a bit, not sure why...
-        # Goal is to populate expected_inputs with all vertices which may be hit
-        # by the size change
-        foreach(pathfinder, vcat(findterminating.(outputs(v), tracer)...))
-
-            tmpΔs = copy(ninΔs(s))
-            for (vn, Δs) in tmpΔs
-                delete!(ninΔs(s), vn)
-                has_visited_in(s, vn) && continue
-
-                if !(vn in outputs(v)) || ((vn in keys(expected_inputs)) && .!ismissing.(Δs) < expected_inputs[vn])
-                    # Infinite loop protection
-                    if Set(keys(ninΔs(s))) != last_keys
-                        ninΔs(s)[vn] = Δs
-                        continue
-                    end
-                    @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys)) vs $(Set(keys(ninΔs(s))))"
-                end
-
-                Δnin(vn, Δs..., s=s)
-            end
-            last_keys = Set(keys(ninΔs(s)))
-        end
-    end
-end
 
 function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
 
@@ -607,12 +492,7 @@ function pick_values(values::Vector{T}, target::T, objective= x->std(x, correcte
 end
 
 
-struct Vstate
-    change_nin
-    has_visited
-end
-
-Δnin_touches_nin(v, s=Vstate(Dict{AbstractVertex, Vector{Bool}}(), AbstractVertex[])) = Δnin_touches_nin(trait(v), v, s)
+Δnin_touches_nin(v, s=(touch_nin=Dict{AbstractVertex, Vector{Bool}}(), has_visited=AbstractVertex[])) = Δnin_touches_nin(trait(v), v, s).touch_nin
 Δnin_touches_nin(t::DecoratingTrait, v, s) = Δnin_touches_nin(base(t), v, s)
 Δnin_touches_nin(::SizeAbsorb, v, s) = mapreduce(vi -> Δnout_touches_nin(vi, v, s), (s1,s2) -> s1, inputs(v), init=s)
 function Δnin_touches_nin(::SizeInvariant, v, s)
@@ -650,11 +530,12 @@ function Δnin_touches_nin(::SizeStack, v, from, s)
 end
 
 
-Δnout_touches_nin(v, s=Vstate(Dict{AbstractVertex, Vector{Bool}}(), AbstractVertex[])) = Δnout_touches_nin(trait(v), v, s)
+Δnout_touches_nin(v, s=(touch_nin=Dict{AbstractVertex, Vector{Bool}}(), has_visited=AbstractVertex[])) = Δnout_touches_nin(trait(v), v, s).touch_nin
+
 Δnout_touches_nin(t::DecoratingTrait, v, s) = Δnout_touches_nin(base(t), v, s)
 Δnout_touches_nin(::Immutable, v, s) = s
 Δnout_touches_nin(::SizeAbsorb, v, s) = mapreduce(vo -> Δnin_touches_nin(vo, v, s), (s1,s2) -> s1, outputs(v), init=s)
-Δnout_touches_nin(::SizeTransparent, v, s) = Δnin_touches_nin(v, s)
+Δnout_touches_nin(t::SizeTransparent, v, s) = Δnin_touches_nin(t, v, s)
 
 
 Δnout_touches_nin(v, from, s) = Δnout_touches_nin(trait(v), v, from, s)
@@ -679,8 +560,8 @@ function update_state!(s, v, from)
     v in s.has_visited && return true
 
     inmap = inputs(v) .== from
-    notnew = v in keys(s.change_nin) && all(s.change_nin[v][inmap])
-    stored_inmap = get!(() -> inmap, s.change_nin, v)
+    notnew = v in keys(s.touch_nin) && all(s.touch_nin[v][inmap])
+    stored_inmap = get!(() -> inmap, s.touch_nin, v)
     stored_inmap .|= inmap
     return notnew
 end

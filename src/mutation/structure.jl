@@ -252,9 +252,9 @@ function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
     # Ok, lets make the change
     # TODO: Add back?
-    s = VisitState{Int}(Δnin_touches_nin(vout).change_nin) # Just in case we happen to be inside a transparent vertex
-    Δnin(vout, Δs[2])
-    Δnout(vin, Δs[1])
+    s = VisitState{Int}(vout) # Just in case we happen to be inside a transparent vertex
+    Δnin(vout, Δs[2], s=s)
+    Δnout(vin, Δs[1], s=s)
     return true
 end
 
@@ -345,7 +345,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
         Δ = Δs[i-start+1]
         Δ == 0 && continue # To avoid having to support Δnout/Δnin with Δ = 0 for immutable vertices
 
-        s = VisitState{Int}(Δnout_touches_nin(vins[i]).change_nin)
+        s = VisitState{Int}(vins[i])
         visited_in!.(s, outputs(vout))
 
         Δnout(vins[i], Δ, s=s)
@@ -354,11 +354,13 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
     for (i, voo) in enumerate(outputs(vout))
         Δ = Δs[i+stop-start+1]
         Δ == 0 && continue
-        # Dont touch the parts which already have the correct size
-        s = VisitState{Int}(Δnin_touches_nin(voo).change_nin)
-        visited_out!(s, vout)
+
         Δvec = Vector{Maybe{Int}}(missing, length(inputs(voo)))
         Δvec[inputs(voo) .== vout] .= Δ
+
+        # Dont touch the parts which already have the correct size
+        s = VisitState{Int}(voo, Δvec...)
+        visited_out!(s, vout)
 
         Δnin(voo, Δvec..., s=s)
     end
