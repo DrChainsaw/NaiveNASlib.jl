@@ -41,7 +41,7 @@ end
 VisitState{T}() where T = VisitState{T}(Dict{AbstractVertex, Vector{Bool}}())
 VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), change_nin)
 VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin))
-VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin))
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin)) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
 
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
@@ -52,11 +52,6 @@ has_visited_out(s::VisitState, v::AbstractVertex) = v in s.out
 
 ninΔs(s::VisitState{T}) where T = s.ninΔs
 noutΔs(s::VisitState{T}) where T = s.noutΔs
-
-stash_nin!(s::VisitState, v::AbstractVertex) = push!(s.stashed_nin, v)
-
-propagate_stashed_nin(s::VisitState) = s.propagate_stashed_nin
-propagate_stashed_nin!(s::VisitState, doit::Bool) = s.propagate_stashed_nin = doit
 
 # Only so it is possible to broadcast since broadcasting over dics is reserved
 getnoutΔ(defaultfun, s::VisitState{T}, v::AbstractVertex) where T = get(defaultfun, s.noutΔs, v)
