@@ -210,6 +210,8 @@ function Δnout(t::SizeChangeLogger, v::AbstractVertex, Δ::T; s::VisitState{T}=
 end
 
 # Validation
+sizeΔ(Δ::Integer) = Δ
+sizeΔ(Δ::AbstractArray) = length(Δ)
 function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
 
     validvisit = !has_visited_in(s, v)
@@ -217,7 +219,7 @@ function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::V
     if validvisit
         # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
         Δninfactor = minΔninfactor_only_for(base(v))
-        any(Δi -> Δi % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
+        any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
     end
 
     Δnin(base(t), v, Δ..., s=s)
@@ -234,7 +236,7 @@ function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState
     if validvisit
         # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
         Δnoutfactor = minΔnoutfactor_only_for(base(v))
-        Δ % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
+        sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
     end
 
     Δnout(base(t), v, Δ, s=s)
@@ -385,12 +387,15 @@ end
 function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnin(op(v), Δ...)
-
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
     @assert length(Δprop) == 1 "Change must be invariant!"
 
-    propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
+    Δnins = repeat(Δprop, length(inputs(v)))
+
+    Δnin(op(v), Δnins...)
+    Δnout(op(v), Δprop...)
+
+    propagate_nout(v, Δnins...; s=s)
     propagate_nin(v, Δprop...; s=s)
 end
 

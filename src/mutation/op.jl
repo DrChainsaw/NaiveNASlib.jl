@@ -116,6 +116,7 @@ clone(s::InvIndices) = InvIndices(copy(s.inds))
 nin(s::InvIndices) = [nout(s)]
 nout(s::InvIndices) = length(s.inds)
 
+Δnin(s::InvIndices, Δ::Maybe{AbstractArray{<:Integer,1}}...) = Δnin(s::InvIndices, skipmissing(Δ)...)
 function Δnin(s::InvIndices, Δ::AbstractArray{<:Integer,1}...)
     @assert length(Δ) == 1 "Must be single input! Got $Δ"
     Δnout(s, Δ[1])
@@ -144,6 +145,7 @@ clone(s::IoIndices) = IoIndices(deepcopy(s.in), copy(s.out))
 
 nin(s::IoIndices) = length.(s.in)
 nout(s::IoIndices) = length(s.out)
+Δnin(s::IoIndices, Δ::Maybe{AbstractArray{<:Integer,1}}...) = Δnin(s::IoIndices, map(i -> ismissing(Δ[i]) ? s.in[i] : Δ[i], eachindex(Δ))...)
 Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(deepcopy(Δ))
 Δnout(s::IoIndices, Δ::AbstractArray{<:Integer,1}) = s.out = copy(Δ)
 function reset_in!(s::IoIndices)

@@ -2,6 +2,9 @@ using NaiveNASlib
 
 @testset "Mutation testing" begin
 
+    nt(name) = t -> NamedTrait(t, name)
+    tf(name) = t -> nt(name)(SizeChangeValidation(t))
+
     # Testing mock
     mutable struct MatMul
         W::AbstractMatrix
@@ -25,10 +28,12 @@ using NaiveNASlib
         newmat[:, newmap] = mm.W[:, indskeep]
         mm.W = newmat
     end
+    NaiveNASlib.minΔninfactor(::MatMul) = 1
+    NaiveNASlib.minΔnoutfactor(::MatMul) = 1
 
-    function mcv(nin, nout, in)
+    function mcv(nin, nout, in, name="mcv")
         mm = MatMul(nin, nout)
-        return AbsorbVertex(CompVertex(mm, in), IoIndices(nin, nout)), mm
+        return AbsorbVertex(CompVertex(mm, in), IoIndices(nin, nout), tf(name)), mm
     end
 
     @testset "AbsorbVertex mutation" begin
@@ -61,7 +66,7 @@ using NaiveNASlib
 
         mmv1, mm1 = mcv(2, 3, NaiveNASlib.OutputsVertex(InputVertex(1)))
         mmv2, mm2 = mcv(3, 4, NaiveNASlib.OutputsVertex(InputVertex(2)))
-        join = StackingVertex(CompVertex(hcat, mmv1, mmv2))
+        join = StackingVertex(CompVertex(hcat, mmv1, mmv2), tf("join"))
         mmv3, mm3 = mcv(7, 3, join)
 
         Δnout(join, Integer[1,3,5,7])
@@ -103,10 +108,10 @@ using NaiveNASlib
     @testset "InvariantVertex mutation" begin
 
         addsize = 7
-        mmv1, mm1 = mcv(2, addsize, NaiveNASlib.OutputsVertex(InputVertex(1)))
-        mmv2, mm2 = mcv(3, addsize, NaiveNASlib.OutputsVertex(InputVertex(2)))
-        add = InvariantVertex(CompVertex(+, mmv1, mmv2))
-        mmv3, mm3 = mcv(addsize, 3, add)
+        mmv1, mm1 = mcv(2, addsize, NaiveNASlib.OutputsVertex(InputVertex(1)), "mmv1")
+        mmv2, mm2 = mcv(3, addsize, NaiveNASlib.OutputsVertex(InputVertex(2)), "mmv2")
+        add = InvariantVertex(CompVertex(+, mmv1, mmv2), IoIndices(addsize, addsize), tf("add"))
+        mmv3, mm3 = mcv(addsize, 3, add, "mmv3")
 
         Δnout(add, Integer[1,3,5,7])
         apply_mutation.((mmv1, mmv2, mmv3))
@@ -149,7 +154,7 @@ using NaiveNASlib
         invsize = 3
         iv, mmi = mcv(2, invsize, NaiveNASlib.OutputsVertex(InputVertex(1)))
         mminv = MatMul(invsize, invsize)
-        inv = InvariantVertex(CompVertex(mminv, iv), InvIndices(invsize))
+        inv = InvariantVertex(CompVertex(mminv, iv), InvIndices(invsize), tf("inv"))
 
         Δnout(inv, [1, 3])
         apply_mutation.((inv, iv))
@@ -171,11 +176,13 @@ using NaiveNASlib
         end
         NaiveNASlib.mutate_inputs(p::SizeProbe, newsize...) = p.nin = newsize[1]
         NaiveNASlib.mutate_outputs(p::SizeProbe, newsize) = p.nout = newsize
+        NaiveNASlib.minΔninfactor(::SizeProbe) = 1
+        NaiveNASlib.minΔnoutfactor(::SizeProbe) = 1
 
         @testset "IoSize" begin
             p = SizeProbe(3,5)
-            in = AbsorbVertex(CompVertex(identity, NaiveNASlib.OutputsVertex(InputVertex(1))), IoSize(1, 3))
-            v = AbsorbVertex(CompVertex(p, in), IoSize(p.nin, p.nout))
+            in = AbsorbVertex(CompVertex(identity, NaiveNASlib.OutputsVertex(InputVertex(1))), IoSize(1, 3), tf("in"))
+            v = AbsorbVertex(CompVertex(p, in), IoSize(p.nin, p.nout), tf("v"))
 
             Δnin(v, -1)
             apply_mutation(v)
@@ -190,8 +197,8 @@ using NaiveNASlib
 
         @testset "InvSize" begin
             p = SizeProbe(5,5)
-            in = AbsorbVertex(CompVertex(identity, NaiveNASlib.OutputsVertex(InputVertex(1))), IoSize(1, 5))
-            v = AbsorbVertex(CompVertex(p, in), InvSize(p.nin))
+            in = AbsorbVertex(CompVertex(identity, NaiveNASlib.OutputsVertex(InputVertex(1))), IoSize(1, 5), tf("in"))
+            v = AbsorbVertex(CompVertex(p, in), InvSize(p.nin), tf("v"))
 
             Δnin(v, -1)
             apply_mutation(v)
@@ -209,13 +216,13 @@ using NaiveNASlib
     @testset "Mutate tricky structures" begin
 
         ## Helper functions
-        rb(start, residual) = InvariantVertex(CompVertex(+, residual, start))
-        merge(paths...) = StackingVertex(CompVertex(hcat, paths...))
-        function stack(start, nouts...)
+        rb(start, residual, name="add") = InvariantVertex(CompVertex(+, residual, start), tf(name))
+        merge(paths...;name="merge") = StackingVertex(CompVertex(hcat, paths...), tf(name))
+        function stack(start, nouts...; name="stack")
             next = start
             mm = missing
             for i in 1:length(nouts)
-                next, mm = mcv(nout(next), nouts[i], next)
+                next, mm = mcv(nout(next), nouts[i], next, name * "_$i")
             end
             return next, mm
         end
