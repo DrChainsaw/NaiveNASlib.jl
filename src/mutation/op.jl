@@ -13,7 +13,7 @@ function reset!(s::MutationOp) end
     nin(m::MutationState)
     nin(v::AbstractMutationVertex)
 
-Returns the size of the input data to the vertex
+Return the size of the input data to the vertex
 
 Computation may fail if input does not have size nin.
 """
@@ -23,13 +23,13 @@ function nin end
     nout(m::MutationState)
     nout(v::AbstractMutationVertex)
 
-Returns the size of the output data from the vertex.
+Return the size of the output data from the vertex.
 """
 function nout end
 
 
 """
-    Δnin(v::MutationOp, Δ)
+    Δnin(o::MutationOp, Δ)
     Δnin(v::AbstractMutationVertex, Δ)
 
 Change input size by Δ. New size is nin + Δ
@@ -40,7 +40,7 @@ depending on vertex type
 function Δnin end
 
 """
-    Δnout(v::MutationOp, Δ)
+    Δnout(o::MutationOp, Δ)
     Δnout(v::AbstractMutationVertex, Δ)
 
 Change output size by Δ. New size is nout + Δ
@@ -49,6 +49,20 @@ Might propagate to other vertices when performed on an AbstractMutationVertex
 depending on vertex type
 """
 function Δnout end
+
+"""
+    in_inds(m::MutationState)
+
+Return selected input indices.
+"""
+function in_inds end
+
+"""
+    out_inds(m::MutationState)
+
+Return selected output indices.
+"""
+function out_inds end
 
 """
     NoOp
@@ -70,6 +84,8 @@ clone(s::InvSize) = InvSize(s.size)
 
 nin(s::InvSize) = [s.size]
 nout(s::InvSize) = s.size
+in_inds(s::InvSize) = [out_inds(s)]
+out_inds(s::InvSize) = 1:s.size
 function Δnin(s::InvSize, Δ::Integer...)
     @assert length(Δ) == 1 "Must be single input! Got $Δ"
     Δnout(s, Δ[1])
@@ -89,6 +105,10 @@ clone(s::IoSize) = IoSize(copy(nin(s)), nout(s))
 
 nin(s::IoSize) = s.nin
 nout(s::IoSize) = s.nout
+
+in_inds(s::IoSize) = [1:insize for insize in s.nin]
+out_inds(s::IoSize) = 1:s.nout
+
 Maybe{T} = Union{T, Missing}
 Δnin(s::IoSize, Δ::Maybe{Integer}...) = s.nin .+= replace(collect(Δ), missing => 0)
 Δnout(s::IoSize, Δ::Integer) = s.nout += Δ
@@ -115,6 +135,9 @@ clone(s::InvIndices) = InvIndices(copy(s.inds))
 
 nin(s::InvIndices) = [nout(s)]
 nout(s::InvIndices) = length(s.inds)
+
+in_inds(s::InvIndices) = [out_inds(s)]
+out_inds(s::InvIndices) = s.inds
 
 Δnin(s::InvIndices, Δ::Maybe{AbstractArray{<:Integer,1}}...) = Δnin(s::InvIndices, skipmissing(Δ)...)
 function Δnin(s::InvIndices, Δ::AbstractArray{<:Integer,1}...)
@@ -145,6 +168,10 @@ clone(s::IoIndices) = IoIndices(deepcopy(s.in), copy(s.out))
 
 nin(s::IoIndices) = length.(s.in)
 nout(s::IoIndices) = length(s.out)
+
+in_inds(s::IoIndices) = s.in
+out_inds(s::IoIndices) = s.out
+
 Δnin(s::IoIndices, Δ::Maybe{AbstractArray{<:Integer,1}}...) = Δnin(s::IoIndices, map(i -> ismissing(Δ[i]) ? s.in[i] : Δ[i], eachindex(Δ))...)
 Δnin(s::IoIndices, Δ::AbstractArray{<:Integer,1}...) = s.in = collect(deepcopy(Δ))
 Δnout(s::IoIndices, Δ::AbstractArray{<:Integer,1}) = s.out = copy(Δ)
@@ -155,4 +182,70 @@ function reset_in!(s::IoIndices)
 end
 function reset_out!(s::IoIndices)
     s.out[1:end] = 1:length(s.out)
+end
+
+"""
+    IoChange
+
+Size for input and output of a computation stored as a change towards an original size.
+
+Also maintains indices separately.
+
+Useful for tracking change through several mutations before making a selection of which parameters to keep.
+"""
+mutable struct IoChange <: MutationState
+    size::MutationState
+    indices::MutationState
+    inΔ::AbstractVector{<:Integer}
+    outΔ::Integer
+end
+
+IoChange(insize, outsize) =  IoChange(IoSize(insize, outsize), IoIndices(insize, outsize))
+function IoChange(size::MutationState, inds::MutationState)
+    nin(size) == nin(inds) || error("Insizes differ: $(nin(size)) vs $(nin(inds))")
+    nout(size) == nout(inds) || error("Outsizes differ: $(nout(size)) vs $(nout(inds))")
+    IoChange(size, inds, zeros(eltype(nin(size)), length(nin(size))), 0)
+end
+clone(s::IoChange) = IoChange(clone(s.size), clone(s.indices), copy(s.inΔ), s.outΔ)
+
+nin(s::IoChange) = nin_org(s) .+ s.inΔ
+nout(s::IoChange) = nout(s.size) + s.outΔ
+
+in_inds(s::IoChange) = trunc_or_pad.(in_inds(s.indices), nin(s))
+out_inds(s::IoChange) = trunc_or_pad(out_inds(s.indices), nout(s))
+
+nin_org(s::IoChange) = nin(s.size)
+nout_org(s::IoChange) = nout(s.size)
+
+function trunc_or_pad(vec, size)
+    res = -ones(eltype(vec), size)
+    inds = 1:min(size, length(vec))
+    res[inds] = vec[inds]
+    return res
+end
+
+Δnin(s::IoChange, Δ::Maybe{Integer}...) = s.inΔ .+= replace(collect(Δ), missing => 0)
+Δnout(s::IoChange, Δ::Integer) = s.outΔ += Δ
+function Δnin(s::IoChange, Δ::Maybe{AbstractArray{<:Integer,1}}...)
+    Δnin(s.indices, Δ...)
+    s.inΔ[1:end] .= nin(s.indices) - nin(s.size)
+end
+
+function Δnout(s::IoChange, Δ::AbstractArray{<:Integer,1})
+    Δnout(s.indices, Δ)
+    s.outΔ = nout(s.indices) - nout(s.size)
+end
+
+function reset_in!(s::IoChange)
+    Δnin(s.size, s.inΔ...)
+    s.inΔ[1:end] .= 0
+    reset_in!(s.size)
+    reset_in!(s.indices)
+end
+
+function reset_out!(s::IoChange)
+    Δnout(s.size, s.outΔ)
+    s.outΔ = 0
+    reset_out!(s.size)
+    reset_out!(s.indices)
 end

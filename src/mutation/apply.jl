@@ -34,7 +34,8 @@ apply_mutation(g::CompGraph) = apply_mutation.(unique(mapfoldl(flatten, vcat, g.
 # until we hit the computation to mutate, then someone else will do the actual work
 mutate_inputs(v::CompVertex, inputs...) = mutate_inputs(v.computation, inputs...)
 mutate_inputs(v::AbstractVertex, inputs...) = mutate_inputs(base(v), inputs...)
-mutate_inputs(v::AbstractVertex, s::IoIndices) = mutate_inputs(v, s.in...)
+mutate_inputs(v::AbstractVertex, s::IoChange) = mutate_inputs(v, in_inds(s)...)
+mutate_inputs(v::AbstractVertex, s::IoIndices) = mutate_inputs(v, in_inds(s)...)
 mutate_inputs(v::AbstractVertex, s::IoSize) = mutate_inputs(v, nin(s)...)
 function mutate_inputs(v::AbstractVertex, s::InvIndices)
     mutate_inputs(v, s.inds)
@@ -58,7 +59,8 @@ function mutate_inputs(v::AbstractVertex, s::NoOp) end
 # Output mutations. Also just traversal of the vertex composition hierachy.
 mutate_outputs(v::CompVertex, outputs) = mutate_outputs(v.computation, outputs)
 mutate_outputs(v::AbstractVertex, outputs) =mutate_outputs(base(v), outputs)
-mutate_outputs(v::AbstractVertex, s::IoIndices) = mutate_outputs(v, s.out)
+mutate_outputs(v::AbstractVertex, s::IoChange) = mutate_outputs(v, out_inds(s))
+mutate_outputs(v::AbstractVertex, s::IoIndices) = mutate_outputs(v, out_inds(s))
 mutate_outputs(v::AbstractVertex, s::IoSize) = mutate_outputs(v, nout(s))
 function mutate_outputs(v::AbstractVertex, s::InvIndices)
     mutate_outputs(v, s.inds)

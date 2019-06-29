@@ -6,9 +6,8 @@ using Test
 
     @testset "Method contracts" begin
         for subtype in implementations(AbstractVertex)
-            @info "\ttest method contracts for $subtype"
-            @test hasmethod(inputs, (subtype,))
-            @test hasmethod(clone, (subtype, Vararg{AbstractVertex}))
+            @test hasmethod_or_error(inputs, (subtype,))
+            @test hasmethod_or_error(clone, (subtype, Vararg{AbstractVertex}))
         end
     end
 
