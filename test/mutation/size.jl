@@ -2,10 +2,12 @@
 @testset "Size mutations" begin
 
     inpt(size, id=1) = InputSizeVertex(id, size)
+    nt(name) = t -> NamedTrait(t, name)
+    tf(name) = t -> nt(name)(SizeChangeValidation(t))
 
     @testset "AbsorbVertex" begin
         iv = AbsorbVertex(InputVertex(1), InvSize(2))
-        v1 = AbsorbVertex(CompVertex(x -> 3 .* x, iv), IoSize(2, 3))
+        v1 = AbsorbVertex(CompVertex(x -> 3 .* x, iv), IoSize(2, 3), tf("v1"))
 
         @test nin(v1) == [2]
         @test nout(v1) == 3
@@ -22,7 +24,7 @@
         @test nout(v1) == 1
 
         # Add one vertex and see that change propagates
-        v2 = AbsorbVertex(CompVertex(x -> 3 .+ x, v1), IoSize(1, 4)) # Note: Size after change above
+        v2 = AbsorbVertex(CompVertex(x -> 3 .+ x, v1), IoSize(1, 4), tf("v2")) # Note: Size after change above
         @test nout(v1) == nin(v2)[1]
         @test outputs(v1) == [v2]
         @test inputs(v2) == [v1]
@@ -34,7 +36,7 @@
         @test nout(v1) == nin(v2)[1] == 3
 
         # Fork of v1 into a new vertex
-        v3 = AbsorbVertex(CompVertex(identity, v1), IoSize(3, 2))
+        v3 = AbsorbVertex(CompVertex(identity, v1), IoSize(3, 2), tf("v3"))
         @test outputs(v1) == [v2, v3]
         @test inputs(v3) == inputs(v2) == [v1]
 
@@ -71,16 +73,16 @@
             @test outputs(iv) == [tv]
 
             Δnout(iv, 3)
-            @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 5
+            @test [nout(iv)] == nin(tv) == [nout(tv)] == nin(io) == [5]
 
             Δnin(io, -2)
-            @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
+            @test [nout(iv)] == nin(tv) == [nout(tv)] == nin(io) == [3]
 
             Δnin(tv, +1)
-            @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 4
+            @test [nout(iv)] == nin(tv) == [nout(tv)] == nin(io) == [4]
 
             Δnout(tv, -1)
-            @test nout(iv) == nin(tv)[1] == nout(tv) == nin(io) == 3
+            @test [nout(iv)] == nin(tv) == [nout(tv)] == nin(io) == [3]
 
             ivc = clone(iv, inpt(2))
             tvc = clone(tv, ivc)
@@ -93,51 +95,51 @@
 
         @testset "StackingVertex 2 inputs" begin
             # Try with two inputs to StackingVertex
-            iv1 = AbsorbVertex(CompVertex(identity, inpt(2)), InvSize(2))
-            iv2 = AbsorbVertex(CompVertex(identity, inpt(3,2)), InvSize(3))
-            tv = StackingVertex(CompVertex(hcat, iv1, iv2))
-            io1 = AbsorbVertex(CompVertex(identity, tv), InvSize(5))
+            iv1 = AbsorbVertex(CompVertex(identity, inpt(2)), InvSize(2), tf("iv1"))
+            iv2 = AbsorbVertex(CompVertex(identity, inpt(3,2)), InvSize(3), tf("iv2"))
+            tv = StackingVertex(CompVertex(hcat, iv1, iv2), tf("tv"))
+            io1 = AbsorbVertex(CompVertex(identity, tv), InvSize(5), tf("io1"))
 
             @test inputs(tv) == [iv1, iv2]
             @test outputs.(inputs(tv)) == [[tv], [tv]]
             @test outputs(iv1) == [tv]
             @test outputs(iv2) == [tv]
 
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == 5
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == [5]
 
             Δnout(iv2, -2)
-            @test nin(io1) == nout(tv) == sum(nin(tv)) == nout(iv1) + nout(iv2)  ==  3
+            @test nin(io1) == [nout(tv)] == [sum(nin(tv))] == [nout(iv1) + nout(iv2)]  ==  [3]
 
             Δnin(io1, 3)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == 6
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == [6]
 
             Δnout(iv1, 4)
             Δnin(io1, -8)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == 2
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == [2]
             @test nout(iv1) == nout(iv2) == 1
 
             #Add another output
-            io2 = AbsorbVertex(CompVertex(identity, tv), InvSize(2))
+            io2 = AbsorbVertex(CompVertex(identity, tv), InvSize(2), tf("io2"))
 
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 2
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [2]
 
             Δnout(iv1, 3)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 5
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [5]
 
             Δnin(io2, -2)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 3
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [3]
 
             Δnin(io1, 3)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [6]
 
             Δnin(tv, -1, missing)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 5
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [5]
 
             Δnin(tv, missing, 2)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 7
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [7]
 
             Δnout(tv, -1)
-            @test nout(iv1) + nout(iv2) == sum(nin(tv)) == nout(tv) == nin(io1) == nin(io2) == 6
+            @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == nin(io2) == [6]
 
             iv1c = clone(iv1, inpt(2))
             iv2c = clone(iv2, inpt(3,2))
@@ -166,10 +168,10 @@
             @test outputs(iv) == [inv]
 
             Δnout(iv, 3)
-            @test nout(iv) == nin(inv)[1] == nout(inv) == nin(io) == 5
+            @test [nout(iv)] == nin(inv) == [nout(inv)] == nin(io) == [5]
 
             Δnin(io, -2)
-            @test nout(iv) == nin(inv)[1] == nout(inv) == nin(io) == 3
+            @test [nout(iv)] == nin(inv) == [nout(inv)] == nin(io) == [3]
 
             ivc = clone(iv)
             invc = clone(inv, ivc)
@@ -193,27 +195,27 @@
             @test outputs(iv1) == [inv]
             @test outputs(iv2) == [inv]
 
-            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == 3
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1)[] == 3
 
             Δnout(iv2, -2)
-            @test nin(io1) == nout(inv) == nin(inv)[1] == nin(inv)[2]  == nout(iv1) == nout(iv2)  ==  1
+            @test nin(io1)[] == nout(inv) == nin(inv)[1] == nin(inv)[2]  == nout(iv1) == nout(iv2)  ==  1
 
             Δnin(io1, 3)
-            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == 4
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1)[] == 4
 
             #Add another output
             io2 = AbsorbVertex(CompVertex(identity, inv), InvSize(4))
 
-            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 4
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1)[] == nin(io2)[] == 4
 
             Δnout(iv1, -3)
-            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 1
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1)[] == nin(io2)[] == 1
 
             Δnin(io2, 2)
-            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 3
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1)[] == nin(io2)[] == 3
 
             Δnout(iv2, 3)
-            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1) == nin(io2) == 6
+            @test nout(iv1) == nout(iv2) == nin(inv)[1] == nin(inv)[2] == nout(inv) == nin(io1)[] == nin(io2)[] == 6
 
             iv1c = clone(iv1)
             iv2c = clone(iv2)
@@ -234,11 +236,10 @@
     @testset "Mutate tricky structures" begin
 
         ## Helper functions
-        nt(name) = t -> NamedTrait(t, name)
-        rb(start, residual,name="add") = InvariantVertex(CompVertex(+, residual, start), nt(name))
-        conc(paths...;name="conc") = StackingVertex(CompVertex(hcat, paths...), nt(name))
+        rb(start, residual,name="add") = InvariantVertex(CompVertex(+, residual, start), tf(name))
+        conc(paths...;name="conc") = StackingVertex(CompVertex(hcat, paths...), tf(name))
         mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
-        av(op, state, in...;name="comp") = AbsorbVertex(CompVertex(op, in...), state, nt(name))
+        av(op, state, in...;name="comp") = AbsorbVertex(CompVertex(op, in...), state, tf(name))
         function stack(start, nouts...; bname = "stack")
             # Can be done on one line with mapfoldl, but it is not pretty...
             next = start
@@ -318,7 +319,7 @@
             split = av(mm(8,4), IoSize(8,4), start, name="split")
             p1 = conc(split, name="p1")
             p2 = conc(split, name="p2")
-            resout = rb(start, conc(p1, p2))
+            resout = rb(start, conc(p1, p2, name="join"))
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
@@ -345,8 +346,8 @@
             split = av(mm(8,3), IoSize(8,3), start, name="split")
             p1 = conc(split, name="p1")
             p2 = conc(split, name="p2")
-            p3 = av(mm(3, 2), IoSize(3,2), split)
-            resout = rb(start, conc(p1, p2, p3))
+            p3 = av(mm(3, 2), IoSize(3,2), split, name="p3")
+            resout = rb(start, conc(p1, p2, p3, name="join"), "add")
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
@@ -368,6 +369,34 @@
             @test nout(split) == 2
             @test nout(p3) == 2
         end
+
+        @testset "StackingVertex maze" begin
+            av(size, in, name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(vcat(nout(in)), size), tf(name))
+            sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), tf(name))
+
+            v1 = inpt(3, "in")
+            v2 = av(3, v1, "v2")
+            v3 = av(5, v1, "v3")
+            v4 = av(7, v1, "v4")
+            v5 = av(11, v1, "v5")
+            v6 = av(13, v1, "v6")
+
+            sv1 = sv(v2, v3, v4, name="sv1")
+            sv2 = sv(v5, v3, v4, name="sv2")
+            sv3 = sv(sv1, sv2, v6, name="sv3")
+
+            o1 = av(2, sv1, "o1")
+            o2 = av(2, sv2, "o2")
+            o3 = av(2, sv3, "o3")
+
+            # Evil action! Must have understanding that change will propagate to sv1 from
+            # both v2 and v3 and hold off updating sv1 when the first of them (v1 in this case) is updated. Must also hold off updating sv3 for the same reasons
+            Δnout(sv2, -6)
+            @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 5]
+            @test nin(sv2) == nout.(inputs(sv2)) == [8, 4, 5]
+            @test nin(sv3) == nout.(inputs(sv3)) == [12, 17, 13]
+
+        end
     end
 
     @testset "Size Mutation possibilities" begin
@@ -376,9 +405,9 @@
         struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
-        av(size, csize, in...;name = "av") = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(vcat(nout.(in)...), size), t -> NamedTrait(t, name))
-        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
-        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
+        av(size, csize, in...;name = "av") = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(vcat(nout.(in)...), size), tf(name))
+        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), tf(name))
+        iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), tf(name))
 
         @testset "InputSizeVertex" begin
             @test ismissing(minΔnoutfactor(inpt(3)))
@@ -423,27 +452,27 @@
             v2 = av(7,2, inpt(3), name="v2")
             v3 = av(8,2, inpt(3), name="v3")
 
-            sv1 = sv(v1, v2)
-            sv2 = sv(v3, v2, v1, v2)
+            sv1 = sv(v1, v2, name="sv1")
+            sv2 = sv(v3, v2, v1, v2, name="sv2")
             @test minΔnoutfactor(sv1) == 6
             @test minΔnoutfactor(sv2) == 12
 
             # Expect only v1 to change as size change is not compatible with v2
             Δnout(sv1, -3)
-            @test nout(v1) == 3
-            @test nout(v2) == 7
+            @test nin(sv1) == [nout(v1), nout(v2)] == [3, 7]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [8, 7, 3, 7]
 
             # v1 can't change as it is too small already
             # v3 makes a larger change as it is larger than v1
             Δnout(sv2, -6)
-            @test nout(v1) == 3
-            @test nout(v2) == 7
-            @test nout(v3) == 2
+            @test nin(sv1) == [nout(v1), nout(v2)] == [3, 7]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [2, 7, 3, 7]
 
+            # Evil action! Must have understanding that change will propagate to sv1 from
+            # both v1 and v2 and hold off updating sv1 when the first of them (v1 in this case) is updated
             Δnout(sv2, +9)
-            @test nout(v1) == 6
-            @test nout(v2) == 9
-            @test nout(v3) == 4
+            @test nin(sv1) == [nout(v1), nout(v2)] == [6, 9]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [4, 9, 6, 9]
         end
 
         @testset "Stacked StackingVertices" begin
@@ -467,7 +496,7 @@
             @test nout(sv2) == nout(sv1) + nout(v1) == 263
             @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
 
-            v5 = av(10, 3, sv3)
+            v5 = av(10, 3, sv3, name="v5")
             @test minΔnoutfactor(sv1) == minΔninfactor(sv1) == 6
             @test minΔnoutfactor(sv2) == minΔninfactor(sv2)== 6
             @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60
@@ -483,14 +512,14 @@
 
             # Evil action! Must have understanding that the change in v2 will propagate
             # to sv3 input 1 through sv1 and sv2 and hold off updating it through input 3
-            Δnout(v2, -13)
+            Δnout(v2, -12)
             @test nout(v1) == 89
-            @test nout(v2) == 79
+            @test nout(v2) == 80
             @test nout(v3) == 85
             @test nout(v4) == 85
-            @test nout(sv1) == nout(v2) + nout(v3) == 164
-            @test nout(sv2) == nout(sv1) + nout(v1) == 253
-            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [417]
+            @test nout(sv1) == nout(v2) + nout(v3) == 165
+            @test nout(sv2) == nout(sv1) + nout(v1) == 254
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [419]
 
         end
         @testset "Stacked InvariantVertex" begin
@@ -501,7 +530,7 @@
 
             iv1 = iv(v2,v3, name="iv1")
             iv2 = iv(iv1, v1, name="iv2")
-            iv3 = iv(iv2, v4, v2, name="iv2")
+            iv3 = iv(iv2, v4, v2, name="iv3")
 
             # Everything thouches everything in this setup
             @test minΔnoutfactor(iv1) == minΔninfactor(iv1) == 1*2*3*5
@@ -512,7 +541,7 @@
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
             @test nout(iv1) == nout(iv2) == nout(iv3) == 70
 
-            v5 = av(10, 3, iv3)
+            v5 = av(10, 3, iv3, name="v5")
 
             Δnout(v1, 3)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 73
@@ -550,6 +579,57 @@
             # Evilness: Infinite recursion without memoization
             @test minΔnoutfactor(v4) == 2*3*5*7
         end
+
+        @testset "Fail invalid size change" begin
+            v1 = av(100,3, inpt(3), name="v1")
+            v2 = av(100,2, v1, name="v2")
+
+            @test_throws ArgumentError Δnout(v1, 2)
+            @test_throws ArgumentError Δnout(v1, 3)
+            @test_throws ArgumentError Δnin(v2, 3)
+            @test_throws ArgumentError Δnin(v2, 2)
+        end
+
+    end
+
+    @testset "SizeChangeLogger" begin
+        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+
+        av(in, size ;name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), size), traitfun(name))
+        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), traitfun(name))
+        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), traitfun(name))
+
+        @testset "Log size change" begin
+                v1 = inpt(3, "v1")
+                v2 = av(v1, 10, name="v2")
+                v3 = av(v2, 4, name="v3")
+
+                @test_logs (:info, "Change nin of v3 by (3,)") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
+
+                @test_logs (:info, "Change nout of v2 by -4") (:info, "Change nin of v3 by (-4,)") Δnout(v2, -4)
+        end
+    end
+
+    @testset "SizeChangeValidation" begin
+
+        # Mock for creating invalid size changes
+        struct Ignore <: MutationSizeTrait end
+        NaiveNASlib.Δnin(::Ignore, v, Δ::Union{Missing, T}...; s) where T = Δnout.(inputs(v), Δ, s=s)
+        NaiveNASlib.Δnout(::Ignore, v, Δ::T; s) where T = Δnin.(outputs(v), Δ, s=s)
+        NaiveNASlib.Δnout_touches_nin(::Ignore, v, s) = NaiveNASlib.Δnout_touches_nin(SizeAbsorb(), v, s)
+        NaiveNASlib.Δnout_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnout_touches_nin(SizeAbsorb(), v, from, s)
+        NaiveNASlib.Δnin_touches_nin(::Ignore, v, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, s)
+        NaiveNASlib.Δnin_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, from, s)
+
+        v1 = inpt(3, "v1")
+        v2 = MutationVertex(CompVertex(identity, v1), IoSize(3, 5), Ignore()) # Note, does not catch size errors
+        v3 = AbsorbVertex(CompVertex(identity, v2), IoSize(5,7), tf("v3"))
+        v4 = MutationVertex(CompVertex(identity, v3), IoSize(3, 5), Ignore())
+
+        @test_throws ArgumentError Δnout(v2, 2)
+        @test_throws ArgumentError Δnin(v3, -3)
+        @test_throws ArgumentError Δnin(v4, 5)
+        @test_throws ArgumentError Δnout(v3, -7)
     end
 
 end

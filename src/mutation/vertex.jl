@@ -25,14 +25,6 @@ base(v::OutputsVertex) = v.base
 inputs(v::OutputsVertex) = inputs(base(v))
 outputs(v::OutputsVertex) = v.outs
 
-show_less(io::IO, v::OutputsVertex) = show_less(io, base(v))
-
-function show(io::IO, v::OutputsVertex)
-     show(io, base(v))
-     print(io, ", outputs=")
-     show(io, outputs(v))
- end
-
 """
     InputSizeVertex
 
@@ -60,10 +52,6 @@ base(v::InputSizeVertex)::AbstractVertex = v.base
 inputs(v::InputSizeVertex) = inputs(base(v))
 outputs(v::InputSizeVertex) = outputs(base(v))
 
-show_less(io::IO, v::InputSizeVertex) = show_less(io, base(v))
-
-
-
 """
     MutationTrait
 
@@ -72,6 +60,12 @@ Base type for traits relevant when mutating.
 abstract type MutationTrait end
 # For convenience as 99% of all traits are immutable. Don't forget to implement for stateful traits or else there will be pain!
 clone(t::MutationTrait) = t
+
+"""
+    MutationSizeTrait
+Base type for mutation traits relevant to size
+"""
+abstract type MutationSizeTrait <: MutationTrait end
 
 """
     Immutable
@@ -88,6 +82,21 @@ struct NamedTrait <: DecoratingTrait
     name
 end
 base(t::NamedTrait) = t.base
+
+struct SizeChangeLogger <: DecoratingTrait
+    level::LogLevel
+    infostr::InfoStr
+    base::MutationTrait
+end
+SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
+SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Base.CoreLogging.Info, infostr, base)
+base(t::SizeChangeLogger) = t.base
+infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
+
+struct SizeChangeValidation <: DecoratingTrait
+    base::MutationTrait
+end
+base(t::SizeChangeValidation) = t.base
 
 """
     MutationVertex
@@ -135,7 +144,56 @@ trait(v::MutationVertex) = v.trait
 inputs(v::MutationVertex)  = inputs(base(v))
 outputs(v::MutationVertex) = outputs(base(v))
 
-show_less(io::IO, v::MutationVertex) = show_less(io, trait(v), v)
-show_less(io::IO, ::MutationTrait, v::MutationVertex) = summary(io, v)
-show_less(io::IO, t::NamedTrait, v::MutationVertex) = print(io, t.name)
-show_less(io::IO, t::DecoratingTrait, v::MutationVertex) = show_less(io, base(t), v)
+# Stuff for displaying information about vertices
+
+show_less(io::IO, v::InputSizeVertex) = show_less(io, base(v))
+show_less(io::IO, v::MutationVertex) = print(io, name(v))
+show_less(io::IO, v::OutputsVertex) = show_less(io, base(v))
+
+function show(io::IO, v::OutputsVertex)
+     show(io, base(v))
+     print(io, ", outputs=")
+     show(io, outputs(v))
+ end
+
+# Stuff for logging
+
+name(v::InputSizeVertex) = name(base(v))
+name(v::OutputsVertex) = name(base(v))
+name(v::MutationVertex) = name(trait(v), v)
+name(t::MutationTrait, v) = summary(v) * "::" * summary(t)
+name(t::NamedTrait, v) = t.name
+name(t::DecoratingTrait, v) = name(base(t), v)
+
+struct MutationTraitInfoStr <: InfoStr  end
+struct MutationSizeTraitInfoStr <: InfoStr  end
+struct NinInfoStr <: InfoStr  end
+struct NoutInfoStr <: InfoStr  end
+SizeInfoStr() = ComposedInfoStr(PrefixedInfoStr("nin=", BracketInfoStr(NinInfoStr())), PrefixedInfoStr("nout=", BracketInfoStr(NoutInfoStr())))
+
+struct OutputsInfoStr <: InfoStr
+    infostr::InfoStr
+end
+OutputsInfoStr() =BracketInfoStr(OutputsInfoStr(NameInfoStr()))
+
+NameAndIOInfoStr() = push!(NameAndInputsInfoStr(), PrefixedInfoStr("outputs=", OutputsInfoStr()))
+
+FullInfoStr() = push!(NameAndIOInfoStr(), SizeInfoStr(), MutationSizeTraitInfoStr())
+
+infostr(::NinInfoStr, v::AbstractVertex) = "unknown"
+infostr(::NoutInfoStr, v::AbstractVertex) = "unknown"
+infostr(::OutputsInfoStr, v::AbstractVertex) = "unknown"
+
+infostr(i::MutationTraitInfoStr, v::AbstractVertex) = infostr(i, trait(v))
+infostr(::MutationTraitInfoStr, t::MutationTrait) = replace(string(t), "\"" => "")
+infostr(i::MutationSizeTraitInfoStr, v::AbstractVertex) = infostr(i, trait(v))
+infostr(i::MutationSizeTraitInfoStr, t::DecoratingTrait) = infostr(i, base(t))
+infostr(::MutationSizeTraitInfoStr, t::MutationSizeTrait) = string(t)
+infostr(::MutationSizeTraitInfoStr, t::Immutable) = string(t)
+infostr(::NinInfoStr, v::MutationVertex) = join(string.(nin(v)), ", ")
+infostr(::NinInfoStr, v::InputSizeVertex) = "N/A"
+infostr(::NoutInfoStr, v::MutationVertex) = string(nout(v))
+infostr(::NoutInfoStr, v::InputSizeVertex) = string(nout(v))
+infostr(i::OutputsInfoStr, v::InputSizeVertex) = infostr(i, base(v))
+infostr(i::OutputsInfoStr, v::MutationVertex) = infostr(i, base(v))
+infostr(i::OutputsInfoStr, v::OutputsVertex) = join(infostr.(i.infostr, outputs(v)), ", ")

@@ -2,8 +2,6 @@ import NaiveNASlib
 import NaiveNASlib:reset_in!, reset_out!, reset!
 import InteractiveUtils:subtypes
 
-using Test
-
 @testset "Vertex mutation operations" begin
 
     expectedtype(t::Type{<:MutationOp}) = Integer
@@ -27,15 +25,15 @@ using Test
 
     @testset "InvSize" begin
         size = InvSize(3)
-        @test nin(size) == 3
+        @test nin(size) == [3]
         @test nout(size) == 3
 
         Δnin(size, 2)
-        @test nin(size) == 5
+        @test nin(size) == [5]
         @test nout(size) == 5
 
         Δnout(size, -3)
-        @test nin(size) == 2
+        @test nin(size) == [2]
         @test nout(size) == 2
 
         @test_throws AssertionError Δnin(size, 1,2)
@@ -62,6 +60,9 @@ using Test
         Δnin(size, 1,-2, 3)
         @test nin(size) == [3, 1 ,7]
 
+        Δnin(size, missing,4, -2)
+        @test nin(size) == [3, 5 ,5]
+
         @test issame(size, clone(size))
     end
 
@@ -87,6 +88,9 @@ using Test
         reset_out!(inds)
         @test inds.out == [1, 2]
 
+        Δnin(inds, missing, [-1, 2, -1])
+        @test inds.in == [[1, 2], [-1,2,-1]]
+
         @test issame(inds, clone(inds))
     end
 
@@ -111,6 +115,9 @@ using Test
 
         reset!(inds)
         @test inds.inds == [1,2,3,4]
+
+        Δnin(inds, missing, [3,5,7])
+        @test inds.inds == [3,5,7]
 
         @test issame(inds, clone(inds))
     end

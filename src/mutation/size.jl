@@ -2,11 +2,6 @@
 
 # Vertex traits w.r.t whether size changes propagates
 """
-    MutationSizeTrait
-Base type for mutation traits relevant to size
-"""
-abstract type MutationSizeTrait <: MutationTrait end
-"""
     SizeTransparent
 Base type for mutation traits which are transparent w.r.t size, i.e size changes propagate both forwards and backwards.
 """
@@ -36,13 +31,18 @@ Memoization struct for traversal.
 
 Remembers visitation for both forward (in) and backward (out) directions.
 """
-struct VisitState{T}
+mutable struct VisitState{T}
     in::Vector{AbstractVertex}
     out::Vector{AbstractVertex}
     ninΔs::OrderedDict{AbstractVertex, Vector{Maybe{<:T}}}
     noutΔs::OrderedDict{AbstractVertex, Maybe{<:T}}
+    change_nin::Dict{AbstractVertex, Vector{Bool}}
 end
-VisitState{T}() where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}())
+VisitState{T}() where T = VisitState{T}(Dict{AbstractVertex, Vector{Bool}}())
+VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), change_nin)
+VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin))
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin)) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
+
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
 visited_in!(s::VisitState, v::AbstractVertex) = push!(s.in, v)
@@ -57,7 +57,6 @@ noutΔs(s::VisitState{T}) where T = s.noutΔs
 getnoutΔ(defaultfun, s::VisitState{T}, v::AbstractVertex) where T = get(defaultfun, s.noutΔs, v)
 setnoutΔ!(Δ::T, s::VisitState{T}, v::AbstractVertex) where T = s.noutΔs[v] = Δ
 function setnoutΔ!(missing, s::VisitState, v::AbstractVertex) end
-
 
 
 #TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
@@ -105,8 +104,6 @@ minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
 minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
 minΔninfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
 minΔninfactor(::SizeTransparent, v::AbstractVertex) = lcmsafe([minΔnoutfactor_only_for(v), minΔninfactor_only_for(v)])
-
-
 
 
 """
@@ -185,14 +182,74 @@ findterminating(::Immutable, v, f::Function) = [v]
 findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
 
 
-Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(trait(v), v, Δ..., s=s)
-Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(trait(v), v, Δ, s=s)
+## Boilerplate
 
+# Dispatch on trait
+Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}(v, Δ...)) where T = Δnin(trait(v), v, Δ..., s=s)
+Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}(v)) where T = Δnout(trait(v), v, Δ, s=s)
+
+# Unwrap DecoratingTrait(s)
 Δnin(t::DecoratingTrait, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(base(t), v, Δ..., s=s)
 Δnout(t::DecoratingTrait, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = Δnout(base(t), v, Δ, s=s)
 
+# Potential failure case: Try to change immutable vertex
 Δnin(::Immutable, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = !has_visited_in(s, v) && any(skipmissing(Δ) .!= 0) && error("Tried to change nin of immutable $v to $Δ")
 Δnout(::Immutable, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T = !has_visited_out(s, v) && Δ != 0 && error("Tried to change nout of immutable $v to $Δ")
+
+# Logging
+function Δnin(t::SizeChangeLogger, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+
+    !has_visited_in(s, v) && @logmsg t.level "Change nin of $(infostr(t, v)) by $Δ"
+    Δnin(base(t), v, Δ..., s=s)
+end
+
+function Δnout(t::SizeChangeLogger, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+
+    !has_visited_out(s, v) && @logmsg t.level "Change nout of $(infostr(t, v)) by $Δ"
+    Δnout(base(t), v, Δ, s=s)
+end
+
+# Validation
+sizeΔ(Δ::Integer) = Δ
+sizeΔ(Δ::AbstractArray) = length(Δ)
+function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+
+    validvisit = !has_visited_in(s, v)
+
+    if validvisit
+        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
+        Δninfactor = minΔninfactor_only_for(base(v))
+        any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
+    end
+
+    Δnin(base(t), v, Δ..., s=s)
+
+    if validvisit
+        nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
+    end
+end
+
+
+function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
+    validvisit = !has_visited_out(s, v) && !(v in keys(noutΔs(s)))
+
+    if validvisit
+        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
+        Δnoutfactor = minΔnoutfactor_only_for(base(v))
+        sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
+    end
+
+    Δnout(base(t), v, Δ, s=s)
+
+    if validvisit
+        nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
+
+        nin_of_outputs == [nout(v)] || throw(ArgumentError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
+    end
+end
+
+
+# Actual operations
 
 function Δnin(::SizeAbsorb, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     invisit(v, s) && return
@@ -218,6 +275,7 @@ function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}
 
     Δnout(op(v), Δo)
     propagate_nin(v, Δo; s=s)
+
 end
 
 function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
@@ -329,13 +387,16 @@ end
 function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
 
-    Δnin(op(v), Δ...)
-
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
     @assert length(Δprop) == 1 "Change must be invariant!"
 
+    Δnins = repeat(Δprop, length(inputs(v)))
+
+    Δnin(op(v), Δnins...)
+    Δnout(op(v), Δprop...)
+
+    propagate_nout(v, Δnins...; s=s)
     propagate_nin(v, Δprop...; s=s)
-    propagate_nout(v, repeat(Δprop, length(inputs(v)))...; s=s)
 end
 
 function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
@@ -374,10 +435,7 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     # do we propagate to vi.
     # If we end up here though another input to vi the context will be populated
     # with the new Δ and eventually we have all the Δs
-    # If not, the "if first" block in the end will propagate anyways, leaving
-    # it up to each vertex implementation to handle the missing value.
-    # See testset "Transparent residual fork block" for a motivation
-    first = isempty(ninΔs(s))
+    # See testset "Transparent residual fork block" and "StackingVertex multi inputs" for a motivation
 
     for vi in outputs(v)
         ins = inputs(vi)
@@ -386,60 +444,17 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
         foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
-        any(ismissing.(Δs)) || Δnin(vi, Δs...; s=s)
-    end
 
-    if first
-        # Ok, we might have partial output and we are not sure if this is correct or not (it mostly is)
-        # Lets see which inputs we are expected to hit from here and hold of propagation
-        # until we have hit them all
-        # See testset "Stacked StackingVertices" for motivation
+        validΔs = .!ismissing.(Δs)
+        expectedΔs = get(() -> trues(length(Δs)), s.change_nin, vi)
 
-        expected_inputs = Dict{AbstractVertex, BitArray}()
-        inputmemo = Dict(outputs(v) .=> [v])
-        pathfinder = function(vn::AbstractVertex)
-            inmap = inputs(vn) .== [inputmemo[vn]]
-            stored_inmap = get!(() -> inmap, expected_inputs, vn)
-            stored_inmap .|= inmap
-            foreach(vo -> inputmemo[vo] = vn, outputs(vn))
-        end
-
-        tracer = function(vn::AbstractVertex)
-            pathfinder(vn)
-            return outputs(vn)
-        end
-        # This actually hurts my brain a bit, not sure why...
-        # Goal is to populte expected_inputs with all vertices which may be hit
-        # by the size change
-        foreach(pathfinder, vcat(findterminating.(outputs(v), tracer)...))
-
-        # Must delete from contexts before further traversal and we don't wanna delete from the collection we're iterating over
-        # New contexts might be added as we traverse though, so after we are done with the current batch we need to check again if there are new contexts, hence the while loop
-        last_keys = Set() # For infinite loop protection
-        while !isempty(ninΔs(s))
-            tmpΔs = copy(ninΔs(s))
-
-            for (vn, Δs) in tmpΔs
-                delete!(ninΔs(s), vn)
-                has_visited_in(s, vn) && continue
-
-                if (vn in keys(expected_inputs)) && .!ismissing.(Δs) < expected_inputs[vn]
-                    # Infinite loop protection
-                    if Set(keys(ninΔs(s))) != last_keys
-                        ninΔs(s)[vn] = Δs
-                        continue
-                    end
-                    @warn "Break out of possibly infinite loop for $vn with Δs = $Δs vs expected $(expected_inputs[vn]) and keys = $(collect(last_keys))"
-                end
-
-                Δnin(vn, Δs..., s=s)
-            end
-            last_keys = Set(keys(ninΔs(s)))
-        end
+        all(validΔs[expectedΔs]) && Δnin(vi, Δs...; s=s)
     end
 end
 
+
 function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+
     setnoutΔ!.(Δ, s, inputs(v))
     for (Δi, vi) in zip(Δ, inputs(v))
         if !ismissing(Δi)
@@ -476,5 +491,79 @@ function pick_values(values::Vector{T}, target::T, objective= x->std(x, correcte
     return pick_values(values, target, 1, zeros(T, length(values)), objective)[1]
 end
 
+
+Δnin_touches_nin(v, s=(touch_nin=Dict{AbstractVertex, Vector{Bool}}(), has_visited=AbstractVertex[])) = Δnin_touches_nin(trait(v), v, s).touch_nin
+Δnin_touches_nin(t::DecoratingTrait, v, s) = Δnin_touches_nin(base(t), v, s)
+Δnin_touches_nin(::SizeAbsorb, v, s) = mapreduce(vi -> Δnout_touches_nin(vi, v, s), (s1,s2) -> s1, inputs(v), init=s)
+function Δnin_touches_nin(::SizeInvariant, v, s)
+    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v))
+    foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
+    return s
+end
+function Δnin_touches_nin(::SizeStack, v, s)
+    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v))
+    foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
+    return s
+end
+
+Δnin_touches_nin(v, from, s) = Δnin_touches_nin(trait(v), v, from, s)
+Δnin_touches_nin(::Immutable, v, from, s) = s
+Δnin_touches_nin(t::DecoratingTrait, v, from, s) = Δnin_touches_nin(base(t), v, from, s)
+function Δnin_touches_nin(::SizeAbsorb, v, from, s)
+    update_state!(s, v, from) && return s
+
+    foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
+    return s
+end
+function Δnin_touches_nin(::SizeInvariant, v, from, s)
+    update_state!(s, v, from) && return s
+
+    foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
+    foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
+    return s
+end
+function Δnin_touches_nin(::SizeStack, v, from, s)
+    update_state!(s, v, from) && return s
+
+    foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
+    return s
+end
+
+
+Δnout_touches_nin(v, s=(touch_nin=Dict{AbstractVertex, Vector{Bool}}(), has_visited=AbstractVertex[])) = Δnout_touches_nin(trait(v), v, s).touch_nin
+
+Δnout_touches_nin(t::DecoratingTrait, v, s) = Δnout_touches_nin(base(t), v, s)
+Δnout_touches_nin(::Immutable, v, s) = s
+Δnout_touches_nin(::SizeAbsorb, v, s) = mapreduce(vo -> Δnin_touches_nin(vo, v, s), (s1,s2) -> s1, outputs(v), init=s)
+Δnout_touches_nin(t::SizeTransparent, v, s) = Δnin_touches_nin(t, v, s)
+
+
+Δnout_touches_nin(v, from, s) = Δnout_touches_nin(trait(v), v, from, s)
+Δnout_touches_nin(t::DecoratingTrait, v, from, s) = Δnout_touches_nin(base(t), v, from, s)
+Δnout_touches_nin(::Immutable, v, from, s) = s
+Δnout_touches_nin(::SizeAbsorb, v, from, s) = mapreduce(vo -> Δnin_touches_nin(vo, v, s), (s1,s2) -> s1,filter(vo -> vo != from, outputs(v)), init=s)
+
+function Δnout_touches_nin(::SizeInvariant, v, from, s)
+    push!(s.has_visited, v)
+    foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
+    foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
+end
+function Δnout_touches_nin(::SizeStack, v, from, s)
+    push!(s.has_visited, v)
+    foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
+    foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
+    return s
+end
+
+
+function update_state!(s, v, from)
+    v in s.has_visited && return true
+
+    inmap = inputs(v) .== from
+    notnew = v in keys(s.touch_nin) && all(s.touch_nin[v][inmap])
+    stored_inmap = get!(() -> inmap, s.touch_nin, v)
+    stored_inmap .|= inmap
+    return notnew
+end
 
 ## Generic helper methods end

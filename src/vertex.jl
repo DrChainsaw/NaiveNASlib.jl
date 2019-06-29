@@ -45,16 +45,6 @@ function outputs end
 
 clone(v::AbstractVertex, ins::AbstractVertex...; opfun) = clone(v, ins...)
 
-# To avoid too verbose console output
-function Base.show(io::IO, vs::Array{AbstractVertex,1})
-    print(io, "[")
-    for (i, v) in enumerate(vs)
-        show_less(io, v)
-        i != length(vs) && print(io, ", ")
-    end
-    print(io, "]")
-end
-show_less(io::IO, v::AbstractVertex) = summary(io, v)
 
 """
     InputVertex
@@ -79,10 +69,6 @@ end
 clone(v::InputVertex, ins::AbstractVertex...) = isempty(ins) ? InputVertex(v.name) : error("Input vertex got inputs: $(ins)!")
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
-
-show_less(io::IO, v::InputVertex) = show_less(io, v, v.name)
-show_less(io::IO, v::InputVertex, name::String) = print(io, name)
-show_less(io::IO, v::InputVertex, name) = print(io, "InputVertex($(v.name))")
 
 """
     CompVertex
@@ -112,6 +98,25 @@ clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone(v.computation), 
 inputs(v::CompVertex)::AbstractVector{AbstractVertex} = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
 
+clone(c::Function) = deepcopy(c)
+
+## Stuff for displaying information about vertices
+
+# To avoid too verbose console output
+function Base.show(io::IO, vs::Array{AbstractVertex,1})
+    print(io, "[")
+    for (i, v) in enumerate(vs)
+        show_less(io, v)
+        i != length(vs) && print(io, ", ")
+    end
+    print(io, "]")
+end
+show_less(io::IO, v::AbstractVertex) = summary(io, v)
+
+show_less(io::IO, v::InputVertex) = show_less(io, v, v.name)
+show_less(io::IO, v::InputVertex, name::String) = print(io, name)
+show_less(io::IO, v::InputVertex, name) = print(io, "InputVertex($(v.name))")
+
 function show_less(io::IO, v::CompVertex)
     summary(io, v)
     print(io, "(")
@@ -119,10 +124,53 @@ function show_less(io::IO, v::CompVertex)
     print(io, ")")
 end
 
-clone(c::Function) = deepcopy(c)
-
 function show(io::IO, v::CompVertex)
     show_less(io, v)
     print(io, ", inputs=")
     show(io, inputs(v))
 end
+
+# Stuff for logging
+
+name(v::AbstractVertex) = summary(v)
+name(v::InputVertex) = v.name
+
+# Don't call the mental hospital about the stuff below just yet!
+# Let me explain: Debugging this library can be quite confusing due to the recursive nature of how changes propagate. To lessen the pain, is important to be able to format the vertices into something readable which carries the relevant information. As this varies from case to case it is highly customizable what can be printed and what can not.
+
+abstract type InfoStr end
+Base.Broadcast.broadcastable(i::InfoStr) = Ref(i)
+
+struct RawInfoStr <: InfoStr end
+struct NameInfoStr <: InfoStr end
+struct BracketInfoStr <: InfoStr
+    infostr::InfoStr
+end
+
+struct InputsInfoStr <: InfoStr
+    infostr::InfoStr
+end
+InputsInfoStr() = BracketInfoStr(InputsInfoStr(NameInfoStr()))
+
+struct PrefixedInfoStr <: InfoStr
+    prefix
+    infostr::InfoStr
+end
+
+struct ComposedInfoStr <: InfoStr
+    infostrs::AbstractVector{<:InfoStr}
+end
+ComposedInfoStr(infostrs...) = ComposedInfoStr(collect(infostrs))
+NameAndInputsInfoStr() = ComposedInfoStr(NameInfoStr(), PrefixedInfoStr("inputs=",  InputsInfoStr()))
+
+function Base.push!(i::ComposedInfoStr, items...)
+     push!(i.infostrs, items...)
+     return i
+ end
+
+infostr(::RawInfoStr, v::AbstractVertex) = replace(string(v), "\"" => "")
+infostr(::NameInfoStr, v::AbstractVertex) = name(v)
+infostr(i::BracketInfoStr, v::AbstractVertex) = "[" * infostr(i.infostr, v) * "]"
+infostr(i::InputsInfoStr, v::AbstractVertex) = join(infostr.(i.infostr, inputs(v)), ", ")
+infostr(i::PrefixedInfoStr, v::AbstractVertex) = i.prefix * infostr(i.infostr, v)
+infostr(i::ComposedInfoStr, v::AbstractVertex) = join(infostr.(i.infostrs, v), ", ")

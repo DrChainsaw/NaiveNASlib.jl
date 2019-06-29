@@ -138,8 +138,6 @@ Main supported use cases:
 * Parameter pruning (policy excluded)
 * Remove a vertex from the graph
 * Add a vertex to the graph
-
-To be added:
 * Add/remove edges to/from vertex
 
 ## Contributing
