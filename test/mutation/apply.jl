@@ -358,6 +358,7 @@ using NaiveNASlib
             return AbsorbVertex(CompVertex(mm, in), IoChange(nout(in), outsize), tf(name)), mm
         end
         sv(in...;name="sv") = MutationVertex(CompVertex(hcat, in...), IoChange(nout.(collect(in)), sum(nout.(collect(in)))), tf(name)(SizeStack()))
+        iv(in...;name="iv") = InvariantVertex(CompVertex(+, in...), tf(name))
 
         # Select last part if inds are to be removed, otherwise pad with -1
         select_inds(orgsize, newsize) = NaiveNASlib.trunc_or_pad(1:orgsize, newsize) .+ max(0, orgsize - newsize)
@@ -407,7 +408,7 @@ using NaiveNASlib
             @test mm5.W == [1 9; 2 10; 3 11; 0 0; 6 14; 7 15; 8 16]
 
             Δnin(v5, -2)
-            # Note: select_in_inds will fail here as it would select 2 outputs from v2 and four outputs from v3, but v3 only has 3 outputs!
+            # Note: select_in_inds will fail here as it would select two outputs from v2 and four outputs from v3, but v3 only has three outputs!
             # TODO: Add helper function to figure out which index ranges one is allowed to select from without running into the issue above
             Δnin(v5, [2, 3, 4, 6, 7])
             apply_mutation.(flatten(v5))
@@ -415,6 +416,29 @@ using NaiveNASlib
             @test mm2.W == [4 7 0; 5 8 0; 6 9 0]
             @test mm3.W == [10 13; 11 14; 12 15]
             @test mm5.W == [2 10; 3 11; 0 0; 7 15; 8 16]
+        end
+
+        @testset "Add two vertices" begin
+            v1 = inpt(3)
+            v2, mm2 = mmv(4, v1, "v2")
+            v3, mm3 = mmv(4, v1, "v3")
+            v4 = iv(v2,v3, name = "v4")
+            v5, mm5 = mmv(2, v4, "v5")
+
+            Δnout(v2, 1)
+            Δnout(v3, -2)
+            Δnout(v2, select_out_inds(v2))
+            apply_mutation.(flatten(v5))
+
+            @test mm2.W == mm3.W == [4 7 10; 5 8 11; 6 9 12]
+            @test mm5.W == [2 6; 3 7; 4 8]
+
+            Δnin(v5, 2)
+            Δnin(v5, select_in_inds(v5)...)
+            apply_mutation.(flatten(v5))
+
+            @test mm2.W == mm3.W == [4 7 10 0 0; 5 8 11 0 0; 6 9 12 0 0]
+            @test mm5.W == [2 6; 3 7; 4 8; 0 0; 0 0]
         end
     end
 end
