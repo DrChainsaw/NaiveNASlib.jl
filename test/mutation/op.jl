@@ -192,5 +192,11 @@ import InteractiveUtils:subtypes
         @test nout_org(s) == nout(s) == 4
         @test out_inds(s) == 1:4
 
+        Δnin(s, 2, -1)
+        @test nin(s) == [4, 2]
+
+        Δnin(s, missing, [1, 2])
+        @test nin(s) == [4, 2]
+
     end
 end

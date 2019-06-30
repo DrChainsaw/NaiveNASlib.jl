@@ -228,7 +228,12 @@ end
 Δnout(s::IoChange, Δ::Integer) = s.outΔ += Δ
 function Δnin(s::IoChange, Δ::Maybe{AbstractArray{<:Integer,1}}...)
     Δnin(s.indices, Δ...)
-    s.inΔ[1:end] .= nin(s.indices) - nin(s.size)
+
+    for (i, Δi) in enumerate(Δ)
+        if !ismissing(Δi)
+            s.inΔ[i] = length(Δi) - nin(s.size)[i]
+        end
+    end
 end
 
 function Δnout(s::IoChange, Δ::AbstractArray{<:Integer,1})

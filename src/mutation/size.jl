@@ -214,6 +214,9 @@ sizeΔ(Δ::Integer) = Δ
 sizeΔ(Δ::AbstractArray) = length(Δ)
 function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
 
+    # Yeah, this is checking more than one thing. Cba to have three different structs and methods for validation
+    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
+
     validvisit = !has_visited_in(s, v)
 
     if validvisit
@@ -266,9 +269,8 @@ end
 
 function Δnin(::SizeStack, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
     anyvisit(v, s) && return
-
     # Need to calculate concat value before changing nin
-    Δo = concat(nin(v), Δ...)
+    Δo = concat(op(v), Δ...)
 
     Δnin(op(v), Δ...)
     propagate_nout(v, Δ...; s=s)
@@ -282,24 +284,24 @@ function Δnout(::SizeStack, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitSta
     anyvisit(v, s) && return
 
     Δnout(op(v), Δ)
-
     propagate_nin(v, Δ, s=s) # If there are multiple outputs they must all be updated
+
     Δs = split_nout_over_inputs(v, Δ, s)
     Δnin(op(v), Δs...)
     propagate_nout(v, Δs...; s=s)
 end
 
-function concat(insizes, Δ::Maybe{<:Integer}...)
-    return sum(filter(!ismissing, collect(Δ)))
-end
+concat(::MutationOp, Δ::Maybe{T}...) where T = sum(filter(!ismissing, collect(Δ)))
+concat(o::MutationOp, Δ::Maybe{AbstractVector{T}}...) where T = concat(nin(o), in_inds(o), Δ...)
+concat(o::IoChange, Δ::Maybe{AbstractVector{T}}...) where T = concat(nin_org(o), in_inds(o), Δ...)
 
-function concat(insizes, Δ::Maybe{AbstractArray{T}}...) where T
 
-    res = ismissing(Δ[1]) ? collect(T, 1:insizes[1]) : Δ[1]
+function concat(insizes, currinds, Δ::Maybe{AbstractArray{T}}...) where T
+    Δ = collect(Δ)
+    missing_inds = ismissing.(Δ)
+    Δ[missing_inds] = currinds[missing_inds]
+    res = Δ[1]
     for (innr, Δi) in enumerate(Δ[2:end])
-        if ismissing(Δi)
-            Δi = collect(1:insizes[innr+1])
-        end
         res = vcat(res, map(elem -> elem + sign(elem) * insizes[innr], Δi))
     end
 
@@ -363,19 +365,21 @@ end
 
 
 function split_nout_over_inputs(v::AbstractVertex, Δ::AbstractVector{T}, s::VisitState{<:AbstractVector{T}}) where T<:Integer
-    insizes = nin(v)
+    boundaries(o::MutationOp, v) = nin(v)
+    boundaries(o::IoChange, v) = nin_org(o)
 
-    Δs = ntuple(i -> T[], length(insizes))
+    bounds = boundaries(op(v), v)
+    Δs = ntuple(i -> T[], length(bounds))
 
     negind = 1
     function push(elem::Integer, ind::Integer)
         if elem < 0
             push!(Δs[negind], elem)
-        elseif elem <= insizes[ind]
+        elseif elem <= bounds[ind] || ind == length(bounds)
             negind = ind
             push!(Δs[ind], elem)
         else
-            push(elem - insizes[ind], ind+1)
+            push(elem - bounds[ind], ind+1)
         end
     end
 
