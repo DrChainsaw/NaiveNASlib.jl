@@ -2,6 +2,7 @@ using NaiveNASlib
 
 @testset "Mutation testing" begin
 
+    inpt(size, name="in") = InputSizeVertex(name, size)
     nt(name) = t -> NamedTrait(t, name)
     tf(name) = t -> nt(name)(SizeChangeValidation(t))
 
@@ -217,7 +218,7 @@ using NaiveNASlib
 
         ## Helper functions
         rb(start, residual, name="add") = InvariantVertex(CompVertex(+, residual, start), tf(name))
-        merge(paths...;name="merge") = StackingVertex(CompVertex(hcat, paths...), tf(name))
+        sv(in...;name="sv") = StackingVertex(CompVertex(hcat, in...), tf(name))
         function stack(start, nouts...; name="stack")
             next = start
             mm = missing
@@ -231,7 +232,7 @@ using NaiveNASlib
             start, mmstart = mcv(2, 9, NaiveNASlib.OutputsVertex(InputVertex(1)))
             p1, mmp1 = stack(start, 3,4)
             p2, mmp2 = stack(start, 4,5)
-            resout = rb(start, merge(p1, p2))
+            resout = rb(start, sv(p1, p2))
             out, mmout = mcv(9, 3, resout)
 
             @test nout(resout) == 9
@@ -259,7 +260,7 @@ using NaiveNASlib
             split, mmsplit = mcv(5, 3, start)
             p1 = StackingVertex(CompVertex(identity, split))
             p2,mmp2 = stack(split, 3,2,2)
-            resout = rb(start, merge(p1, p2))
+            resout = rb(start, sv(p1, p2))
             out, mmout = mcv(5, 3, resout)
 
             @test nout(resout) == 5
@@ -289,7 +290,7 @@ using NaiveNASlib
             start, mmstart = mcv(2, 4, NaiveNASlib.OutputsVertex(InputVertex(1)))
             p1 = StackingVertex(CompVertex(identity, start))
             p2 = StackingVertex(CompVertex(identity, start))
-            join = merge(p1, p2)
+            join = sv(p1, p2)
             out,mmout = mcv(8, 3, join)
 
             @test nout(join) == 8
@@ -317,7 +318,7 @@ using NaiveNASlib
             split, mmsplit = mcv(8, 4, start)
             p1 = StackingVertex(CompVertex(identity, split))
             p2 = StackingVertex(CompVertex(identity, split))
-            resout = rb(start, merge(p1, p2))
+            resout = rb(start, sv(p1, p2))
             out,mmout = mcv(8, 3, resout)
 
             @test nout(resout) == 8
@@ -348,7 +349,96 @@ using NaiveNASlib
             @test mmout.W == [2 10 18; 3 11 19]
             @test mmstart.W == [3 5; 4 6]
         end
-
     end
 
+    @testset "Mutate-prune" begin
+
+        function mmv(outsize, in, name="mmv")
+            mm = MatMul(nout(in), outsize)
+            return AbsorbVertex(CompVertex(mm, in), IoChange(nout(in), outsize), tf(name)), mm
+        end
+        sv(in...;name="sv") = MutationVertex(CompVertex(hcat, in...), IoChange(nout.(collect(in)), sum(nout.(collect(in)))), tf(name)(SizeStack()))
+        iv(in...;name="iv") = InvariantVertex(CompVertex(+, in...), tf(name))
+
+        # Select last part if inds are to be removed, otherwise pad with -1
+        select_inds(orgsize, newsize) = NaiveNASlib.trunc_or_pad(1:orgsize, newsize) .+ max(0, orgsize - newsize)
+        select_in_inds(v) = select_inds.(nin_org(op(v)), nin(op(v)))
+        select_out_inds(v) = select_inds(nout_org(op(v)), nout(op(v)))
+
+        @testset "Linear graph" begin
+            v1 = inpt(3)
+            v2, mm2 = mmv(5, v1, "v2")
+            v3, mm3 = mmv(4, v2, "v3")
+
+            Δnout(v2, 2)
+            @test [nout(v2)] == nin(v3) == [7]
+
+            Δnin(v3, -3)
+            @test [nout(v2)] == nin(v3) == [4]
+
+            Δnout(v2, select_out_inds(v2))
+            apply_mutation.(flatten(v3))
+
+            @test mm2.W == [4 7 10 13; 5 8 11 14; 6 9 12 15]
+            @test mm3.W == [2 7 12 17; 3 8 13 18; 4 9 14 19; 5 10 15 20]
+
+            Δnout(v2, 1)
+            Δnin(v3, select_in_inds(v3)...)
+            apply_mutation.(flatten(v3))
+
+            @test mm2.W == [4 7 10 13 0; 5 8 11 14 0; 6 9 12 15 0]
+            @test mm3.W == [2 7 12 17; 3 8 13 18; 4 9 14 19; 5 10 15 20; 0 0 0 0]
+        end
+
+        @testset "Merge two vertices" begin
+            v1 = inpt(3)
+            v2, mm2 = mmv(3, v1, "v2")
+            v3, mm3 = mmv(5, v1, "v3")
+            v4 = sv(v2,v3, name = "v4")
+            v5, mm5 = mmv(2, v4, "v5")
+
+            Δnout(v2, 1)
+            Δnout(v3, -2)
+            Δnout(v2, select_out_inds(v2))
+            Δnout(v3, select_out_inds(v3))
+            apply_mutation.(flatten(v5))
+
+            @test mm2.W == [1 4 7 0; 2 5 8 0; 3 6 9 0]
+            @test mm3.W == [7 10 13; 8 11 14; 9 12 15]
+            @test mm5.W == [1 9; 2 10; 3 11; 0 0; 6 14; 7 15; 8 16]
+
+            Δnin(v5, -2)
+            # Note: select_in_inds will fail here as it would select two outputs from v2 and four outputs from v3, but v3 only has three outputs!
+            # TODO: Add helper function to figure out which index ranges one is allowed to select from without running into the issue above
+            Δnin(v5, [2, 3, 4, 6, 7])
+            apply_mutation.(flatten(v5))
+
+            @test mm2.W == [4 7 0; 5 8 0; 6 9 0]
+            @test mm3.W == [10 13; 11 14; 12 15]
+            @test mm5.W == [2 10; 3 11; 0 0; 7 15; 8 16]
+        end
+
+        @testset "Add two vertices" begin
+            v1 = inpt(3)
+            v2, mm2 = mmv(4, v1, "v2")
+            v3, mm3 = mmv(4, v1, "v3")
+            v4 = iv(v2,v3, name = "v4")
+            v5, mm5 = mmv(2, v4, "v5")
+
+            Δnout(v2, 1)
+            Δnout(v3, -2)
+            Δnout(v2, select_out_inds(v2))
+            apply_mutation.(flatten(v5))
+
+            @test mm2.W == mm3.W == [4 7 10; 5 8 11; 6 9 12]
+            @test mm5.W == [2 6; 3 7; 4 8]
+
+            Δnin(v5, 2)
+            Δnin(v5, select_in_inds(v5)...)
+            apply_mutation.(flatten(v5))
+
+            @test mm2.W == mm3.W == [4 7 10 0 0; 5 8 11 0 0; 6 9 12 0 0]
+            @test mm5.W == [2 6; 3 7; 4 8; 0 0; 0 0]
+        end
+    end
 end

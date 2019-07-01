@@ -630,6 +630,13 @@
         @test_throws ArgumentError Δnin(v3, -3)
         @test_throws ArgumentError Δnin(v4, 5)
         @test_throws ArgumentError Δnout(v3, -7)
+
+        v5 = AbsorbVertex(CompVertex(identity, v3), IoSize(nout(v3),3), tf("v5"))
+        Δnin(v5, -1)
+        @test nin(v5) == [nout(v3)] == [4]
+
+        # Too many Δs!
+        @test_throws ArgumentError Δnin(v5, 1, 1)
     end
 
 end

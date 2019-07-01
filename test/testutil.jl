@@ -33,3 +33,9 @@ function showstr(f, v)
     f(buffer, v)
     return String(take!(buffer))
 end
+
+function hasmethod_or_error(f, t)
+    res = hasmethod(f, t)
+    res || @error "No method $f for inputs $(join(t, ","))"
+    return res
+end

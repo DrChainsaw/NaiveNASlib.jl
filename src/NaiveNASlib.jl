@@ -24,7 +24,7 @@ CompGraph, output!,flatten,
 
 # Mutation operations
 #State
-InvSize, IoSize, InvIndices, IoIndices, NoOp, nin, nout, Δnin, Δnout, clone, op,
+InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org,
 
 # Mutation vertex
 base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex,
