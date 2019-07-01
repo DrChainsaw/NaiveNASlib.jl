@@ -24,4 +24,8 @@ include("testutil.jl")
 
     include("mutation/structure.jl")
 
+    @info "Testing sugar"
+
+    include("mutation/sugar.jl")
+
 end

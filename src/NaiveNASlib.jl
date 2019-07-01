@@ -45,7 +45,10 @@ AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, Chang
 AbstractConnectStrategy, ConnectAll, ConnectNone,
 
 # apply mutation
-mutate_inputs, mutate_outputs, apply_mutation
+mutate_inputs, mutate_outputs, apply_mutation,
+
+#sugar
+inputvertex, vertex, absorbvertex, conc
 
 include("vertex.jl")
 include("compgraph.jl")
@@ -56,6 +59,8 @@ include("mutation/size.jl")
 include("mutation/apply.jl")
 
 include("mutation/structure.jl")
+
+include("mutation/sugar.jl")
 
 
 
