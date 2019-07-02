@@ -109,13 +109,21 @@ end
 # Common wiring for all elementwise operations
 elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex((x...) -> op.(x...), invariant_outsize(vs...), conf.traitdecoration(SizeInvariant()), vs..., mutation=conf.mutation)
 
+
+"""
+    >>(conf::VertexConf, v::AbstractVertex)
+
+Return inputs as a tuple. Only used to enable the `conf >> v1 op v2 ...` syntax.
+
+"""
+Base.:>>(conf::VertexConf, v::AbstractVertex) = (conf, v)
+
 """
     +(v::AbstractVertex, vs::AbstractVertex...)
-    +(conf::VertexConf, v::AbstractVertex, vs::AbstractVertex...)
 
 Return a mutable vertex which performs (broadcasted) elementwise addition of its inputs.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied as first argument.
+A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
 
 # Examples
 
@@ -146,7 +154,7 @@ IoChange
 
 julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
 
-julia> v = conf + inputvertex("in1", 3) + inputvertex("in2", 3);
+julia> v = conf >> inputvertex("in1", 3) + inputvertex("in2", 3);
 
 julia> name(v)
 "v"
@@ -155,8 +163,8 @@ julia> typeof(op(v))
 IoSize
 ```
 """
-Base.:+(conf::VertexConf, v::AbstractVertex, vs::AbstractVertex...) = elemwise(+, conf, v, vs...)
-Base.:+(v::AbstractVertex, vs::AbstractVertex...) = +(VertexConf(), v, vs...)
+Base.:+((conf, v)::Tuple{VertexConf, <:AbstractVertex}, vs::AbstractVertex...) = elemwise(+, conf, v, vs...)
+Base.:+(v::AbstractVertex, vs::AbstractVertex...) = +(VertexConf() >> v, vs...)
 
 """
     *(v::AbstractVertex, vs::AbstractVertex...)
@@ -164,7 +172,7 @@ Base.:+(v::AbstractVertex, vs::AbstractVertex...) = +(VertexConf(), v, vs...)
 
 Return a mutable vertex which performs (broadcasted) elementwise multiplication of its inputs.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied as first argument.
+A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
 
 # Examples
 
@@ -195,7 +203,7 @@ IoChange
 
 julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
 
-julia> v = conf * inputvertex("in1", 3) * inputvertex("in2", 3);
+julia> v = conf >> inputvertex("in1", 3) * inputvertex("in2", 3);
 
 julia> name(v)
 "v"
@@ -205,5 +213,134 @@ IoSize
 
 ```
 """
-Base.:*(conf::VertexConf, v::AbstractVertex, vs::AbstractVertex...) = elemwise(*, conf, v, vs...)
-Base.:*(v::AbstractVertex, vs::AbstractVertex...) = *(VertexConf(), v, vs...)
+Base.:*((conf, v)::Tuple{VertexConf, <:AbstractVertex}, vs::AbstractVertex...) = elemwise(*, conf, v, vs...)
+Base.:*(v::AbstractVertex, vs::AbstractVertex...) = *(VertexConf() >> v, vs...)
+
+"""
+    -(v1::AbstractVertex, v2::AbstractVertex)
+
+Return a mutable vertex which performs (broadcasted) elementwise subtraction of its inputs.
+
+A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
+
+# Examples
+
+```julia-repl
+julia> using NaiveNASlib
+
+julia> v = inputvertex("in1", 2) - inputvertex("in2", 2)
+
+julia> nin(v)
+2-element Array{Int64,1}:
+ 2
+ 2
+
+julia> nout(v)
+2
+
+julia> v([1, 2], [3, 4])
+2-element Array{Int64,1}:
+ -2
+ -2
+
+julia> name(v)
+"MutationVertex::SizeInvariant"
+
+julia> typeof(op(v))
+IoChange
+
+julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
+
+julia> v = conf >> inputvertex("in1", 3) - inputvertex("in2", 3);
+
+julia> name(v)
+"v"
+
+julia> typeof(op(v))
+IoSize
+```
+"""
+Base.:-((conf, v1)::Tuple{VertexConf, <:AbstractVertex}, v2::AbstractVertex) = elemwise(-, conf, v1, v2)
+Base.:-(v1::AbstractVertex, v2::AbstractVertex) = -(VertexConf() >> v1, v2)
+
+
+"""
+    -(v::AbstractVertex)
+
+Return a mutable vertex which performs elementwise negation of its input.
+
+A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator. Due to operator precedence, this has to be done in the following order: `-(conf >> v)`
+
+#Examples
+
+```julia-repl
+julia> using NaiveNASlib
+
+julia> v = -inputvertex("in", 2);
+
+julia> v([1,2])
+2-element Array{Int64,1}:
+ -1
+ -2
+
+julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
+
+julia> v = -(conf >> inputvertex("in", 2));
+
+julia> name(v)
+"v"
+
+julia> typeof(op(v))
+IoSize
+```
+"""
+Base.:-((conf, v)::Tuple{VertexConf, <:AbstractVertex}) = elemwise(-, conf, v)
+Base.:-(v::AbstractVertex) = -(VertexConf() >> v)
+
+"""
+    /(v1::AbstractVertex, v2::AbstractVertex)
+    /(conf::VertexConf, v1::AbstractVertex, v2::AbstractVertex)
+
+Return a mutable vertex which performs (broadcasted) elementwise division of its inputs.
+
+A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
+
+# Examples
+
+```julia-repl
+julia> using NaiveNASlib
+
+julia> v = inputvertex("in1", 2) / inputvertex("in2", 2)
+
+julia> nin(v)
+2/element Array{Int64,1}:
+ 2
+ 2
+
+julia> nout(v)
+2
+
+julia> v([6, 8], [2, 4])
+2/element Array{Int64,1}:
+ 3
+ 2
+
+julia> name(v)
+"MutationVertex::SizeInvariant"
+
+julia> typeof(op(v))
+IoChange
+
+julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
+
+julia> v = conf >> inputvertex("in1", 3) / inputvertex("in2", 3);
+
+julia> name(v)
+"v"
+
+julia> typeof(op(v))
+IoSize
+```
+"""
+Base.:/((conf, v1)::Tuple{VertexConf, <:AbstractVertex}, v2::AbstractVertex) = elemwise(/, conf, v1, v2)
+Base.:/(v1::AbstractVertex, v2::AbstractVertex) = /(VertexConf() >> v1, v2)

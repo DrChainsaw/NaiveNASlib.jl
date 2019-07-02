@@ -48,7 +48,7 @@ AbstractConnectStrategy, ConnectAll, ConnectNone,
 mutate_inputs, mutate_outputs, apply_mutation,
 
 #sugar
-inputvertex, vertex, absorbvertex, conc,VertexConf, traitconf, mutationconf, +
+inputvertex, vertex, absorbvertex, conc, VertexConf, traitconf, mutationconf
 
 include("vertex.jl")
 include("compgraph.jl")
