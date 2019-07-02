@@ -126,10 +126,10 @@ using Test
             end
             (l::SimpleLayer)(x) = x * l.W
 
-            # Helper function which creates a mutable layer
-            layer(in, outsize) = MutationVertex(CompVertex(SimpleLayer(nout(in), outsize), in), IoSize(nout(in), outsize), SizeAbsorb())
+            # Helper function which creates a mutable layer.
+            layer(in, outsize) = absorbvertex(SimpleLayer(nout(in), outsize), outsize, in, mutation=IoSize)
 
-            input = InputSizeVertex("input", 3)
+            input = inputvertex("input", 3)
             layer1 = layer(input, 4);
             layer2 = layer(layer1, 5);
 
@@ -141,24 +141,21 @@ using Test
             @test [nout(layer1)] == nin(layer2) == [2]
 
             ### Third example ###
+            scalarmult(v, f::Integer) = vertex(x -> x .* f, nout(v), SizeInvariant(), v)
 
-            elem_add(v1, v2) = InvariantVertex(CompVertex(+, v1, v2))
-            concat(vs...) = StackingVertex(CompVertex(hcat, vs...))
-            scalmult(v, f::Integer) = InvariantVertex(CompVertex(x -> x .* f, v))
-
-            input = InputSizeVertex("input", 6);
+            input = inputvertex("input", 6);
             start = layer(input, 6);
             split = layer(start, div(nout(input) , 3));
-            conc = concat(scalmult(split, 2), scalmult(split,3), scalmult(split,5));
-            out = elem_add(start, conc);
+            joined = conc(scalarmult(split, 2), scalarmult(split,3), scalarmult(split,5), dims=2);
+            out = start + joined;
 
-            @test [nout(input)] == nin(start) == nin(split) == [3 * nout(split)] == [sum(nin(conc))] == [nout(out)] == [6]
-            @test [nout(start), nout(conc)] == nin(out) == [6, 6]
+            @test [nout(input)] == nin(start) == nin(split) == [3 * nout(split)] == [sum(nin(joined))] == [nout(out)] == [6]
+            @test [nout(start), nout(joined)] == nin(out) == [6, 6]
 
             graph = CompGraph(input, out)
             @test graph((ones(Int, 1,6))) == [78  78  114  114  186  186]
 
-            # Ok, lets try to reduce out.
+            # Ok, lets try to reduce the size of the vertex "out".
             # First we need to realize that we can only change it by integer multiples of 3
             # This is because it is connected to "split" through three paths which require nin==nout
 
@@ -181,10 +178,10 @@ using Test
 
             # We didn't touch the input when mutating...
             @test [nout(input)] == nin(start) == [6]
-            # Start and conc must have the same size due to elementwise op.
-            # All three conc vertices are transparent and propagate the size change to split
-            @test [nout(start)] == nin(split) == [3 * nout(split)] == [sum(nin(conc))] == [nout(out)] == [9]
-            @test [nout(start), nout(conc)] == nin(out) == [9, 9]
+            # Start and joined must have the same size due to elementwise op.
+            # All three scalarmult vertices are transparent and propagate the size change to split
+            @test [nout(start)] == nin(split) == [3 * nout(split)] == [sum(nin(joined))] == [nout(out)] == [9]
+            @test [nout(start), nout(joined)] == nin(out) == [9, 9]
 
             # However, this only updated the mutation metadata, not the actual layer.
             # There are some slightly annoying and perhaps overthought reasons to this

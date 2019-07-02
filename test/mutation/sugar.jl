@@ -28,7 +28,6 @@ import NaiveNASlib
         conf = traitconf(t -> NamedTrait(t, "v"))
 
         @testset "Create elemwise addition" begin
-
             v = conf >> inputvertex("in1", 2) + inputvertex("in2", 2) + inputvertex("in3" ,2)
 
             @test nin(v) == [2, 2, 2]

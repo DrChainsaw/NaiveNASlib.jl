@@ -18,9 +18,16 @@ Its only contribution to this world is some help with the sometimes annoyingly c
 Pkg.add("https://github.com/DrChainsaw/NaiveNASlib.jl")
 ```
 
-The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what some older frameworks using less modern programming languages used to do (in its defense, the sole reason anyone would use this library to begin with is to not have to create computation graphs themselves).
+The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what some older frameworks using less modern programming languages used to do. In its defense, the sole reason anyone would use this library to begin with is to not have to create computation graphs themselves.
 
-Disclaimer: Syntax is a bit clumsy. It will hopefully change into something more terse before wip status is removed.
+Main supported use cases:
+* Change the input/output size of vertices
+* Parameter pruning (policy excluded)
+* Remove a vertex from the graph
+* Add a vertex to the graph
+* Add/remove edges to/from vertex
+
+For each of the above operations, NaiveNASlib makes the necessary changes to neighbouring vertices to ensure that the computation graph is consistent w.r.t dimensions of the activations.
 
 Just to get started, lets create a simple graph for the summation of two numbers:
 ```julia
@@ -41,14 +48,15 @@ Now for a more to the point example. The vertex types used above does not contai
 # First we need something to mutate. Batteries excluded, remember?
 mutable struct SimpleLayer
     W
+    SimpleLayer(W) = new(W)
+    SimpleLayer(nin, nout) = new(ones(Int, nin,nout))
 end
-SimpleLayer(nin, nout) = SimpleLayer(ones(Int, nin,nout))
 (l::SimpleLayer)(x) = x * l.W
 
-# Helper function which creates a mutable layer
-layer(in, outsize) = MutationVertex(CompVertex(SimpleLayer(nout(in), outsize), in), IoSize(nout(in), outsize), SizeAbsorb())
+# Helper function which creates a mutable layer.
+layer(in, outsize) = absorbvertex(SimpleLayer(nout(in), outsize), outsize, in, mutation=IoSize)
 
-input = InputSizeVertex("input", 3)
+input = inputvertex("input", 3)
 layer1 = layer(input, 4);
 layer2 = layer(layer1, 5);
 
@@ -58,32 +66,36 @@ layer2 = layer(layer1, 5);
 Δnout(layer1, -2);
 
 @test [nout(layer1)] == nin(layer2) == [2]
-```
-As can be seen above, the consequence of changing the output size of ```layer1``` was that the input size of ```layer2``` also was changed.
 
-This mutation was trivial because both layers are of the type ```SizeAbsorb```, meaning that a change in number of inputs/outputs does not propagate further in the graph.
+#Lets change the output size of layer1:
+Δnout(layer1, -2);
+
+@test [nout(layer1)] == nin(layer2) == [2]
+```
+As can be seen above, the consequence of changing the output size of `layer1` was that the input size of `layer2` also was changed.
+
+This mutation was trivial because both layers are of the type `SizeAbsorb`, meaning that a change in number of inputs/outputs does not propagate further in the graph.
 
 Lets do a non-trivial example:
 ```julia
 
-# Some more helpers to reduce clutter (until I come around to fix it)
-elem_add(v1, v2) = InvariantVertex(CompVertex(+, v1, v2))
-concat(vs...) = StackingVertex(CompVertex(hcat, vs...))
-scalmult(v, f::Integer) = InvariantVertex(CompVertex(x -> x .* f, v))
+scalarmult(v, f::Integer) = vertex(x -> x .* f, nout(v), SizeInvariant(), v)
 
-input = InputSizeVertex("input", 6);
+input = inputvertex("input", 6);
 start = layer(input, 6);
 split = layer(start, div(nout(input) , 3));
-conc = concat(scalmult(split, 2), scalmult(split,3), scalmult(split,5));
-out = elem_add(start, conc);
+joined = conc(scalarmult(split, 2), scalarmult(split,3), scalarmult(split,5), dims=2);
+out = start + joined;
 
-@test [nout(input)] == nin(start) == nin(split) == [3 * nout(split)] == [sum(nin(conc))] == [nout(out)] == [6]
-@test [nout(start), nout(conc)] == nin(out) == [6, 6]
+@test [nout(input)] == nin(start) == nin(split) == [3 * nout(split)] == [sum(nin(joined))] == [nout(out)] == [6]
+@test [nout(start), nout(joined)] == nin(out) == [6, 6]
 
 graph = CompGraph(input, out)
 @test graph((ones(Int, 1,6))) == [78  78  114  114  186  186]
 
-# Ok, lets try to reduce out. First we need to realize that we can only change it by integer multiples of 3 as it is connected to "split" through three paths which require nin==nout
+# Ok, lets try to reduce the size of the vertex "out".
+# First we need to realize that we can only change it by integer multiples of 3
+# This is because it is connected to "split" through three paths which require nin==nout
 
 # We need this information from the layer. Some layers have other requirements
 NaiveNASlib.minΔnoutfactor(::SimpleLayer) = 1
@@ -97,17 +109,17 @@ NaiveNASlib.mutate_outputs(l::SimpleLayer, newOutSize) = l.W = ones(Int, size(l.
 
 #In some cases it is useful to hold on to the old graph before mutating
 # To do so, we need to define the clone operation for our SimpleLayer
-NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(copy(l.W))
+NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(l.W)
 parentgraph = copy(graph)
 
 Δnin(out, 3)
 
 # We didn't touch the input when mutating...
 @test [nout(input)] == nin(start) == [6]
-# Start and conc must have the same size due to elementwise op.
-# All three conc vertices are transparent and propagate the size change to split
-@test [nout(start)] == nin(split) == [3 * nout(split)] == [sum(nin(conc))] == [nout(out)] == [9]
-@test [nout(start), nout(conc)] == nin(out) == [9, 9]
+# Start and joined must have the same size due to elementwise op.
+# All three scalarmult vertices are transparent and propagate the size change to split
+@test [nout(start)] == nin(split) == [3 * nout(split)] == [sum(nin(joined))] == [nout(out)] == [9]
+@test [nout(start), nout(joined)] == nin(out) == [9, 9]
 
 # However, this only updated the mutation metadata, not the actual layer.
 # There are some slightly annoying and perhaps overthought reasons to this
@@ -124,7 +136,6 @@ apply_mutation(graph);
 
 ```
 
-
 As seen above, things get a little bit out of hand when using:
 
 * Layers which require nin==nout such as batch normalization
@@ -133,12 +144,14 @@ As seen above, things get a little bit out of hand when using:
 
 The core idea of NaiveNASlib is basically to annotate the type of vertex in the graph so that functions know what is the proper way to deal with the neighbouring vertices when mutating a vertex.
 
-Main supported use cases:
-* Change the input/output size of vertex
-* Parameter pruning (policy excluded)
-* Remove a vertex from the graph
-* Add a vertex to the graph
-* Add/remove edges to/from vertex
+This is done through labeling vertices into three major types:
+* `SizeAbsorb`: Assumes `nout(v)` and `nin(v)` may change independently. This means that size changes are absorbed by this vertex in the sense they don't propagate further.
+
+* `SizeStack`: Assumes `nout(v) == sum(nin(v))`. This means that size changes propagate forwards (i.e input -> input and output -> output).
+
+* `SizeInvariant`: Assumes `[nout(v)] == unique(nin(v))`. This means that size changes propagate both forwards and backwards as changing any input size or the output size means all others must change as well.
+
+To use this library to mutate architectures for some neural network library basically means annotating up the above type for each layer in the neural network library.  
 
 ## Contributing
 
