@@ -621,12 +621,18 @@ default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
 function add_input!(::MutationOp, pos, size) end
 add_input!(s::IoSize, pos, size) = insert!(s.nin, pos, size)
-# Does not work: add_input!(s::IoIndices, pos, size) = insert!(s.in, pos, collect(1:size+1))
+add_input!(s::IoIndices, pos, size) = insert!(s.in, pos, collect(1:size+1))
+function add_input!(s::IoChange, pos, size)
+    add_input!(s.size, pos, 0)
+    add_input!(s.indices, pos, 0)
+    insert!(s.inΔ, pos, size)
+end
 
 function add_output!(::MutationOp, t::MutationTrait, size) end
 add_output!(s::MutationOp, t::DecoratingTrait, size) = add_output!(s, base(t), size)
 add_output!(s::IoSize, ::SizeStack, size) = Δnout(s, size)
 add_output!(s::IoIndices, ::SizeStack, size) = Δnout(s, vcat(s.out, (length(s.out):length(s.out)+size)))
+add_output!(s::IoChange, t::SizeStack, size) = Δnout(s, size)
 
 
 """
@@ -660,4 +666,10 @@ default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
 function rem_input!(::MutationOp, pos...) end
-rem_input!(s::Union{IoSize, IoIndices}, pos...) = deleteat!(s.nin, collect(pos))
+rem_input!(s::IoSize, pos...) = deleteat!(s.nin, collect(pos))
+rem_input!(s::IoIndices, pos...) = deleteat!(s.in, collect(pos))
+function rem_input!(s::IoChange, pos...)
+    rem_input!(s.size, pos...)
+    rem_input!(s.indices, pos...)
+    deleteat!(s.inΔ, collect(pos))
+end

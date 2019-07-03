@@ -101,6 +101,14 @@ function LightGraphs.SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
 end
 
 """
+    nvertices(g::CompGraph)
+
+Return the total number of vertices in the graph.
+"""
+LightGraphs.nv(g::CompGraph) = nv(SimpleDiGraph(g))
+
+
+"""
     flatten(v::AbstractVertex)
 
 Return an array of all input parents of v
