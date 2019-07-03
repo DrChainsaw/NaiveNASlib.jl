@@ -274,6 +274,106 @@ import LightGraphs:adjacency_matrix,is_cyclic
                 @test nin(merged) == [5, 6]
                 @test graph(ones(Int, 1, 4)) == [44 44 44]
             end
+
+            @testset "Pruning example" begin
+                # Some mockup 'batteries' for this example
+
+                # First, how to select or add rows or columns to a matrix
+                # selected uses negative values it indicate rows/cols insertion
+                function select_params(W, selected, dim)
+                    Wsize = collect(size(W))
+                    indskeep = repeat(Any[Colon()], 2)
+                    newmap = repeat(Any[Colon()], 2)
+
+                    # The selected indices
+                    indskeep[dim] = filter(ind -> ind > 0, selected)
+                    # Where they are 'placed'
+                    newmap[dim] = selected .> 0
+                    Wsize[dim] = length(newmap[dim])
+
+                    newmat = zeros(Int64, Wsize...)
+                    newmat[newmap...] = W[indskeep...]
+                    return newmat
+                end
+
+                NaiveNASlib.mutate_inputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 1)
+                NaiveNASlib.mutate_outputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 2)
+
+                # Return layer just so we can easiliy look at it
+                function prunablelayer(in, outsize)
+                    l = SimpleLayer(reshape(1: nout(in) * outsize, nout(in), :))
+                    return absorbvertex(l, outsize, in), l
+                end
+
+                # Ok, now lets get down to business!
+                invertices = inputvertex.(["in1", "in2"], [3,4])
+                v1, l1 = prunablelayer(invertices[1], 4)
+                v2, l2 = prunablelayer(invertices[2], 3)
+                merged = conc(v1, v2, dims=2)
+                v3, l3 = prunablelayer(merged, 2)
+                graph = CompGraph(invertices, v3)
+
+                @test l1.W ==
+                [ 1  4  7  10 ;
+                  2  5  8  11 ;
+                  3  6  9  12 ]
+
+                @test l2.W ==
+                [ 1  5   9 ;
+                  2  6  10 ;
+                  3  7  11 ;
+                  4  8  12 ]
+
+                @test l3.W ==
+                [ 1   8 ;
+                  2   9 ;
+                  3  10 ;
+                  4  11 ;
+                  5  12 ;
+                  6  13 ;
+                  7  14 ]
+
+               # Here is one reason why apply_mutation is needed:
+               # We want to mutate nin of v3, and we are not sure how this propagates to v1 and v2
+               # Lets just change the size first and then we see what happens
+                Δnin(v3, -3)
+                # Another reason is that it is possible to do several mutations without throwing away
+                # more information than needed.
+                # For example, if we had first applied the previous mutation we would have thrown away
+                # weights for v2 which would then just be replaced by 0s when doing this:
+                Δnout(v2, 2)
+
+                # Lets see that that did...
+                @test nin(v3) == [6]
+                @test nout(v1) == 2
+                @test nout(v2) == 4
+
+                # Ok, for v1 we shall remove one output neuron while for v2 we shall add one
+                # Changes propagate to v3 so that the right inputs are chosen
+                Δnout(v1, [1, 3]) # Remove middle column
+                Δnout(v2, [1,2,3, -1]) # -1 means add a new column
+
+                apply_mutation(graph)
+
+                @test l1.W ==
+                [ 1  7 ;
+                  2  8 ;
+                  3  9 ]
+
+                @test l2.W ==
+                [ 1  5   9  0 ;
+                  2  6  10  0 ;
+                  3  7  11  0 ;
+                  4  8  12  0 ]
+
+                @test l3.W ==
+                [ 1   8 ;
+                  3  10 ;
+                  5  12 ;
+                  6  13 ;
+                  7  14 ;
+                  0   0 ]
+            end
         end
     end
 end
