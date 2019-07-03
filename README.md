@@ -174,7 +174,7 @@ end
 NaiveNASlib.mutate_inputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 1)
 NaiveNASlib.mutate_outputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 2)
 
-# Return layer just so we can easiliy look at it
+# Return layer just so we can easily look at it
 function prunablelayer(in, outsize)
     l = SimpleLayer(reshape(1: nout(in) * outsize, nout(in), :))
     return absorbvertex(l, outsize, in), l
