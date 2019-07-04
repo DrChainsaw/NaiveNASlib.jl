@@ -408,8 +408,6 @@ using NaiveNASlib
             @test mm5.W == [1 9; 2 10; 3 11; 0 0; 6 14; 7 15; 8 16]
 
             Δnin(v5, -2)
-            # Note: select_in_inds will fail here as it would select two outputs from v2 and four outputs from v3, but v3 only has three outputs!
-            # TODO: Add helper function to figure out which index ranges one is allowed to select from without running into the issue above
             Δnin(v5, [2, 3, 4, 6, 7])
             apply_mutation.(flatten(v5))
 
