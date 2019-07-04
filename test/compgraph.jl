@@ -138,13 +138,15 @@ import LightGraphs:adjacency_matrix,is_cyclic
 
             @test [nout(layer1)] == nin(layer2) == [4]
 
-            #Lets change the output size of layer1:
+            # Lets change the output size of layer1:
             Δnout(layer1, -2);
 
             @test [nout(layer1)] == nin(layer2) == [2]
 
             ### Third example ###
-            scalarmult(v, f::Integer) = vertex(x -> x .* f, nout(v), SizeInvariant(), v)
+            # When multiplying with a scalar, the output size is the same as the input size.
+            # This vertex type is said to be SizeInvariant (in lack of better words).
+            scalarmult(v, f::Integer) = invariantvertex(x -> x .* f, v)
 
             invertex = inputvertex("input", 6);
             start = layer(invertex, 6);
@@ -172,7 +174,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
             NaiveNASlib.mutate_inputs(l::SimpleLayer, newInSize) = l.W = ones(Int, newInSize, size(l.W,2))
             NaiveNASlib.mutate_outputs(l::SimpleLayer, newOutSize) = l.W = ones(Int, size(l.W,1), newOutSize)
 
-            #In some cases it is useful to hold on to the old graph before mutating
+            # In some cases it is useful to hold on to the old graph before mutating
             # To do so, we need to define the clone operation for our SimpleLayer
             NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(l.W)
             parentgraph = copy(graph)
@@ -187,8 +189,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
             @test [nout(start), nout(joined)] == nin(out) == [9, 9]
 
             # However, this only updated the mutation metadata, not the actual layer.
-            # There are some slightly annoying and perhaps overthought reasons to this
-            # I will document them once things crystalize a bit more
+            # Some reasons for this are shown in the pruning example below
             @test graph((ones(Int, 1,6))) == [78  78  114  114  186  186]
 
             # To mutate the graph, we need to apply the mutation:
@@ -279,7 +280,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
                 # Some mockup 'batteries' for this example
 
                 # First, how to select or add rows or columns to a matrix
-                # selected uses negative values it indicate rows/cols insertion
+                # Negative values in selected indicate rows/cols insertion at that index
                 function select_params(W, selected, dim)
                     Wsize = collect(size(W))
                     indskeep = repeat(Any[Colon()], 2)
@@ -287,7 +288,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
 
                     # The selected indices
                     indskeep[dim] = filter(ind -> ind > 0, selected)
-                    # Where they are 'placed'
+                    # Where they are 'placed', others will be zero
                     newmap[dim] = selected .> 0
                     Wsize[dim] = length(newmap[dim])
 
@@ -350,7 +351,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
 
                 # Ok, for v1 we shall remove one output neuron while for v2 we shall add one
                 # Changes propagate to v3 so that the right inputs are chosen
-                Δnout(v1, [1, 3]) # Remove middle column
+                Δnout(v1, [1, 3]) # Remove middle and last column
                 Δnout(v2, [1,2,3, -1]) # -1 means add a new column
 
                 apply_mutation(graph)

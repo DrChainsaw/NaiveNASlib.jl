@@ -6,12 +6,30 @@ import NaiveNASlib
         @test issame(inputvertex("input", 5), InputSizeVertex("input", 5))
     end
 
+    @testset "Create immutable" begin
+        v = immutablevertex(x -> x * [1 2 3; 4 5 6], 2, inputvertex("in", 3))
+        @test nin(v) == [3]
+        @test nout(v) == 2
+        @test v([1 2]) == [9  12  15]
+        v = immutablevertex(identity, 1, inputvertex("in", 1), mutation=IoSize, traitdecoration = t -> NamedTrait(t, "v"))
+        @test name(v) == "v"
+    end
+
     @testset "Create absorbing" begin
         v = absorbvertex(x -> x * [1 2 3; 4 5 6], 2, inputvertex("in", 3))
         @test nin(v) == [3]
         @test nout(v) == 2
         @test v([1 2]) == [9  12  15]
         v = absorbvertex(identity, 1, inputvertex("in", 1), mutation=IoSize, traitdecoration = t -> NamedTrait(t, "v"))
+        @test name(v) == "v"
+    end
+
+    @testset "Create invariant" begin
+        v = invariantvertex(x -> 2 .* x, inputvertex("in", 2))
+        @test nin(v) == [2]
+        @test nout(v) == 2
+        @test v([1 2]) == [2 4]
+        v = invariantvertex(identity, inputvertex("in", 1), mutation=IoSize, traitdecoration = t -> NamedTrait(t, "v"))
         @test name(v) == "v"
     end
 

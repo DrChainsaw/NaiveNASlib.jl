@@ -35,6 +35,33 @@ julia> v(3)
 """
 vertex(computation, outsize::Integer, trait::MutationTrait, inputs::AbstractVertex...; mutation=IoChange) = MutationVertex(CompVertex(computation, inputs...), mutation(collect(nout.(inputs)), outsize), trait)
 
+
+"""
+    immutablevertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity)
+
+Return an immutable computation type vertex.
+
+# Examples
+```julia-repl
+julia> using NaiveNASlib
+
+julia> v = immutablevertex(x -> x * [1 2 3; 4 5 6], 3, inputvertex("input", 2));
+
+julia> nin(v)
+1-element Array{Int64,1}:
+ 2
+
+julia> nout(v)
+3
+
+julia> v([1 2])
+1×3 Array{Int64,2}:
+ 9  12  15
+
+```
+"""
+immutablevertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity) = vertex(computation, outsize, traitdecoration(Immutable()), inputs..., mutation=mutation)
+
 """
     absorbvertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity)
 
@@ -60,6 +87,31 @@ julia> v([1 2])
 ```
 """
 absorbvertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity) = vertex(computation, outsize, traitdecoration(SizeAbsorb()), inputs..., mutation=mutation)
+
+"""
+    invariantvertex(computation, input; mutation=IoChange, traitdecoration=identity)
+
+Return a mutable computation type vertex which is size invariant, i.e nin == nout.
+
+# Examples
+```julia-repl
+julia> using NaiveNASlib
+
+julia> v = invariantvertex(x -> 2 .* x, inputvertex("input", 2));
+
+julia> nin(v)
+1-element Array{Int64,1}:
+ 2
+
+julia> nout(v)
+2
+
+julia> v([1 2])
+1×2 Array{Int64,2}:
+ 2  4
+```
+"""
+invariantvertex(computation, input; mutation=IoChange, traitdecoration=identity) = vertex(computation, nout(input), traitdecoration(SizeInvariant()), input, mutation=mutation)
 
 """
     conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity)

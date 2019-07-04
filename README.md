@@ -4,8 +4,6 @@
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/DrChainsaw/NaiveNASlib.jl?svg=true)](https://ci.appveyor.com/project/DrChainsaw/NaiveNASlib-jl)
 [![Codecov](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl)
 
-Work in progress! Limited functionality (and bugs, but there will always be bugs).
-
 NaiveNASlib is a library of functions for mutating computation graphs in order to support Neural Architecture Search (NAS).
 
 It is "batteries excluded" in the sense that it is independent of both neural network implementation and search policy implementation.
@@ -23,9 +21,10 @@ The price one has to pay is that the computation graph must be explicitly define
 Main supported use cases:
 * Change the input/output size of vertices
 * Parameter pruning (policy excluded)
-* Remove a vertex from the graph
-* Add a vertex to the graph
-* Add/remove edges to/from vertex
+* Add vertices to the graph
+* Remove vertices from the graph
+* Add edges to a vertex
+* Remove edges to a vertex
 
 For each of the above operations, NaiveNASlib makes the necessary changes to neighboring vertices to ensure that the computation graph is consistent w.r.t dimensions of the activations.
 
@@ -62,18 +61,20 @@ layer2 = layer(layer1, 5);
 
 @test [nout(layer1)] == nin(layer2) == [4]
 
-#Lets change the output size of layer1:
+# Lets change the output size of layer1:
 Δnout(layer1, -2);
 
 @test [nout(layer1)] == nin(layer2) == [2]
 ```
 As can be seen above, the consequence of changing the output size of `layer1` was that the input size of `layer2` also was changed.
 
-This mutation was trivial because both layers are of the type `SizeAbsorb`, meaning that a change in number of inputs/outputs does not propagate further in the graph.
+Besides the very simple graph, this mutation was trivial because both layers are of the type `SizeAbsorb`, meaning that a change in number of inputs/outputs does not propagate further in the graph.
 
 Lets do a non-trivial example:
 ```julia
-scalarmult(v, f::Integer) = vertex(x -> x .* f, nout(v), SizeInvariant(), v)
+# When multiplying with a scalar, the output size is the same as the input size.
+# This vertex type is said to be size invariant (in lack of better words).
+scalarmult(v, f::Integer) = invariantvertex(x -> x .* f, v)
 
 invertex = inputvertex("input", 6);
 start = layer(invertex, 6);
@@ -101,7 +102,7 @@ NaiveNASlib.minΔninfactor(::SimpleLayer) = 1
 NaiveNASlib.mutate_inputs(l::SimpleLayer, newInSize) = l.W = ones(Int, newInSize, size(l.W,2))
 NaiveNASlib.mutate_outputs(l::SimpleLayer, newOutSize) = l.W = ones(Int, size(l.W,1), newOutSize)
 
-#In some cases it is useful to hold on to the old graph before mutating
+# In some cases it is useful to hold on to the old graph before mutating
 # To do so, we need to define the clone operation for our SimpleLayer
 NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(l.W)
 parentgraph = copy(graph)
@@ -116,8 +117,7 @@ parentgraph = copy(graph)
 @test [nout(start), nout(joined)] == nin(out) == [9, 9]
 
 # However, this only updated the mutation metadata, not the actual layer.
-# There are some slightly annoying and perhaps overthought reasons to this
-# I will document them once things crystalize a bit more
+# Some reasons for this are shown in the pruning example below
 @test graph((ones(Int, 1,6))) == [78  78  114  114  186  186]
 
 # To mutate the graph, we need to apply the mutation:
@@ -132,7 +132,7 @@ apply_mutation(graph);
 
 As seen above, things get a little bit out of hand when using:
 
-* Layers which require nin==nout such as batch normalization
+* Layers which require nin==nout, such as batch normalization and pooling
 * Element wise operations
 * Concatenation of activations  
 
@@ -141,11 +141,11 @@ The core idea of NaiveNASlib is basically to annotate the type of vertex in the 
 This is done through labeling vertices into three major types:
 * `SizeAbsorb`: Assumes `nout(v)` and `nin(v)` may change independently. This means that size changes are absorbed by this vertex in the sense they don't propagate further.
 
-* `SizeStack`: Assumes `nout(v) == sum(nin(v))`. This means that size changes propagate forwards (i.e. input -> input and output -> output).
+* `SizeStack`: Assumes `nout(v) == sum(nin(v))`. This means that size changes propagate forwards (i.e. input -> output and output -> input).
 
 * `SizeInvariant`: Assumes `[nout(v)] == unique(nin(v))`. This means that size changes propagate both forwards and backwards as changing any input size or the output size means all others must change as well.
 
-To use this library to mutate architectures for some neural network library basically means annotating up the above type for each layer in the neural network library.  
+To use this library to mutate architectures for some neural network library basically means annotating up the above type for each layer type.  
 
 Lets just do a few quick examples of the other use cases.
 
@@ -154,7 +154,7 @@ Prune (and insert) neurons:
 # Some mockup 'batteries' for this example
 
 # First, how to select or add rows or columns to a matrix
-# selected uses negative values it indicate rows/cols insertion
+# Negative values in selected indicate rows/cols insertion at that index
 function select_params(W, selected, dim)
     Wsize = collect(size(W))
     indskeep = repeat(Any[Colon()], 2)
@@ -162,7 +162,7 @@ function select_params(W, selected, dim)
 
     # The selected indices
     indskeep[dim] = filter(ind -> ind > 0, selected)
-    # Where they are 'placed'
+    # Where they are 'placed', others will be zero
     newmap[dim] = selected .> 0
     Wsize[dim] = length(newmap[dim])
 
@@ -225,7 +225,7 @@ graph = CompGraph(invertices, v3)
 
 # Ok, for v1 we shall remove one output neuron while for v2 we shall add one.
 # Changes will propagate to v3 so that the right inputs are chosen
-Δnout(v1, [1, 3]) # Remove middle column
+Δnout(v1, [1, 3]) # Remove middle and last column
 Δnout(v2, [1,2,3, -1]) # -1 means add a new column
 
 apply_mutation(graph)
