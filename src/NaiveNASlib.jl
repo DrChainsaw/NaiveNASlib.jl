@@ -20,7 +20,7 @@ InputVertex, CompVertex, inputs, outputs,
 infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr,
 
 # Computation graph
-CompGraph, output!,flatten,
+CompGraph, output!,flatten, nv,
 
 # Mutation operations
 #State
@@ -45,7 +45,10 @@ AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, Chang
 AbstractConnectStrategy, ConnectAll, ConnectNone,
 
 # apply mutation
-mutate_inputs, mutate_outputs, apply_mutation
+mutate_inputs, mutate_outputs, apply_mutation,
+
+#sugar
+inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc, VertexConf, traitconf, mutationconf
 
 include("vertex.jl")
 include("compgraph.jl")
@@ -56,6 +59,8 @@ include("mutation/size.jl")
 include("mutation/apply.jl")
 
 include("mutation/structure.jl")
+
+include("mutation/sugar.jl")
 
 
 
