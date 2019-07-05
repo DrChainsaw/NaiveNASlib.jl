@@ -407,6 +407,7 @@ function Δnout(::SizeInvariant, v::AbstractVertex, Δ::T; s::VisitState{T}=Visi
     anyvisit(v, s) && return
 
     Δnout(op(v), Δ)
+    Δnin(op(v), repeat([Δ], length(inputs(v)))...)
 
     propagate_nin(v, Δ, s=s)
     propagate_nout(v, fill(Δ, length(inputs(v)))...; s=s)
