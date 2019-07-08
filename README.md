@@ -225,9 +225,9 @@ graph = CompGraph(invertices, v3)
 @test nout(v1) == 2
 @test nout(v2) == 4
 
-# Ok, for v1 we shall remove one output neuron while for v2 we shall add one.
+# Ok, for v1 we shall remove two output neurons while for v2 we shall add one.
 # Changes will propagate to v3 so that the right inputs are chosen
-Δnout(v1, [1, 3]) # Remove middle and last column
+Δnout(v1, [1, 3]) # Keep columns 1 and 3
 Δnout(v2, [1,2,3, -1]) # -1 means add a new column
 
 apply_mutation(graph)
