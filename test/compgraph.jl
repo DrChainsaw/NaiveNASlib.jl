@@ -160,9 +160,11 @@ import LightGraphs:adjacency_matrix,is_cyclic
             graph = CompGraph(invertex, out)
             @test graph((ones(Int, 1,6))) == [78  78  114  114  186  186]
 
-            # Ok, lets try to reduce the size of the vertex "out".
+            # Ok, lets try to change the size of the vertex "out".
             # First we need to realize that we can only change it by integer multiples of 3
             # This is because it is connected to "split" through three paths which require nin==nout
+            # Therefore, any size change to nout of "split" will result in 3 times the change of nin of "out".
+            # Equivalently, nout of "split" is nin of "out" divided by 3 and nin/nout must be integers.    
 
             # We need this information from the layer. Some layers have other requirements
             NaiveNASlib.minΔnoutfactor(::SimpleLayer) = 1
