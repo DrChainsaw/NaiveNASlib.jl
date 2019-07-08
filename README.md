@@ -4,7 +4,7 @@
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/DrChainsaw/NaiveNASlib.jl?svg=true)](https://ci.appveyor.com/project/DrChainsaw/NaiveNASlib-jl)
 [![Codecov](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl)
 
-NaiveNASlib is a library of functions for mutating computation graphs in order to support Neural Architecture Search (NAS).
+NaiveNASlib is a library of functions for mutating computation graphs. It is designed with Neural Architecture Search (NAS) in mind, but can be used for any purpose where doing changes to a model architecture is desired.
 
 It is "batteries excluded" in the sense that it is independent of both neural network implementation and search policy implementation.
 
@@ -41,7 +41,7 @@ using Test
 @test graph(2,3) == 5
 ```
 
-Now for a more to the point example. The vertex types used above does not contain any information needed to mutate the graph. This might be a sign of OOP damage, but in order to do so, we need to wrap them in a vertex type which supports mutation.
+Now for a more to the point example. The vertex types used above does not contain any information needed to mutate the graph. This might be a sign of OOP damage, but to do so, we need to wrap them in a vertex type which supports mutation.
 
 ```julia
 # First we need something to mutate. Batteries excluded, remember?
@@ -88,9 +88,11 @@ out = start + joined;
 graph = CompGraph(invertex, out)
 @test graph((ones(Int, 1,6))) == [78  78  114  114  186  186]
 
-# Ok, lets try to reduce the size of the vertex "out".
+# Ok, lets try to change the size of the vertex "out".
 # First we need to realize that we can only change it by integer multiples of 3
 # This is because it is connected to "split" through three paths which require nin==nout
+# Therefore, any size change to nout of "split" will result in 3 times the change of nin of "out".
+# Equivalently, nout of "split" is nin of "out" divided by 3 and nin/nout must be integers.
 
 # We need this information from the layer. Some layers have other requirements
 NaiveNASlib.minΔnoutfactor(::SimpleLayer) = 1
@@ -285,7 +287,7 @@ apply_mutation(graph)
 @test graph(ones(Int, 1, 3)) == [3 3 3 3]
 ```
 
-Add an edge to a graph:
+Add an edge to a vertex:
 ```julia
 invertices = inputvertex.(["input1", "input2"], [3, 2])
 layer1 = layer(invertices[1], 4)
@@ -310,7 +312,7 @@ apply_mutation(graph)
 @test graph(ones(Int, 1, 3), ones(Int, 1, 2)) == [42 42 42 42 42]
 ```
 
-Remove an edge from a graph:
+Remove an edge from a vertex:
 ```julia
 invertex = inputvertex("input", 4)
 layer1 = layer(invertex, 3)

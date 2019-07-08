@@ -398,8 +398,8 @@ In other words, return the `Δ` which makes `nouts` equal to all `nins` while st
 
 Solves the following system of linear diophantine equations:
 ```text
-nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins + Δninfactors[0] * y0
-nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins + Δninfactors[1] * y1
+nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins[0] + Δninfactors[0] * y0
+nouts[0] + Δnoutfactors[0]*x0 + nouts[1] + Δnoutfactors[1]*x1 + ... = nins[1] + Δninfactors[1] * y1
 ...
 ```
 where `Δ = [x0, x1, ..., y0, y1, ...]`
