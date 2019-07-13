@@ -20,7 +20,7 @@ InputVertex, CompVertex, inputs, outputs,
 infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr,
 
 # Computation graph
-CompGraph, output!,flatten, nv,
+CompGraph, output!,flatten, nv, vertices,
 
 # Mutation operations
 #State
