@@ -117,14 +117,17 @@ Return an array of all input parents of v
 ```julia-repl
 julia> flatten(CompVertex(+, InputVertex.(1:2)...))
 3-element Array{AbstractVertex,1}:
- InputVertex(2)
  InputVertex(1)
+ InputVertex(2)
  CompVertex(+, [InputVertex(1), InputVertex(2)])
 """
-function flatten(v::AbstractVertex, vertices::Array{AbstractVertex,1} = Array{AbstractVertex,1}())
+function flatten(v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
     v in vertices && return vertices
-    pushfirst!(vertices, v)
-    foreach(iv -> flatten(iv, vertices), inputs(v))
+    if !(v in visited)
+        push!(visited, v)
+        foreach(iv -> flatten(iv, vertices), inputs(v))
+    end
+    push!(vertices, v)
     return vertices
 end
 
@@ -145,8 +148,8 @@ julia> graph = CompGraph(ins, v2);
 
 julia> vertices(graph)
 4-element Array{AbstractVertex,1}:
- InputVertex(2)
  InputVertex(1)
+ InputVertex(2)
  CompVertex(+), inputs=[InputVertex(1), InputVertex(2)]
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```

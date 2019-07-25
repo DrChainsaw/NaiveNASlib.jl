@@ -1,7 +1,6 @@
 import NaiveNASlib:CompGraph, CompVertex, InputVertex, SimpleDiGraph
 import LightGraphs:adjacency_matrix,is_cyclic
 
-
 @testset "Computation graph tests" begin
 
     @testset "Scalar computation graphs" begin
@@ -16,14 +15,14 @@ import LightGraphs:adjacency_matrix,is_cyclic
 
         @testset "Structural tests" begin
             @test adjacency_matrix(SimpleDiGraph(graph)) == [0 0 1 0; 0 0 1 0; 0 0 0 1; 0 0 0 0]
-            @test adjacency_matrix(SimpleDiGraph(graph2out)) == [0 0 1 0 0 0;
-            0 0 1 0 0 1; 0 0 0 1 0 0; 0 0 0 0 0 0; 0 0 0 0 0 1; 0 0 0 0 0 0]
+            @test adjacency_matrix(SimpleDiGraph(graph2out)) == [0 0 1 0 0 1;
+            0 0 1 0 0 0; 0 0 0 1 0 0; 0 0 0 0 0 0; 0 0 0 0 0 1; 0 0 0 0 0 0]
 
             @test nv(graph) == 4
             @test nv(graph2out) == 6
 
-            @test vertices(graph) == [ins[2], ins[1], sumvert, scalevert]
-            @test vertices(graph2out) == [ins[2], ins[1], sumvert, scalevert, ins[3], sumvert2]
+            @test vertices(graph) == [ins[1], ins[2], sumvert, scalevert]
+            @test vertices(graph2out) == [ins[1], ins[2], sumvert, scalevert, ins[3], sumvert2]
         end
 
         @testset "Computation tests" begin
@@ -105,7 +104,16 @@ import LightGraphs:adjacency_matrix,is_cyclic
         # But new graph shall use IoIndices
         testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoIndices
         foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
+    end
 
+    @testset "Topological sort" begin
+        in1,in2 = InputVertex.(("in1", "in2"))
+        v1 = CompVertex(+, in1, in2)
+        v2 = CompVertex(-, in2, in1)
+        v3 = CompVertex(vcat, v1,v2,v1)
+        g = CompGraph([in1, in2], v3)
+
+        @test vertices(g) == [in1, in2, v1, v2, v3]
     end
 
     @testset "README examples" begin
