@@ -101,7 +101,7 @@ function LightGraphs.SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
 end
 
 """
-    nvertices(g::CompGraph)
+    nv(g::CompGraph)
 
 Return the total number of vertices in the graph.
 """
