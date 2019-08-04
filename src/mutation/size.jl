@@ -300,6 +300,7 @@ function concat(insizes, currinds, Δ::Maybe{AbstractArray{T}}...) where T
     Δ = collect(Δ)
     missing_inds = ismissing.(Δ)
     Δ[missing_inds] = currinds[missing_inds]
+
     res = Δ[1]
     for (innr, Δi) in enumerate(Δ[2:end])
         res = vcat(res, map(elem -> elem + sign(elem) * insizes[innr], Δi))
@@ -448,7 +449,9 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
             Vector{Maybe{T}}(missing, length(ins))
         end
         # Add Δ for each input which is the current vertex (at least and typically one)
-        foreach(ind -> Δs[ind] = Δ, findall(vx -> vx == v, ins))
+        for ind in findall(vx -> vx == v, ins)
+            Δs[ind] = align_invalid_indices(vi, o -> nin_org(o)[ind], Δ)
+        end
 
         validΔs = .!ismissing.(Δs)
         expectedΔs = get(() -> trues(length(Δs)), s.change_nin, vi)
@@ -457,15 +460,26 @@ function propagate_nin(v::MutationVertex, Δ::T; s::VisitState{T}) where T
     end
 end
 
-
 function propagate_nout(v::MutationVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+    Δs = align_invalid_indices.(inputs(v), nout_org, Δ)
 
-    setnoutΔ!.(Δ, s, inputs(v))
-    for (Δi, vi) in zip(Δ, inputs(v))
+    # Need to remember which Δs have been set, mainly when splitting a Δ over sevaral inputs as done in Δnout(::SizeStack...) so that we don't come to a different conclusion there about some vertex we have already visisted.
+    setnoutΔ!.(Δs, s, inputs(v))
+    for (Δi, vi) in zip(Δs, inputs(v))
         if !ismissing(Δi)
             Δnout(vi, Δi; s=s)
         end
     end
+end
+
+align_invalid_indices(v, fun, Δ) = Δ
+align_invalid_indices(v::MutationVertex, fun, Δ) = align_invalid_indices(op(v), fun, Δ)
+function align_invalid_indices(o::IoChange, fun, Δ::AbstractVector{T}) where T <: Integer
+    # Handle cases when inputs and outputs had different sizes originally. Example of this is when a vertex between them was removed.
+    maxind = fun(o)
+    Δ = copy(Δ)
+    Δ[Δ .> maxind] .= -1
+    return Δ
 end
 
 

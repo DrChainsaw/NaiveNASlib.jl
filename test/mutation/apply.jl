@@ -438,5 +438,103 @@ using NaiveNASlib
             @test mm2.W == mm3.W == [4 7 10 0 0; 5 8 11 0 0; 6 9 12 0 0]
             @test mm5.W == [2 6; 3 7; 4 8; 0 0; 0 0]
         end
+
+        @testset "Remove increase select nout" begin
+            v1 = inpt(4)
+            v2, mm2 = mmv(4, v1, "v2")
+            v3, mm3 = mmv(2, v2, "v3")
+            v4, mm4 = mmv(3, v3, "v4")
+
+            remove!(v3)
+            Δnout(v2, [1,-1,2,4])
+            apply_mutation.(flatten(v4))
+
+            @test mm2.W == [1 0 5 13; 2 0 6 14; 3 0 7 15; 4 0 8 16]
+            # Row added for -1, but also one added for output #4 from v2 as v4 only had 2 inputs to begin with
+            @test mm4.W == [1 3 5; 0 0 0; 2 4 6; 0 0 0]
+        end
+
+        @testset "Remove increase select nout SizeStack" begin
+            v1 = inpt(4)
+            v2, mm2 = mmv(4, v1, "v2")
+            v3, mm3 = mmv(2, v2, "v3")
+            v4, mm4 = mmv(3, v1, "v4")
+            v5 = sv(v3, v4, name="v5")
+            v6, mm6 = mmv(2, v5, "v6")
+
+            remove!(v3)
+            Δnout(v2, [1,-1,2,4])
+            apply_mutation.(flatten(v6))
+
+            @test mm2.W == [1 0 5 13; 2 0 6 14; 3 0 7 15; 4 0 8 16]
+            # Row added for -1, but also one added for output #4 from v2 as v4 only had 2 inputs to begin with. Inputs from v4 are kept as is
+            @test mm6.W == [1 6; 0 0; 2 7; 0 0; 3 8; 4 9; 5 10]
+        end
+
+        @testset "Remove increase select nout SizeInvariant" begin
+            v1 = inpt(4)
+            v2, mm2 = mmv(4, v1, "v2")
+            v3, mm3 = mmv(2, v2, "v3")
+            v4, mm4 = mmv(2, v1, "v4")
+            v5 = iv(v3, v4, name="v5")
+            v6, mm6 = mmv(3, v5, "v6")
+
+            remove!(v3)
+            Δnout(v2, [1,-1,2,4])
+            apply_mutation.(flatten(v6))
+
+            @test mm2.W == [1 0 5 13; 2 0 6 14; 3 0 7 15; 4 0 8 16]
+            # Row added for -1, but also one added for output #4 from v2 as v4 only had 2 inputs to begin with.
+            @test mm6.W == [1 3 5; 0 0 0; 2 4 6; 0 0 0]
+        end
+
+        @testset "Remove increase select nin" begin
+            v1 = inpt(4)
+            v2, mm2 = mmv(2, v1, "v2")
+            v3, mm3 = mmv(4, v2, "v3")
+            v4, mm4 = mmv(3, v3, "v4")
+
+            remove!(v3)
+            Δnin(v4, [1,-1,2,4])
+            apply_mutation.(flatten(v4))
+
+            # Column added for -1, but also one added for input #4 from v4 as v2 only had 2 outputs to begin with
+            @test mm2.W == [1 0 5 0; 2 0 6 0; 3 0 7 0; 4 0 8 0]
+            @test mm4.W == [1 5 9; 0 0 0; 2 6 10; 4 8 12]
+        end
+
+        @testset "Remove increase select nin SizeStack" begin
+            v1 = inpt(4)
+            v2, mm2 = mmv(2, v1, "v2")
+            v3, mm3 = mmv(4, v2, "v3")
+            v4, mm4 = mmv(3, v1, "v4")
+            v5 = sv(v3, v4, name="v5")
+            v6, mm6 = mmv(2, v5, "v6")
+
+            remove!(v3)
+            Δnin(v6, [1,-1,2,4,5,6,7])
+            apply_mutation.(flatten(v6))
+
+            # Column added for -1, but also one added for input #4 from v4 as v2 only had 2 outputs to begin with
+            @test mm2.W == [1 0 5 0; 2 0 6 0; 3 0 7 0; 4 0 8 0]
+            @test mm6.W == [1 8; 0 0; 2 9; 4 11; 5 12; 6 13; 7 14]
+        end
+
+        @testset "Remove increase select nin SizeInvariant" begin
+            v1 = inpt(4)
+            v2, mm2 = mmv(2, v1, "v2")
+            v3, mm3 = mmv(4, v2, "v3")
+            v4, mm4 = mmv(4, v1, "v4")
+            v5 = iv(v3, v4, name="v5")
+            v6, mm6 = mmv(3, v5, "v6")
+
+            remove!(v3)
+            Δnin(v6, [1,-1,2,4])
+            apply_mutation.(flatten(v6))
+
+            # Column added for -1, but also one added for input #4 from v4 as v2 only had 2 outputs to begin with
+            @test mm2.W == [1 0 5 0; 2 0 6 0; 3 0 7 0; 4 0 8 0]
+            @test mm6.W == [1 5 9; 0 0 0; 2 6 10; 4 8 12]
+        end
     end
 end
