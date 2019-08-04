@@ -337,23 +337,32 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
         Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor_only_for(va) for va in muftv]
         insizes = nout.(muftv)
 
+        # Weighted split so that larger insizes take more of the change
+        weights = Δfactors ./ insizes
+
+        # Optimization: "Shave off" as many integer multiples of minΔninfactor as we can
+        minΔf = minΔninfactor(v)
+        Δpre = abs(Δ) <= minΔf ? 0 : (Δ ÷ minΔf - sign(Δ)) * minΔf
+        presplit = round.(T, (Δpre ./ weights ./ sum(insizes))) .*Δfactors
+        presplit[-presplit .>= insizes] .= 0
+
         # floor is due to assumption the minimum size is 1 * Δfactors
-        limits = floor.(insizes ./ Δfactors)
+        limits = floor.((insizes .+ presplit) ./ Δfactors)
 
         objective = function(n)
             # If decreasing (Δ < 0) consider any solution which would result in a nin[i] < Δfactors[i] to be invalid
             Δ < 0 && any(n .>= limits) && return Inf
             # Minimize standard deviation of Δs weighted by input size so larger input sizes get larger Δs
-            return std(n .* Δfactors ./ insizes, corrected=false)
+            return std(n .* weights, corrected=false)
         end
 
-        nΔfactors = pick_values(Δfactors, abs(Δ), objective)
+        nΔfactors = pick_values(Δfactors, abs(Δ - sum(presplit)), objective)
 
-        sum(nΔfactors .* Δfactors) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors) and limits $(limits)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
+        sum(nΔfactors .* Δfactors .+ abs.(presplit)) == abs(Δ) || @warn "Failed to distribute Δ = $Δ using Δfactors = $(Δfactors) and limits $(limits)!. Proceed with $(nΔfactors) in case receiver can work it out anyways..."
 
         # Remap any duplicated vertices Δi =>  Δi / 2
         scale_duplicate = Integer[count(x->x==va,ftv) for va in muftv]
-        termΔs[missinginds] = div.(sign(Δ) .* nΔfactors .* Δfactors, scale_duplicate)
+        termΔs[missinginds] = div.(sign(Δ) .* nΔfactors .* Δfactors .+presplit, scale_duplicate)
     end
 
     # Now its time to accumulate all Δs for each terminating_vertices array. Remember that terminating_vertices[i] is an array of the terminating vertices seen through input vertex i
