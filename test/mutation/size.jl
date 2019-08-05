@@ -520,8 +520,21 @@
             @test nout(sv1) == nout(v2) + nout(v3) == 165
             @test nout(sv2) == nout(sv1) + nout(v1) == 254
             @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [419]
-
         end
+
+        @testset "SizeStack large Δ" begin
+            v1 = av(100,2, inpt(3), name="v1")
+            v2 = av(100,3, inpt(3), name="v1")
+            vs = [av(100,1, inpt(3), name="v$i") for i in 1:10]
+
+            sv1  = sv(v1, v2, vs..., name="sv1")
+
+            # This would take forever to brute force...
+            Δnout(sv1, -600)
+            @test nout(sv1) == sum(nin(sv1)) == sum(nout.([v1, v2, vs...])) == 600
+            @test nin(sv1) == nout.([v1, v2, vs...])
+        end
+
         @testset "Stacked InvariantVertex" begin
             v1 = av(100,1, inpt(3), name="v1")
             v2 = av(100,2, inpt(3), name="v2")

@@ -34,10 +34,10 @@ import NaiveNASlib
     end
 
     @testset "Create stacking" begin
-        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = t -> NamedTrait(t, "v"))
+        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = t -> NamedTrait(t, "v"), outwrap = x -> 2 .* x)
         @test nin(v) == [1 ,2]
         @test nout(v) == 3
-        @test v(1, [2, 3]) == [1,2,3]
+        @test v(1, [2, 3]) == [2,4,6] # Due to outwrap = x -> 2 .* x
         @test name(v) == "v"
     end
 
@@ -59,6 +59,9 @@ import NaiveNASlib
 
             v = inputvertex("in1", 2) + inputvertex("in2", 2)
             @test v([1, 2], [3, 4]) == [4, 6]
+
+            v = outwrapconf(x -> 2 .* x) >> inputvertex("in1", 2) + inputvertex("in2", 2)
+            @test v([1, 2], [3, 4]) == [8, 12]
         end
 
         @testset "Create elemwise multiplication" begin

@@ -142,15 +142,30 @@ julia> v([1], [2, 3], [4, 5, 6])
  6
 ```
 """
-conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity) = vertex((x...) -> cat(x..., dims=dims), nout(v) + sum(nout.(vs)), traitdecoration(SizeStack()), v, vs..., mutation=mutation)
+conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity, outwrap=identity) = vertex((x...) -> outwrap(cat(x..., dims=dims)), nout(v) + sum(nout.(vs)), traitdecoration(SizeStack()), v, vs..., mutation=mutation)
 
+
+"""
+    VertexConf
+    VertexConf(;mutation = IoChange, traitdecoration = identity, outwrap = identity)
+
+
+Config struct to be used with element wise op syntax (`+`, `-`, `*`, `/`).
+
+`mutation` determines how size changes of the vertex are handled
+`traitdecoration` allows for decorating the vertex trait with stuff like logging, validation etc.
+`outwrap` is a function which will be applied to the computed output
+"""
 struct VertexConf
     mutation
     traitdecoration
+    outwrap
 end
-mutationconf(m) = VertexConf(m, identity)
-traitconf(t) = VertexConf(IoChange, t)
-VertexConf() = VertexConf(IoChange, identity)
+mutationconf(m) = VertexConf(mutation=m)
+traitconf(t) = VertexConf(traitdecoration=t)
+outwrapconf(o) = VertexConf(outwrap=o)
+VertexConf(;mutation = IoChange, traitdecoration = identity, outwrap = identity)= VertexConf(mutation, traitdecoration, outwrap)
+
 
 function invariant_outsize(vs::AbstractVertex...)
     outsize = unique([nout.(vs)...])
@@ -159,7 +174,7 @@ function invariant_outsize(vs::AbstractVertex...)
 end
 
 # Common wiring for all elementwise operations
-elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex((x...) -> op.(x...), invariant_outsize(vs...), conf.traitdecoration(SizeInvariant()), vs..., mutation=conf.mutation)
+elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex((x...) -> conf.outwrap(op.(x...)), invariant_outsize(vs...), conf.traitdecoration(SizeInvariant()), vs..., mutation=conf.mutation)
 
 
 """
