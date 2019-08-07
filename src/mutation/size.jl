@@ -578,6 +578,7 @@ function Δnout_touches_nin(::SizeInvariant, v, from, s)
 end
 function Δnout_touches_nin(::SizeStack, v, from, s)
     push!(s.has_visited, v)
+    delete!(s.touch_nin, v) # Must to resolve sizes from the nout-direction if we ever hit it
     foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
     foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
     return s

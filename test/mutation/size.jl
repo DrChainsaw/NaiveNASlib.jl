@@ -236,8 +236,9 @@
     @testset "Mutate tricky structures" begin
 
         ## Helper functions
-        rb(start, residual,name="add") = InvariantVertex(CompVertex(+, residual, start), tf(name))
-        conc(paths...;name="conc") = StackingVertex(CompVertex(hcat, paths...), tf(name))
+        rb(start, residual,name="add") = traitconf(tf(name)) >> start + residual
+        iv(in; name="iv") = invariantvertex(identity, in, traitdecoration=tf(name))
+        concd1(paths...;name="conc") = conc(paths..., dims=1, traitdecoration=tf(name))
         mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
         av(op, state, in...;name="comp") = AbsorbVertex(CompVertex(op, in...), state, tf(name))
         function stack(start, nouts...; bname = "stack")
@@ -254,7 +255,7 @@
             start = av(mm(3,9), IoSize(3,9), InputSizeVertex("in", 3), name="start")
             p1 = stack(start, 3,4, bname = "p1")
             p2 = stack(start, 4,5, bname = "p2")
-            resout = rb(start, conc(p1, p2))
+            resout = rb(start, concd1(p1, p2))
             out = av(mm(9, 4), IoSize(9,4), resout; name="out")
 
             @test nout(resout) == 9
@@ -274,9 +275,9 @@
         @testset "Half transparent residual fork block" begin
             start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
             split = av(mm(8,4), IoSize(8,4), start, name="split")
-            p1 = conc(split, name="p1") #Just an identity vertex
+            p1 = iv(split, name="p1") #Just an identity vertex
             p2 = stack(split, 3,2,4, bname="p2")
-            resout = rb(start, conc(p1, p2))
+            resout = rb(start, concd1(p1, p2))
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
@@ -294,9 +295,9 @@
 
         @testset "Transparent fork block" begin
             start = av(mm(3,4), IoSize(3,4), InputSizeVertex("in", 3), name="start")
-            p1 = conc(start, name="p1")
-            p2 = conc(start, name="p2")
-            join = conc(p1, p2)
+            p1 = iv(start, name="p1")
+            p2 = iv(start, name="p2")
+            join = concd1(p1, p2, name="join")
             out = av(mm(8, 3), IoSize(8,3), join, name="out")
 
             @test nout(join) == 8
@@ -317,9 +318,9 @@
         @testset "Transparent residual fork block" begin
             start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
             split = av(mm(8,4), IoSize(8,4), start, name="split")
-            p1 = conc(split, name="p1")
-            p2 = conc(split, name="p2")
-            resout = rb(start, conc(p1, p2, name="join"))
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            resout = rb(start, concd1(p1, p2, name="join"))
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
@@ -344,10 +345,10 @@
         @testset "Transparent residual fork block with single absorbing path" begin
             start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
             split = av(mm(8,3), IoSize(8,3), start, name="split")
-            p1 = conc(split, name="p1")
-            p2 = conc(split, name="p2")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
             p3 = av(mm(3, 2), IoSize(3,2), split, name="p3")
-            resout = rb(start, conc(p1, p2, p3, name="join"), "add")
+            resout = rb(start, concd1(p1, p2, p3, name="join"), "add")
             out = av(mm(8, 3), IoSize(8,3), resout, name="out")
 
             @test nout(resout) == 8
@@ -395,7 +396,28 @@
             @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 5]
             @test nin(sv2) == nout.(inputs(sv2)) == [8, 4, 5]
             @test nin(sv3) == nout.(inputs(sv3)) == [12, 17, 13]
+        end
 
+        @testset "SizeStack duplicate vertex cycle" begin
+            av(in, outsize, name) = absorbvertex(identity, outsize, in, mutation=IoChange, traitdecoration=tf(name))
+
+            v0 = inpt(3, "in")
+            v1 = av(v0, 7, "v1")
+            v2 = av(v0, 4, "v2")
+            v3 = concd1(v1, v2, name="v3")
+            v4 = concd1(v2, v3, name="v4")
+
+            @test minΔnoutfactor(v4) == 2
+            # Trouble as we might go Δnout(v4) -> Δnout(v2) -> Δnin(v3) and then exit at Δnout(v3) as v3 has already been vistited
+            Δnout(v4, -4)
+
+            @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 11
+            @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 8
+
+            Δnout(v2, 4)
+
+            @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 19
+            @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 12
         end
     end
 
