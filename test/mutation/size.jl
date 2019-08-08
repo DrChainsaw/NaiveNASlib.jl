@@ -236,26 +236,26 @@
     @testset "Mutate tricky structures" begin
 
         ## Helper functions
-        rb(start, residual,name="add") = InvariantVertex(CompVertex(+, residual, start), tf(name))
-        conc(paths...;name="conc") = StackingVertex(CompVertex(hcat, paths...), tf(name))
+        rb(start, residual,name="add") = traitconf(tf(name)) >> start + residual
+        iv(in; name="iv") = invariantvertex(identity, in, traitdecoration=tf(name))
+        concd1(paths...;name="conc") = conc(paths..., dims=1, traitdecoration=tf(name))
         mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
-        av(op, state, in...;name="comp") = AbsorbVertex(CompVertex(op, in...), state, tf(name))
+        av(in, outsize, name="comp") = absorbvertex(mm(nout(in), outsize), outsize, in, traitdecoration = tf(name))
         function stack(start, nouts...; bname = "stack")
             # Can be done on one line with mapfoldl, but it is not pretty...
             next = start
             for i in 1:length(nouts)
-                op = mm(nout(next), nouts[i])
-                next = av(op, IoSize(nout(next), nouts[i]), next, name="$(bname)_$i")
+                next = av(next, nouts[i], "$(bname)_$i")
             end
             return next
         end
 
         @testset "Residual fork block" begin
-            start = av(mm(3,9), IoSize(3,9), InputSizeVertex("in", 3), name="start")
+            start = av(inputvertex("in", 3), 9, "start")
             p1 = stack(start, 3,4, bname = "p1")
             p2 = stack(start, 4,5, bname = "p2")
-            resout = rb(start, conc(p1, p2))
-            out = av(mm(9, 4), IoSize(9,4), resout; name="out")
+            resout = rb(start, concd1(p1, p2))
+            out = av(resout, 9, "out")
 
             @test nout(resout) == 9
 
@@ -272,12 +272,12 @@
         end
 
         @testset "Half transparent residual fork block" begin
-            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
-            split = av(mm(8,4), IoSize(8,4), start, name="split")
-            p1 = conc(split, name="p1") #Just an identity vertex
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 4, "split")
+            p1 = iv(split, name="p1") #Just an identity vertex
             p2 = stack(split, 3,2,4, bname="p2")
-            resout = rb(start, conc(p1, p2))
-            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
+            resout = rb(start, concd1(p1, p2))
+            out = av(resout, 3, "out")
 
             @test nout(resout) == 8
 
@@ -293,13 +293,13 @@
         end
 
         @testset "Transparent fork block" begin
-            start = av(mm(3,4), IoSize(3,4), InputSizeVertex("in", 3), name="start")
-            p1 = conc(start, name="p1")
-            p2 = conc(start, name="p2")
-            join = conc(p1, p2)
-            out = av(mm(8, 3), IoSize(8,3), join, name="out")
+            start = av(inputvertex("in", 3), 4, "start")
+            p1 = iv(start, name="p1")
+            p2 = iv(start, name="p2")
+            joined = concd1(p1, p2, name="join")
+            out = av(joined, 3, "out")
 
-            @test nout(join) == 8
+            @test nout(joined) == 8
 
             # Evil action: This will propagate to both p1 and p2 which are in
             # turn both input to the conc before resout. Simple dfs will
@@ -315,12 +315,12 @@
         end
 
         @testset "Transparent residual fork block" begin
-            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
-            split = av(mm(8,4), IoSize(8,4), start, name="split")
-            p1 = conc(split, name="p1")
-            p2 = conc(split, name="p2")
-            resout = rb(start, conc(p1, p2, name="join"))
-            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 4, "split")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            resout = rb(start, concd1(p1, p2, name="join"))
+            out = av(resout, 3, "out")
 
             @test nout(resout) == 8
 
@@ -342,13 +342,13 @@
         end
 
         @testset "Transparent residual fork block with single absorbing path" begin
-            start = av(mm(3,8), IoSize(3,8), InputSizeVertex("in", 3), name="start")
-            split = av(mm(8,3), IoSize(8,3), start, name="split")
-            p1 = conc(split, name="p1")
-            p2 = conc(split, name="p2")
-            p3 = av(mm(3, 2), IoSize(3,2), split, name="p3")
-            resout = rb(start, conc(p1, p2, p3, name="join"), "add")
-            out = av(mm(8, 3), IoSize(8,3), resout, name="out")
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 3, "split")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            p3 = av(split, 2, "p3")
+            resout = rb(start, concd1(p1, p2, p3, name="join"), "add")
+            out = av(resout, 3, "out")
 
             @test nout(resout) == 8
 
@@ -371,23 +371,21 @@
         end
 
         @testset "StackingVertex maze" begin
-            av(size, in, name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(vcat(nout(in)), size), tf(name))
-            sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), tf(name))
 
             v1 = inpt(3, "in")
-            v2 = av(3, v1, "v2")
-            v3 = av(5, v1, "v3")
-            v4 = av(7, v1, "v4")
-            v5 = av(11, v1, "v5")
-            v6 = av(13, v1, "v6")
+            v2 = av(v1, 3, "v2")
+            v3 = av(v1, 5, "v3")
+            v4 = av(v1, 7, "v4")
+            v5 = av(v1, 11, "v5")
+            v6 = av(v1, 13, "v6")
 
-            sv1 = sv(v2, v3, v4, name="sv1")
-            sv2 = sv(v5, v3, v4, name="sv2")
-            sv3 = sv(sv1, sv2, v6, name="sv3")
+            sv1 = concd1(v2, v3, v4, name="sv1")
+            sv2 = concd1(v5, v3, v4, name="sv2")
+            sv3 = concd1(sv1, sv2, v6, name="sv3")
 
-            o1 = av(2, sv1, "o1")
-            o2 = av(2, sv2, "o2")
-            o3 = av(2, sv3, "o3")
+            o1 = av(sv1, 2, "o1")
+            o2 = av(sv2, 2, "o2")
+            o3 = av(sv3, 2, "o3")
 
             # Evil action! Must have understanding that change will propagate to sv1 from
             # both v2 and v3 and hold off updating sv1 when the first of them (v1 in this case) is updated. Must also hold off updating sv3 for the same reasons
@@ -395,6 +393,56 @@
             @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 5]
             @test nin(sv2) == nout.(inputs(sv2)) == [8, 4, 5]
             @test nin(sv3) == nout.(inputs(sv3)) == [12, 17, 13]
+        end
+
+        @testset "SizeStack duplicate vertex cycle" begin
+            v0 = inpt(3, "in")
+            v1 = av(v0, 7, "v1")
+            v2 = av(v0, 4, "v2")
+            v3 = concd1(v1, v2, name="v3")
+            v4 = concd1(v2, v3, name="v4")
+
+            @test minΔnoutfactor(v4) == 2
+            # Trouble as we might go Δnout(v4) -> Δnout(v2) -> Δnin(v3) and then exit at Δnout(v3) as v3 has already been vistited
+            Δnout(v4, -4)
+
+            @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 11
+            @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 8
+
+            Δnout(v2, 4)
+
+            @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 19
+            @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 12
+        end
+
+        @testset "Entangled SizeStack" begin
+            v0 = inpt(2, "in")
+
+            v1 = av(v0, 5, "v1")
+            v2 = av(v0, 4, "v2")
+            v3 = av(v0, 3, "v3")
+            v4 = av(v0, 6, "v4")
+
+            v5 = concd1(v1, v2, name="v5")
+            v6 = concd1(v2, v3, name="v6")
+            v7 = concd1(v3, v4, name="v7")
+
+            v8 = concd1(v5, v6, name="v8")
+            v9 = concd1(v6, v7, name="v9")
+
+            v10 = rb(v8,v9, "v10")
+
+            @test minΔnoutfactor(v10) == 2
+            Δnout(v10, -2)
+
+            @test nout(v10) == unique(nin(v10))[] == nout(v8) == nout(v9) == sum(nin(v8)) == sum(nin(v9)) == 14
+
+            @test nin(v9) == nout.(inputs(v9)) == sum.(nin.(inputs(v9))) == [6, 8]
+            @test nin(v8) == nout.(inputs(v8)) == sum.(nin.(inputs(v8))) == [8, 6]
+
+            @test nin(v7) == nout.(inputs(v7)) == [2, 6]
+            @test nin(v6) == nout.(inputs(v6)) == [4, 2]
+            @test nin(v5) == nout.(inputs(v5)) == [4, 4]
 
         end
     end
