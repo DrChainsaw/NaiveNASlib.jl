@@ -433,9 +433,17 @@
             v10 = rb(v8,v9, "v10")
 
             @test minΔnoutfactor(v10) == 2
-            Δnout(v10, -4)
+            Δnout(v10, -2)
 
-            @test nout(v10) == unique(nin(v10))[] == nout(v8) == nout(v9) == sum(nin(v8)) == sum(nin(v9)) == 12
+            @test nout(v10) == unique(nin(v10))[] == nout(v8) == nout(v9) == sum(nin(v8)) == sum(nin(v9)) == 14
+
+            @test nin(v9) == nout.(inputs(v9)) == sum.(nin.(inputs(v9))) == [6, 8]
+            @test nin(v8) == nout.(inputs(v8)) == sum.(nin.(inputs(v8))) == [8, 6]
+
+            @test nin(v7) == nout.(inputs(v7)) == [2, 6]
+            @test nin(v6) == nout.(inputs(v6)) == [4, 2]
+            @test nin(v5) == nout.(inputs(v5)) == [4, 4]
+
         end
     end
 

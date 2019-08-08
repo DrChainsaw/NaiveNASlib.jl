@@ -330,7 +330,8 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
     if any(missinginds)
         #Yeah, muftv = missing_unique_flattened_terminating_vertices
         muftv = uftv[missinginds]
-        Δ -= sum(skipmissing(termΔs))
+        # Only split parts which are not already set through some other path.
+        Δ -= mapreduce(vt -> getnoutΔ(() -> 0, s, vt), +, ftv)
 
         # Remap any duplicated vertices Δf_i => 2 * Δf_i
         Δfactors = Integer[count(x->x==va,ftv) * minΔnoutfactor_only_for(va) for va in muftv]
@@ -366,8 +367,9 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
 
     # Now its time to accumulate all Δs for each terminating_vertices array. Remember that terminating_vertices[i] is an array of the terminating vertices seen through input vertex i
     vert2size = Dict(uftv .=> termΔs)
-    return map(filter(!isempty, terminating_vertices)) do varr
-        res = mapreduce(va -> vert2size[va], +, varr)
+
+    return  map(terminating_vertices) do varr
+        res = mapreduce(va -> vert2size[va], +, varr, init=0)
         return res
     end
 end
