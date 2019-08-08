@@ -317,8 +317,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
 
     # Note: terminating_vertices is an array of arrays so that terminating_vertices[i] are all terminating vertices seen through input vertex i
     # We will use it later to accumulate all individual size changes in that direction
-    inputfilter(v) = v in keys(noutΔs(s)) ? [] : inputs(v)
-    terminating_vertices = findterminating.(inputs(v), inputfilter)
+    terminating_vertices = findterminating.(inputs(v), inputs)
 
     #ftv = flattened_terminating_vertices, okay?
     ftv = vcat(terminating_vertices...)
@@ -367,7 +366,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
 
     # Now its time to accumulate all Δs for each terminating_vertices array. Remember that terminating_vertices[i] is an array of the terminating vertices seen through input vertex i
     vert2size = Dict(uftv .=> termΔs)
-    return map(terminating_vertices) do varr
+    return map(filter(!isempty, terminating_vertices)) do varr
         res = mapreduce(va -> vert2size[va], +, varr)
         return res
     end
