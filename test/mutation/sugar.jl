@@ -122,5 +122,28 @@ import NaiveNASlib
             v = inputvertex("in1", 2) / inputvertex("in2", 2)
             @test v([6, 8], [2, 4]) == [3, 2]
         end
+
+        @testset "Named elementwise" begin
+            v = "eladd" >> inputvertex("in1", 2) + inputvertex("in2", 2)
+
+            @test name(v) == "eladd"
+            @test nin(v) == [2, 2]
+            @test nout(v) == 2
+
+            v = -("unsub" >> inputvertex("in1", 2))
+            @test name(v) == "unsub"
+            @test nin(v) == [2]
+            @test nout(v) == 2
+        end
+
+        @testset "Outwrap shortcut" begin
+            scale(x) = 2x
+            v = scale >> inputvertex("in1", 2) + inputvertex("in2", 2)
+
+            @test nin(v) == [2, 2]
+            @test nout(v) == 2
+
+            @test v([1, 2], [3, 4]) == [8, 12]
+        end
     end
 end

@@ -244,6 +244,7 @@ end
 function reset_in!(s::IoChange)
     Δnin(s.size, s.inΔ...)
     s.inΔ[1:end] .= 0
+    Δnin(s.indices, collect.(StepRange.(1,1, nin(s)))...)
     reset_in!(s.size)
     reset_in!(s.indices)
 end
@@ -251,6 +252,7 @@ end
 function reset_out!(s::IoChange)
     Δnout(s.size, s.outΔ)
     s.outΔ = 0
+    Δnout(s.indices, collect(1:nout(s)))
     reset_out!(s.size)
     reset_out!(s.indices)
 end

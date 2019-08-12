@@ -179,11 +179,15 @@ elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex((x...) -> conf.ou
 
 """
     >>(conf::VertexConf, v::AbstractVertex)
+    >>(name::String, v::AbstractVertex)
+    >>(outwrap::Function, v::AbstractVertex)
 
 Return inputs as a tuple. Only used to enable the `conf >> v1 op v2 ...` syntax.
 
 """
 Base.:>>(conf::VertexConf, v::AbstractVertex) = (conf, v)
+Base.:>>(name::String, v::AbstractVertex) = traitconf(t -> NamedTrait(t, name)) >> v
+Base.:>>(outwrap::Function, v::AbstractVertex) = outwrapconf(outwrap) >> v
 
 """
     +(v::AbstractVertex, vs::AbstractVertex...)
