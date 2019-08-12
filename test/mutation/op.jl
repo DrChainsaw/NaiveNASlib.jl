@@ -198,5 +198,15 @@ import InteractiveUtils:subtypes
         Δnin(s, missing, [1, 2])
         @test nin(s) == [4, 2]
 
+        s = IoChange([4 ,2], 4)
+        Δnin(s, -1, 3)
+        reset_in!(s)
+
+        @test in_inds(s) == [[1,2,3], [1,2,3,4,5]]
+
+        Δnout(s, 3)
+        reset_out!(s)
+        @test out_inds(s) == 1:7
+
     end
 end
