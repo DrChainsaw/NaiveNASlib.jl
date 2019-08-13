@@ -714,6 +714,23 @@
             @test nin(v5) == [2 + expectedΔf ÷ 2]
         end
 
+        @testset "Deep SizeStack" begin
+            v0 = inpt(3, "in")
+            v1 = av(8, 1, v0, name="v1")
+            v2 = av(4, 1, v0, name="v2")
+            v3 = sv(v1,v2, name= "v3")
+            pa1 = iv(v3, name="pa1")
+            pb1 = iv(v3, name="pb1")
+            pc1 = iv(v3, name="pc1")
+            pd1 = av(5, 1, v3, name="pd1")
+            pa1pa1 = iv(pa1, name="pa1pa1")
+            pa1pb1 = iv(pa1, name="pa1pb1")
+            pa2 = sv(pa1pa1, pa1pb1, name = "pa2")
+            v4 = sv(pa2, pb1, pc1, pd1, name = "v4")
+
+            @test minΔnoutfactor(v4) == 4
+        end
+
         @testset "Fail invalid size change" begin
             v1 = av(100,3, inpt(3), name="v1")
             v2 = av(100,2, v1, name="v2")

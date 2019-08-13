@@ -170,27 +170,31 @@ end
 
 
 """
-    findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [])
+    findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [], memo=Dict())
 
 Return an array of all vertices which terminate size changes (i.e does not propagate them) connected through the given function. Will return the given vertex if it is terminating.
 """
-findterminating(v::AbstractVertex, direction::Function, other::Function=v->[], visited = []) = findterminating(trait(v), v, direction, other, visited)
-findterminating(t::DecoratingTrait, v, d::Function, o::Function, visited) = findterminating(base(t), v, d, o, visited)
-findterminating(::SizeAbsorb, v, d::Function, o::Function, visited) = [v]
-findterminating(::Immutable, v, d::Function, o::Function, visited) = [v]
+findterminating(v::AbstractVertex, direction::Function, other::Function=v->[], memo = Dict()) = findterminating(trait(v), v, direction, other, memo)
+findterminating(t::DecoratingTrait, v, d::Function, o::Function, memo) = findterminating(base(t), v, d, o, memo)
+findterminating(::SizeAbsorb, v, d::Function, o::Function, memo) = [v]
+findterminating(::Immutable, v, d::Function, o::Function, memo) = [v]
 
-function findterminating(::SizeStack, v, d::Function, o::Function, visited)
-    v in visited && return []
-    push!(visited, v)
-    collectterminating(v, d, o, visited)
+function findterminating(::SizeStack, v, d::Function, o::Function, memo)
+    v in keys(memo) && return memo[v]
+    memo[v] = [] # Need to stop further traversal in call below
+    dt = collectterminating(v, d, o, memo)
+    memo[v] = dt # Now cache the result
+    return dt
 end
-function findterminating(::SizeInvariant, v, d::Function, o::Function, visited)
-    v in visited && return collectterminating(v, d, o, visited)
-    push!(visited, v)
+function findterminating(::SizeInvariant, v, d::Function, o::Function, memo)
+    v in keys(memo) && return memo[v]
+    memo[v] = [] # Need to stop further traversal in call below
+    dt = collectterminating(v, d, o, memo)
+    memo[v] = dt # Now cache the result
     # Get both inputs and outputs
-    return vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
+    return vcat(dt, collectterminating(v, o, d, memo))
 end
-collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
+collectterminating(v, d::Function, o::Function, memo) = mapfoldl(vf -> findterminating(vf, d, o, memo), vcat, d(v), init=[])
 
 
 ## Boilerplate
@@ -328,7 +332,8 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
 
     # Note: terminating_vertices is an array of arrays so that terminating_vertices[i] are all terminating vertices seen through input vertex i
     # We will use it later to accumulate all individual size changes in that direction
-    terminating_vertices = findterminating.(inputs(v), inputs)
+
+    terminating_vertices = findterminating.(inputs(v), inputs) # Need to also add outputs and put v in memo?
 
     #ftv = flattened_terminating_vertices, okay?
     ftv = vcat(terminating_vertices...)
@@ -357,6 +362,7 @@ function split_nout_over_inputs(v::AbstractVertex, Δ::T, s::VisitState{T}) wher
         presplit = round.(T, (Δpre ./ weights ./ sum(insizes))) .*Δfactors
         presplit[-presplit .>= insizes] .= 0
 
+        weights = Δfactors ./ (insizes + presplit)
         # floor is due to assumption the minimum size is 1 * Δfactors
         limits = floor.((insizes .+ presplit) ./ Δfactors)
 
