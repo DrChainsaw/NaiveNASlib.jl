@@ -178,10 +178,16 @@ findterminating(v::AbstractVertex, direction::Function, other::Function=v->[], v
 findterminating(t::DecoratingTrait, v, d::Function, o::Function, visited) = findterminating(base(t), v, d, o, visited)
 findterminating(::SizeAbsorb, v, d::Function, o::Function, visited) = [v]
 findterminating(::Immutable, v, d::Function, o::Function, visited) = [v]
-findterminating(::SizeStack, v, d::Function, o::Function, visited) = collectterminating(v, d, o, visited)
-function findterminating(::SizeInvariant, v, d::Function, o::Function, visited)
+
+function findterminating(::SizeStack, v, d::Function, o::Function, visited)
     v in visited && return []
     push!(visited, v)
+    collectterminating(v, d, o, visited)
+end
+function findterminating(::SizeInvariant, v, d::Function, o::Function, visited)
+    v in visited && return collectterminating(v, d, o, visited)
+    push!(visited, v)
+    # Get both inputs and outputs
     return vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
 end
 collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])

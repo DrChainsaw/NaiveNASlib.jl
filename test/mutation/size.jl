@@ -649,6 +649,24 @@
             @test_throws ErrorException Δnout(v3, 2)
         end
 
+        @testset "SizeStack duplicate through SizeInvariant" begin
+            v0 = inpt(5, "in")
+            v1 = av(2, 2, v0, name="v1")
+            v2 = iv(v1, name="v2")
+            v3 = iv(v1, name="v3")
+            v4 = sv(v2,v3, name="v4")
+            v5 = iv(v4, name="v5")
+            v6 = sv(v5, v2, name="v6")
+
+            @test minΔnoutfactor(v6) == 3*2
+            @test Δnout(v6, 12)
+
+            @test nout(v6) == sum(nin(v6)) == 18
+            @test nout(v5) == nin(v5)[] == 12
+            @test nout(v4) == sum(nin(v4)) == 12
+            @test nout(v1) == 6
+        end
+
         @testset "SizeInvariant zig-zag" begin
                 v0 = inpt(5, "in")
                 v1 = av(2, 2, v0, name="v1")
@@ -672,6 +690,28 @@
                 @test nout(v3) == nout(v4) == nout(v5) == expectedΔf + 2+3
                 @test nin(v4) == nout.(inputs(v4)) == [expectedΔf + 2+3]
                 @test nin(v5) == nout.(inputs(v5)) == [expectedΔf + 2+3]
+        end
+
+        @testset "SizeStack duplicate SizeInvariant mini-zig-zag" begin
+            v0 = inpt(5, "in")
+            v1 = av(2, 2, v0, name="v1")
+            v2 = av(2, 3, v0, name="v2")
+            v3 = iv(v1, name="v3")
+            v4 = iv(v3, v2, name="v4")
+            v5 = av(3, 5, v3, name="v5")
+            v6 = sv(v4,v4, name="v6")
+            v7 = iv(v6, v6, name="v7")
+            v8 = av(4, 7, v7, name="v8")
+
+            expectedΔf = 2*2*3*5*7
+            @test minΔnoutfactor(v6) == expectedΔf
+
+            Δnout(v6, expectedΔf)
+            @test nin(v8) == [nout(v7)] == [nout(v6)] == [4+expectedΔf]
+
+            @test nin(v6) == [2 + expectedΔf ÷ 2, 2 + expectedΔf ÷ 2]
+            @test nout(v1) == nout(v2) == 2 + expectedΔf ÷ 2
+            @test nin(v5) == [2 + expectedΔf ÷ 2]
         end
 
         @testset "Fail invalid size change" begin
