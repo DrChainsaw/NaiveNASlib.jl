@@ -2,6 +2,11 @@ import NaiveNASlib
 
 @testset "Sugar" begin
 
+    struct ScaleByTwo
+        f
+    end
+    (s::ScaleByTwo)(x...) = 2s.f(x...)
+
     @testset "Create input" begin
         @test issame(inputvertex("input", 5), InputSizeVertex("input", 5))
     end
@@ -34,11 +39,12 @@ import NaiveNASlib
     end
 
     @testset "Create stacking" begin
-        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = t -> NamedTrait(t, "v"), outwrap = x -> 2 .* x)
+        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = t -> NamedTrait(t, "v"), outwrap = ScaleByTwo)
         @test nin(v) == [1 ,2]
         @test nout(v) == 3
-        @test v(1, [2, 3]) == [2,4,6] # Due to outwrap = x -> 2 .* x
+        @test v(1, [2, 3]) == [2,4,6] # Due to outwrap = ScaleByTwo
         @test name(v) == "v"
+        @test typeof(v.base.base.computation) == ScaleByTwo
     end
 
     @testset "Create element wise" begin
@@ -60,7 +66,7 @@ import NaiveNASlib
             v = inputvertex("in1", 2) + inputvertex("in2", 2)
             @test v([1, 2], [3, 4]) == [4, 6]
 
-            v = outwrapconf(x -> 2 .* x) >> inputvertex("in1", 2) + inputvertex("in2", 2)
+            v = outwrapconf(f -> (x...) -> 2f((x...))) >> inputvertex("in1", 2) + inputvertex("in2", 2)
             @test v([1, 2], [3, 4]) == [8, 12]
         end
 
@@ -137,13 +143,14 @@ import NaiveNASlib
         end
 
         @testset "Outwrap shortcut" begin
-            scale(x) = 2x
+            scale(f) = ScaleByTwo(f)
             v = scale >> inputvertex("in1", 2) + inputvertex("in2", 2)
 
             @test nin(v) == [2, 2]
             @test nout(v) == 2
 
             @test v([1, 2], [3, 4]) == [8, 12]
+            @test typeof(v.base.base.computation) == ScaleByTwo
         end
     end
 end
