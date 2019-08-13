@@ -453,16 +453,16 @@
         struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
-        av(size, csize, in...;name = "av") = AbsorbVertex(CompVertex(SizeConstraint(csize), in...), IoSize(vcat(nout.(in)...), size), tf(name))
-        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), tf(name))
-        iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), tf(name))
+        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize), size, in..., traitdecoration=tf(name))
+        sv(in...; name="sv") = conc(in..., dims=1, traitdecoration = tf(name))
+        iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
 
         @testset "InputSizeVertex" begin
             @test ismissing(minΔnoutfactor(inpt(3)))
             @test ismissing(minΔninfactor(inpt(3)))
         end
 
-        @testset "AbsorbVertex" begin
+        @testset "SizeAbsorb" begin
             v1 = av(4, 2, inpt(3))
             v2 = av(3, 1, v1)
             v3 = av(5, 3, v2)
@@ -490,12 +490,7 @@
             end
         end
 
-        @testset "StackingVertex single input" begin
-            @test ismissing(minΔnoutfactor(sv(inpt(3))))
-            @test minΔnoutfactor(sv(av(4, 2, inpt(3)))) == 2
-        end
-
-        @testset "StackingVertex multi inputs" begin
+        @testset "SizeStack multi inputs" begin
             v1 = av(6,3, inpt(3), name="v1")
             v2 = av(7,2, inpt(3), name="v2")
             v3 = av(8,2, inpt(3), name="v3")
@@ -523,7 +518,7 @@
             @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [4, 9, 6, 9]
         end
 
-        @testset "Stacked StackingVertices" begin
+        @testset "Stacked SizeStacks" begin
             v1 = av(100,1, inpt(3), name="v1")
             v2 = av(100,2, inpt(3), name="v2")
             v3 = av(100,3, inpt(3), name="v3")
@@ -583,13 +578,13 @@
             @test nin(sv1) == nout.([v1, v2, vs...])
         end
 
-        @testset "Stacked InvariantVertex" begin
+        @testset "Stacked SizeInvariant" begin
             v1 = av(100,1, inpt(3), name="v1")
             v2 = av(100,2, inpt(3), name="v2")
             v3 = av(100,3, inpt(3), name="v3")
             v4 = av(100,5, inpt(3), name="v4")
 
-            iv1 = iv(v2,v3, name="iv1")
+            iv1 = iv(v2, v3, name="iv1")
             iv2 = iv(iv1, v1, name="iv2")
             iv3 = iv(iv2, v4, v2, name="iv3")
 
@@ -615,7 +610,7 @@
             @test [nout(iv1)] == [nout(iv2)] == [nout(iv3)] == nin(v5) == [61]
         end
 
-        @testset "Stacked input to Invariant" begin
+        @testset "Stacked input to SizeInvariant" begin
             v0 = inpt(3, "in")
             v1 = av(20, 2, v0, name="v1")
             v2 = av(30, 3, v0, name="v2")
@@ -628,17 +623,55 @@
             @test minΔnoutfactor(v4) == 2*2*3*5*7
         end
 
-        @testset "Invariant input to Invariant" begin
+        @testset "Invariant input to SizeInvariant" begin
             v0 = inpt(3, "in")
             v1 = av(20, 2, v0, name="v1")
             v2 = av(20, 3, v0, name="v2")
             v3 = iv(v1,v2, name="v3")
-            v4 = av(70, 5, v0, name="v4")
+            v4 = av(20, 5, v0, name="v4")
             v5 = iv(v4,v3, name="v5")
             v6 = av(10, 7, v5, name="v6")
 
             # Evilness: Infinite recursion without memoization
             @test minΔnoutfactor(v4) == 2*3*5*7
+        end
+
+        @testset "Immutable input to SizeInvariant after SizeStack" begin
+            v0 = inpt(5, "in")
+            v1 = av(2, 2, v0, name="v1")
+            v2 = av(3, 3, v0, name="v2")
+            v3 = sv(v1,v2, name="v3")
+            v4 = iv(v0,v3, name="v4")
+            v5 = av(10, 7, v4, name="v5")
+
+            # Evilness: Δnout(v3) not possible as it'll "bounce" on v4 into v0 (which is immutable)
+            @test ismissing(minΔnoutfactor(v3))
+            @test_throws ErrorException Δnout(v3, 2)
+        end
+
+        @testset "SizeInvariant zig-zag" begin
+                v0 = inpt(5, "in")
+                v1 = av(2, 2, v0, name="v1")
+                v2 = av(3, 3, v0, name="v2")
+                v3 = sv(v1,v2, name="v3")
+                function zigzag(vin1, sc, vin2=v0;name="zig")
+                    vnew = av(nout(vin1), sc, vin2, name=name*"_new")
+                    vout = iv(vnew, name=name*"_ivB")
+                    vcon = iv(vout, vin1, name=name*"_ivA")
+                    return vout
+                end
+                v4 = zigzag(v3, 5, name="z1")
+                v5 = zigzag(v4, 7, name="z2")
+                v6 = av(11, 11, v5, name="v6")
+
+                # Δnout of v2 does result in a Δnout for v3, so they have the same minΔnoutfactor
+                expectedΔf = 2*3*5*7*11
+                @test minΔnoutfactor(v2) == minΔnoutfactor(v3) == expectedΔf
+
+                Δnout(v2, expectedΔf)
+                @test nout(v3) == nout(v4) == nout(v5) == expectedΔf + 2+3
+                @test nin(v4) == nout.(inputs(v4)) == [expectedΔf + 2+3]
+                @test nin(v5) == nout.(inputs(v5)) == [expectedΔf + 2+3]
         end
 
         @testset "Fail invalid size change" begin

@@ -123,7 +123,7 @@ minΔnoutfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔnoutfactor_o
 
 minΔnoutfactor_only_for(::SizeInvariant, v::AbstractVertex, s) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v),s), minΔninfactor_only_for.(outputs(v),s)))
 function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex, s)
-    absorbing = findterminating(v, inputs)
+    absorbing = findterminating(v, inputs, outputs)
 
     # This is not strictly the minimum as using only one of the factors would work as well
     # However, this would create a bias as the same factor would be used all the time
@@ -151,7 +151,7 @@ minΔninfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
 minΔninfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔninfactor_only_for(base(v), s)
 minΔninfactor_only_for(t::SizeInvariant, v::AbstractVertex, s) = minΔnoutfactor_only_for(t, v, s)
 function minΔninfactor_only_for(::SizeStack, v::AbstractVertex, s)
-    absorbing = findterminating(v, outputs)
+    absorbing = findterminating(v, outputs, inputs)
     # This is not strictly the minimum as using only one of the factors would work as well
     # However, this would create a bias as the same factor would be used all the time
     # Life is really hard sometimes :(
@@ -170,16 +170,21 @@ end
 
 
 """
-    findterminating(v::AbstractVertex, f::Function)
+    findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [])
 
-Return an array of all vertices which terminate size changes (i.e does not propagate them)
-connected through the given function. Will return the given vertex if it is terminating.
+Return an array of all vertices which terminate size changes (i.e does not propagate them) connected through the given function. Will return the given vertex if it is terminating.
 """
-findterminating(v::AbstractVertex, f::Function) = findterminating(trait(v), v, f)
-findterminating(t::DecoratingTrait, v, f::Function) = findterminating(base(t), v, f)
-findterminating(::SizeAbsorb, v, f::Function) = [v]
-findterminating(::Immutable, v, f::Function) = [v]
-findterminating(::SizeTransparent, v, f::Function) = mapfoldl(vf -> findterminating(vf, f), vcat, f(v), init=[])
+findterminating(v::AbstractVertex, direction::Function, other::Function=v->[], visited = []) = findterminating(trait(v), v, direction, other, visited)
+findterminating(t::DecoratingTrait, v, d::Function, o::Function, visited) = findterminating(base(t), v, d, o, visited)
+findterminating(::SizeAbsorb, v, d::Function, o::Function, visited) = [v]
+findterminating(::Immutable, v, d::Function, o::Function, visited) = [v]
+findterminating(::SizeStack, v, d::Function, o::Function, visited) = collectterminating(v, d, o, visited)
+function findterminating(::SizeInvariant, v, d::Function, o::Function, visited)
+    v in visited && return []
+    push!(visited, v)
+    return vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
+end
+collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
 
 
 ## Boilerplate
