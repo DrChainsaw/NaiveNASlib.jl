@@ -345,8 +345,8 @@ function concat(insizes, currinds, Δ::Maybe{AbstractArray{T}}...) where T
     Δ[missing_inds] = currinds[missing_inds]
 
     res = Δ[1]
-    for (innr, Δi) in enumerate(Δ[2:end])
-        res = vcat(res, map(elem -> elem + sign(elem) * insizes[innr], Δi))
+    for (i, Δi) in enumerate(Δ[2:end])
+        res = vcat(res, Δi + sign.(Δi) * sum(insizes[1:i]))
     end
 
     return res
