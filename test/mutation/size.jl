@@ -682,9 +682,10 @@
                 v5 = zigzag(v4, 7, name="z2")
                 v6 = av(11, 11, v5, name="v6")
 
-                # Δnout of v2 does result in a Δnout for v3, so they have the same minΔnoutfactor
                 expectedΔf = 2*3*5*7*11
-                @test minΔnoutfactor(v2) == minΔnoutfactor(v3) == expectedΔf
+                @test minΔnoutfactor(v1) == expectedΔf / 3 # 3 is size constraint for v2
+                @test minΔnoutfactor(v2) == expectedΔf / 2 # 2 is size constraint for v1
+                @test minΔnoutfactor(v3) == expectedΔf
 
                 Δnout(v2, expectedΔf)
                 @test nout(v3) == nout(v4) == nout(v5) == expectedΔf + 2+3
