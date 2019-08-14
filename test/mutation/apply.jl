@@ -67,7 +67,7 @@ using NaiveNASlib
 
         mmv1, mm1 = mcv(2, 3, NaiveNASlib.OutputsVertex(InputVertex(1)))
         mmv2, mm2 = mcv(3, 4, NaiveNASlib.OutputsVertex(InputVertex(2)))
-        join = StackingVertex(CompVertex(hcat, mmv1, mmv2), tf("join"))
+        join = conc(mmv1, mmv2, dims=2, mutation=IoSize, traitdecoration=tf("join"))
         mmv3, mm3 = mcv(7, 3, join)
 
         Δnout(join, Integer[1,3,5,7])
@@ -104,6 +104,34 @@ using NaiveNASlib
         @test mm1.W == [5 0 ; 6 0]
         @test mm2.W == [4 0 0; 5 0 0; 6 0 0]
         @test mm3.W == [3 10 17; 0 0 0; 5 12 19; 0 0 0; 0 0 0]
+    end
+
+    @testset "SizeStack three inputs Δnin" begin
+
+        mmv1, mm1 = mcv(1, 2, NaiveNASlib.OutputsVertex(InputVertex(1)))
+        mmv2, mm2 = mcv(1, 3, NaiveNASlib.OutputsVertex(InputVertex(2)))
+        mmv3, mm3 = mcv(1, 4, NaiveNASlib.OutputsVertex(InputVertex(3)))
+        merge = conc(mmv1, mmv2, mmv3, dims=2, mutation=IoSize, traitdecoration=tf("join"))
+        mmv4, mm4 = mcv(nout(merge), 3, merge)
+
+        Δnin(merge, [1,2,-1], missing, [2, 4])
+        @test in_inds(op(mmv4))[] == [1,2,-1, 3, 4, 5, 7, 9]
+
+        apply_mutation.(flatten(mmv4))
+
+        @test mm1.W == [1 2 0]
+        @test mm2.W == [1 2 3]
+        @test mm3.W == [2 4]
+
+        @test mm4.W == [
+        1  10  19;
+        2  11  20;
+        0   0   0;
+        3  12  21;
+        4  13  22;
+        5  14  23;
+        7  16  25;
+        9  18  27]
     end
 
     @testset "InvariantVertex mutation" begin
