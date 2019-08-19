@@ -33,7 +33,7 @@ base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVer
 trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation,
 
 # Size util
-minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output,
+minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output,
 
 # Connectivity mutation
 remove!, RemoveStrategy, insert!, create_edge!, remove_edge!,

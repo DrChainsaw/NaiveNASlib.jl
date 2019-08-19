@@ -40,8 +40,8 @@ mutable struct VisitState{T}
 end
 VisitState{T}() where T = VisitState{T}(Dict{AbstractVertex, Vector{Bool}}())
 VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), change_nin)
-VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin).touch_nin)
-VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin).touch_nin) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
+VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(ΔnoutSizeInfo(origin).touch_nin)
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(ΔninSizeInfo(origin).touch_nin) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
 
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
@@ -581,15 +581,29 @@ end
 Holds information on how size changes will propagate.
 
 Field `touch_nin` is a `Dict{AbstractVertex, Vector{Bool}}` with mappings `vi => Δi` where `Δi[n] == true` if input `n` of vertex `vi` will change.
+
 Field `touch_nout` is a `Vector{AbstractVertex}` with vertices `vi` for which nout will change.
+
+For more detailed info, see [`ΔSizeGraph`](@ref).
 """
 struct ΔSizeInfo
     touch_nin::Dict{AbstractVertex, Vector{Bool}}
     touch_nout::Vector{AbstractVertex}
 end
 ΔSizeInfo() = ΔSizeInfo(Dict{AbstractVertex, Vector{Bool}}(), AbstractVertex[])
-ΔnoutSizeInfo() = Δnout_touches_nin(v, ΔSizeInfo())
-ΔninSizeInfo() = Δnin_touches_nin(v, ΔSizeInfo())
+
+"""
+    ΔnoutSizeInfo(v)
+
+Return a `ΔSizeInfo` for the case when nout of `v` is changed, i.e when Δnout(v, Δ) is called.
+"""
+ΔnoutSizeInfo(v) = Δnout_touches_nin(v, ΔSizeInfo())
+"""
+    ΔnoutSizeInfo(v)
+
+Return a `ΔSizeInfo` for the case when nin of `v` is changed, i.e when Δnin(v, Δ) is called.
+"""
+ΔninSizeInfo(v) = Δnin_touches_nin(v, ΔSizeInfo())
 
 update_state_nout_impl!(s::ΔSizeInfo,v,from) = push!(s.touch_nout, v)
 visited_out(s::ΔSizeInfo, v) = v in s.touch_nout
@@ -687,16 +701,49 @@ function update_state_nin!(::SizeTransparent, s, v, from)
 end
 
 abstract type Direction end
+"""
+    Input
+
+Represents the input direction, i.e coming from the output of another vertex.
+"""
 struct Input <: Direction end
+"""
+    Output
+
+Represents the output direction, i.e coming from the output of another vertex.
+"""
 struct Output <: Direction end
 
+"""
+    ΔSizeGraph
+
+Represents the information on how a size change will propagate as a `SimpleDiGraph`.
+
+For a `ΔSizeGraph Δg`, the field `Δg.vertices` is index-mapped to `vertices(Δg.graph)` so that `Δg.vertices[i]` is represented by vertex `i` in `Δg.graph`.
+
+For a `ΔSizeGraph Δg`, the field `Δg.direction` is index-mapped to `edges(Δg.graph)` so that `Δg.direction[i]` is represented by edge `i` in `Δg.graph`.
+
+If an edge `e` is of type `Output` this means that `Δnout` of `e.dst` is called after processing `e.src`.
+
+If an edge `e` is of type `Input` this means that `Δnin` of `e.dst` is called after processing `e.src`.
+"""
 struct ΔSizeGraph
     graph::SimpleDiGraph
-    directions::Vector{Direction}
     vertices::Vector{AbstractVertex}
+    directions::Vector{Direction}
 end
 
+"""
+    ΔninSizeGraph(v)
+
+Return a `ΔSizeGraph` for the case when nin of `v` is changed, i.e when Δnin(v, Δ) is called.
+"""
 ΔninSizeGraph(v) = ΔSizeGraph(Input(), v)
+"""
+    ΔnoutSizeGraph(v)
+
+Return a `ΔSizeGraph` for the case when nout of `v` is changed, i.e when Δnout(v, Δ) is called.
+"""
 ΔnoutSizeGraph(v) = ΔSizeGraph(Output(), v)
 
 function ΔSizeGraph(::Input, v)
