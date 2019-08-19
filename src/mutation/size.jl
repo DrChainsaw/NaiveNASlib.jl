@@ -80,6 +80,16 @@ nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
 nout(t::SizeInvariant, v::AbstractVertex) = nin(v)[1]
 nout(t::SizeStack, v::AbstractVertex) = sum(nin(v))
 
+nout_org(v::AbstractVertex) = nout_org(trait(v), v)
+nout_org(t::DecoratingTrait, v) = nout_org(base(t), v)
+nout_org(::MutationSizeTrait, v::MutationVertex) = nout_org(op(v))
+nout_org(::Immutable, v) = nout(v)
+
+nin_org(v::AbstractVertex) = nin_org(trait(v), v)
+nin_org(t::DecoratingTrait, v) = nin_org(base(t), v)
+nin_org(::MutationSizeTrait, v::MutationVertex) = nin_org(op(v))
+nin_org(::Immutable, v) = nout(v)
+
 
 """
     minΔnoutfactor(v::AbstractVertex)
@@ -565,11 +575,34 @@ function pick_values(values::Vector{T}, target::T, objective= x->std(x, correcte
     return pick_values(values, target, 1, zeros(T, length(values)), objective)[1]
 end
 
+"""
+    ΔSizeInfo
+
+Holds information on how size changes will propagate.
+
+Field `touch_nin` is a `Dict{AbstractVertex, Vector{Bool}}` with mappings `vi => Δi` where `Δi[n] == true` if input `n` of vertex `vi` will change.
+Field `touch_nout` is a `Vector{AbstractVertex}` with vertices `vi` for which nout will change.
+"""
 struct ΔSizeInfo
     touch_nin::Dict{AbstractVertex, Vector{Bool}}
     touch_nout::Vector{AbstractVertex}
 end
 ΔSizeInfo() = ΔSizeInfo(Dict{AbstractVertex, Vector{Bool}}(), AbstractVertex[])
+ΔnoutSizeInfo() = Δnout_touches_nin(v, ΔSizeInfo())
+ΔninSizeInfo() = Δnin_touches_nin(v, ΔSizeInfo())
+
+update_state_nout_impl!(s::ΔSizeInfo,v,from) = push!(s.touch_nout, v)
+visited_out(s::ΔSizeInfo, v) = v in s.touch_nout
+clear_state_nin!(s::ΔSizeInfo, v) = delete!(s.touch_nin, v)
+
+function update_state_nin_impl!(s::ΔSizeInfo,v,from)
+    inmap = inputs(v) .== from
+    notnew = v in keys(s.touch_nin) && all(s.touch_nin[v][inmap])
+    stored_inmap = get!(() -> inmap, s.touch_nin, v)
+    stored_inmap .|= inmap
+    return notnew
+end
+
 
 Δnin_touches_nin(v, s=ΔSizeInfo()) = Δnin_touches_nin(trait(v), v, s)
 Δnin_touches_nin(t::DecoratingTrait, v, s) = Δnin_touches_nin(base(t), v, s)
@@ -651,18 +684,6 @@ update_state_nin!(::Immutable, s, v, from) = true
 function update_state_nin!(::SizeTransparent, s, v, from)
     visited_out(s, v) && return true
     return update_state_nin_impl!(s,v,from)
-end
-
-update_state_nout_impl!(s::ΔSizeInfo,v,from) = push!(s.touch_nout, v)
-visited_out(s::ΔSizeInfo, v) = v in s.touch_nout
-clear_state_nin!(s::ΔSizeInfo, v) = delete!(s.touch_nin, v)
-
-function update_state_nin_impl!(s::ΔSizeInfo,v,from)
-    inmap = inputs(v) .== from
-    notnew = v in keys(s.touch_nin) && all(s.touch_nin[v][inmap])
-    stored_inmap = get!(() -> inmap, s.touch_nin, v)
-    stored_inmap .|= inmap
-    return notnew
 end
 
 abstract type Direction end

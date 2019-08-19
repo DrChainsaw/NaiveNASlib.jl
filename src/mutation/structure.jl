@@ -243,7 +243,7 @@ end
 function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
     if will_rm(vout) && vin==vout
         sizegraph = ΔnoutSizeGraph(vin)
-        is_cyclic(sizegraph.graph) && return prealignsizes(s.ifnok, vin, vout, will_rm)
+        is_cyclic(sizegraph.graph) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
     end
     return prealignsizes(s.ifok, vin, vout, will_rm)
 end

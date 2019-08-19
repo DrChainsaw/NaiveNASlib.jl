@@ -1126,6 +1126,19 @@
                 @test nin(p1) == nin(p2₁) == [nout(v1)] == [5]
             end
 
+            @testset "Remove nout cycle back to nin aligned" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                v4 = av(v3, 5, name="v4")
+                v5 = iv(v4, name="v5")
+                v6 = "v6" >> v5 + v2
+
+                remove!(v4, RemoveStrategy(CheckNoSizeCycle()))
+                @test inputs(v5) == [v3]
+                @test nin(v5) == [nout(v3)] == [5]
+            end
+
             @testset "Remove nout cycle back to nin abort" begin
                 v1 = av(inpt(3, "in"), 3, name="v1")
                 v2 = av(v1, 5, name="v2")
@@ -1133,11 +1146,43 @@
                 p1 = av(v3, 3, name="p1")
                 p2 = av(v3, 2, name="p2")
                 v4 = sv(p1,p2, name="v4")
-                v6 = "v6" >> v4 + v2
+                v5 = "v5" >> v4 + v2
 
                 # Evilness: Removing p1 would create a "size transparent loop" where nout(v4) = nout(v4) + nout(p2)
                 @test_logs (:warn, "Can not remove vertex $(p1)! Size cycle detected!") remove!(p1)
                 @test inputs(v4) == [p1, p2]
+                @test nout.(inputs(v4)) == nin(v4) == [3,2]
+                @test sum(nin(v4)) == nout(v4) == 5
+            end
+
+            @testset "Remove nout almost cycle back to nin" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1a = av(v3, 2, name="p1a")
+                p1b = av(p1a, 3, name="p1b")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1b,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                remove!(p1b)
+                @test inputs(v4) == [p1a, p2]
+                @test nout.(inputs(v4)) == nin(v4) == [3,2]
+                @test sum(nin(v4)) == nout(v4) == 5
+            end
+
+            @testset "Remove nout almost cycle back to nin" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1a = av(v3, 2, name="p1a")
+                p1b = av(p1a, 3, name="p1b")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1b,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                remove!(p1a)
+                @test inputs(v4) == [p1b, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5
             end

@@ -390,8 +390,8 @@ using NaiveNASlib
 
         # Select last part if inds are to be removed, otherwise pad with -1
         select_inds(orgsize, newsize) = NaiveNASlib.trunc_or_pad(1:orgsize, newsize) .+ max(0, orgsize - newsize)
-        select_in_inds(v) = select_inds.(nin_org(op(v)), nin(op(v)))
-        select_out_inds(v) = select_inds(nout_org(op(v)), nout(op(v)))
+        select_in_inds(v) = select_inds.(nin_org(v), nin(op(v)))
+        select_out_inds(v) = select_inds(nout_org(v), nout(op(v)))
 
         @testset "Linear graph" begin
             v1 = inpt(3)
