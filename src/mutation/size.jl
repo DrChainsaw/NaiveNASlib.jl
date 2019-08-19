@@ -40,8 +40,8 @@ mutable struct VisitState{T}
 end
 VisitState{T}() where T = VisitState{T}(Dict{AbstractVertex, Vector{Bool}}())
 VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), change_nin)
-VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin))
-VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin)) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
+VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(Δnout_touches_nin(origin).touch_nin)
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(Δnin_touches_nin(origin).touch_nin) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
 
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
@@ -448,7 +448,7 @@ function Δnin(::SizeInvariant, v::AbstractVertex, Δ::Maybe{T}...; s::VisitStat
     anyvisit(v, s) && return
 
     Δprop = [Δi for Δi in unique((Δ)) if !ismissing(Δi)]
-    @assert length(Δprop) == 1 "Change must be invariant!"
+    @assert length(Δprop) == 1 "Change must be invariant! Got Δ = $Δ"
 
     Δnins = repeat(Δprop, length(inputs(v)))
 
@@ -565,8 +565,13 @@ function pick_values(values::Vector{T}, target::T, objective= x->std(x, correcte
     return pick_values(values, target, 1, zeros(T, length(values)), objective)[1]
 end
 
+struct ΔSizeInfo
+    touch_nin::Dict{AbstractVertex, Vector{Bool}}
+    touch_nout::Vector{AbstractVertex}
+end
+ΔSizeInfo() = ΔSizeInfo(Dict{AbstractVertex, Vector{Bool}}(), AbstractVertex[])
 
-Δnin_touches_nin(v, s=(touch_nin=Dict{AbstractVertex, Vector{Bool}}(), has_visited=AbstractVertex[])) = Δnin_touches_nin(trait(v), v, s).touch_nin
+Δnin_touches_nin(v, s=ΔSizeInfo()) = Δnin_touches_nin(trait(v), v, s)
 Δnin_touches_nin(t::DecoratingTrait, v, s) = Δnin_touches_nin(base(t), v, s)
 Δnin_touches_nin(::SizeAbsorb, v, s) = mapreduce(vi -> Δnout_touches_nin(vi, v, s), (s1,s2) -> s1, inputs(v), init=s)
 function Δnin_touches_nin(::SizeInvariant, v, s)
@@ -580,65 +585,150 @@ function Δnin_touches_nin(::SizeStack, v, s)
     return s
 end
 
-Δnin_touches_nin(v, from, s) = Δnin_touches_nin(trait(v), v, from, s)
+function Δnin_touches_nin(v, from, s)
+    update_state_nin!(s, v, from) && return s
+    Δnin_touches_nin(trait(v), v, from, s)
+ end
 Δnin_touches_nin(::Immutable, v, from, s) = s
 Δnin_touches_nin(t::DecoratingTrait, v, from, s) = Δnin_touches_nin(base(t), v, from, s)
 function Δnin_touches_nin(::SizeAbsorb, v, from, s)
-    update_state!(s, v, from) && return s
-
     foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
     return s
 end
 function Δnin_touches_nin(::SizeInvariant, v, from, s)
-    update_state!(s, v, from) && return s
-
     foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
     foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
     return s
 end
 function Δnin_touches_nin(::SizeStack, v, from, s)
-    update_state!(s, v, from) && return s
-
     foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
     return s
 end
 
 
-Δnout_touches_nin(v, s=(touch_nin=Dict{AbstractVertex, Vector{Bool}}(), has_visited=AbstractVertex[])) = Δnout_touches_nin(trait(v), v, s).touch_nin
-
+Δnout_touches_nin(v, s=ΔSizeInfo()) = Δnout_touches_nin(trait(v), v, s)
 Δnout_touches_nin(t::DecoratingTrait, v, s) = Δnout_touches_nin(base(t), v, s)
 Δnout_touches_nin(::Immutable, v, s) = s
-Δnout_touches_nin(::SizeAbsorb, v, s) = mapreduce(vo -> Δnin_touches_nin(vo, v, s), (s1,s2) -> s1, outputs(v), init=s)
+function Δnout_touches_nin(::SizeAbsorb, v, s)
+    foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
+    return s
+end
 Δnout_touches_nin(t::SizeTransparent, v, s) = Δnin_touches_nin(t, v, s)
 
 
-Δnout_touches_nin(v, from, s) = Δnout_touches_nin(trait(v), v, from, s)
+function Δnout_touches_nin(v, from, s)
+    update_state_nout!(s,v,from)
+    Δnout_touches_nin(trait(v), v, from, s)
+end
 Δnout_touches_nin(t::DecoratingTrait, v, from, s) = Δnout_touches_nin(base(t), v, from, s)
 Δnout_touches_nin(::Immutable, v, from, s) = s
 Δnout_touches_nin(::SizeAbsorb, v, from, s) = mapreduce(vo -> Δnin_touches_nin(vo, v, s), (s1,s2) -> s1,filter(vo -> vo != from, outputs(v)), init=s)
 
 function Δnout_touches_nin(::SizeInvariant, v, from, s)
-    push!(s.has_visited, v)
     foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
     foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
+    return s
 end
 function Δnout_touches_nin(::SizeStack, v, from, s)
-    push!(s.has_visited, v)
-    delete!(s.touch_nin, v) # Must to resolve sizes from the nout-direction if we ever hit it
     foreach(vi -> Δnout_touches_nin(vi, v, s), filter(vi -> vi != from, inputs(v)))
     foreach(vo -> Δnin_touches_nin(vo, v, s), filter(vo -> vo != from, outputs(v)))
     return s
 end
 
+update_state_nout!(s, v, from) = update_state_nout!(trait(v), s, v, from)
+update_state_nout!(t::DecoratingTrait, s, v, from) = update_state_nout!(base(t), s, v, from)
+update_state_nout!(::MutationTrait, s, v, from) = update_state_nout_impl!(s, v, from)
+function update_state_nout!(::SizeStack,s,v,from)
+    update_state_nout_impl!(s, v, from)
+    clear_state_nin!(s, v) # Must resolve sizes from the nout-direction if we ever hit it
+end
 
-function update_state!(s, v, from)
-    v in s.has_visited && return true
+update_state_nin!(s, v, from) = update_state_nin!(trait(v), s, v, from)
+update_state_nin!(t::DecoratingTrait, s, v, from) =  update_state_nin!(base(t), s, v, from)
+update_state_nin!(::SizeAbsorb, s, v, from) = update_state_nin_impl!(s,v,from)
+update_state_nin!(::Immutable, s, v, from) = true
 
+function update_state_nin!(::SizeTransparent, s, v, from)
+    visited_out(s, v) && return true
+    return update_state_nin_impl!(s,v,from)
+end
+
+update_state_nout_impl!(s::ΔSizeInfo,v,from) = push!(s.touch_nout, v)
+visited_out(s::ΔSizeInfo, v) = v in s.touch_nout
+clear_state_nin!(s::ΔSizeInfo, v) = delete!(s.touch_nin, v)
+
+function update_state_nin_impl!(s::ΔSizeInfo,v,from)
     inmap = inputs(v) .== from
     notnew = v in keys(s.touch_nin) && all(s.touch_nin[v][inmap])
     stored_inmap = get!(() -> inmap, s.touch_nin, v)
     stored_inmap .|= inmap
     return notnew
 end
+
+abstract type Direction end
+struct Input <: Direction end
+struct Output <: Direction end
+
+struct ΔSizeGraph
+    graph::SimpleDiGraph
+    directions::Vector{Direction}
+    vertices::Vector{AbstractVertex}
+end
+
+ΔninSizeGraph(v) = ΔSizeGraph(Input(), v)
+ΔnoutSizeGraph(v) = ΔSizeGraph(Output(), v)
+
+function ΔSizeGraph(::Input, v)
+    g = ΔSizeGraph(SimpleDiGraph(), [], [])
+    Δnin_touches_nin(v, g)
+end
+
+function ΔSizeGraph(::Output, v)
+    g = ΔSizeGraph(SimpleDiGraph(), [], [])
+    Δnout_touches_nin(v, g)
+end
+
+function vertexind!(g::ΔSizeGraph, v::AbstractVertex,)
+    ind = indexin([v], g.vertices)[]
+    if isnothing(ind)
+        add_vertex!(g.graph)
+        push!(g.vertices, v)
+        ind = length(g.vertices)
+    end
+    return ind
+end
+
+function LightGraphs.add_edge!(g::ΔSizeGraph, src::AbstractVertex, dst::AbstractVertex, d::Direction)
+    srcind = vertexind!(g, dst)
+    dstind = vertexind!(g, src)
+    has_edge(g.graph, srcind, dstind) && return true
+    add_edge!(g.graph, srcind, dstind)
+    push!(g.directions, d)
+    return false
+end
+
+update_state_nout_impl!(g::ΔSizeGraph,v,from) = add_edge!(g, from, v, Output())
+update_state_nin_impl!(g::ΔSizeGraph,v,from)  = add_edge!(g, from, v, Input())
+
+function visited_out(g::ΔSizeGraph, v)
+    inds = findall(vx -> vx == v, g.vertices)
+    return any(d -> d == Output(), g.directions[inds])
+end
+
+function clear_state_nin!(g::ΔSizeGraph, v)
+     v in s.vertices || return
+     v_ind = vertexind(v, g)
+     # No need to delete the vertex, only edges matter
+     # Furthermore, this function is only called when v anyways shall be in the graph
+     rem_e = []
+     for (e_ind, e) in enumerate(edges(g.graph))
+         if e.dst == v_ind && g.directions[e_ind] == Input()
+             rem_edge!(g.graph, e)
+             push!(rem_e, e_ind)
+         end
+     end
+    deleteat!(g.directions, rem_e)
+end
+
 
 ## Generic helper methods end

@@ -51,8 +51,9 @@ Logs warning and then proceeds with the next action.
 """
 struct FailAlignSizeWarn <: AbstractAlignSizeStrategy
     andthen
+    msgfun
 end
-FailAlignSizeWarn() = FailAlignSizeWarn(FailAlignSizeRevert())
+FailAlignSizeWarn(;andthen=FailAlignSizeRevert(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
 
 """
     FailAlignSizeRevert
@@ -101,6 +102,35 @@ end
 IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
 
 """
+    CheckNoSizeCycle
+
+Check if a size change in one direction causes a change in the other direction and execute strategy `ifnok` (default `FailAlignSizeWarn`) if this is the case.
+Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
+
+If no such cycle is detected, then proceed to execute strategy `ifok` (default `IncreaseSmaller`).
+
+Will execute strategy `ifok` if vertex shall not to be removed.
+"""
+struct CheckNoSizeCycle <: AbstractAlignSizeStrategy
+    ifok
+    ifnok
+end
+CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,vout) -> "Can not remove vertex $(vin)! Size cycle detected!")) = CheckNoSizeCycle(ifok, ifnok)
+
+
+"""
+    CheckAligned
+
+Check if sizes are already aligned before making a change and return "go ahead" (`true`) if this is the case.
+If not, proceed to execute another strategy (default `CheckNoSizeCycle`).
+"""
+struct CheckAligned <:AbstractAlignSizeStrategy
+    ifnot
+end
+CheckAligned() = CheckAligned(CheckNoSizeCycle())
+
+
+"""
     AdjustToCurrentSize
 
 Adjust `nin` of all `outputs` and/or `nout` of all `inputs` to the current input/output size so that `sum(nin.(inputs(v))) == nout(v)` and so that `all(nin.(outputs(v)) .== nout(v))`.
@@ -125,8 +155,8 @@ struct RemoveStrategy
     reconnect::AbstractConnectStrategy
     align::AbstractAlignSizeStrategy
 end
-RemoveStrategy() = RemoveStrategy(ConnectAll(), IncreaseSmaller())
-RemoveStrategy(rs::AbstractConnectStrategy) = RemoveStrategy(rs, IncreaseSmaller())
+RemoveStrategy() = RemoveStrategy(ConnectAll(), CheckAligned())
+RemoveStrategy(rs::AbstractConnectStrategy) = RemoveStrategy(rs, CheckAligned())
 RemoveStrategy(as::AbstractAlignSizeStrategy) = RemoveStrategy(ConnectAll(), as)
 
 """
@@ -199,12 +229,25 @@ prealignsizes(s::AbstractAlignSizeStrategy, vin, vout, will_rm) = true
 # Failure cases
 prealignsizes(::FailAlignSizeError, vin, vout, will_rm) = error("Could not align sizes of $(vin) and $(vout)!")
 function prealignsizes(s::FailAlignSizeWarn, vin, vout, will_rm)
-    @warn "Could not align sizes of $(vin) and $(vout)!"
+    @warn s.msgfun(vin, vout)
     return prealignsizes(s.andthen, vin, vout, will_rm)
 end
 prealignsizes(::FailAlignSizeRevert, vin, vout, will_rm) = false # No action needed?
 
 # Actual actions
+function prealignsizes(s::CheckAligned, vin, vout, will_rm)
+    nout(vin) == tot_nin(vout) && return true
+    return prealignsizes(s.ifnot, vin, vout, will_rm)
+end
+
+function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
+    if will_rm(vout) && vin==vout
+        sizegraph = ΔnoutSizeGraph(vin)
+        is_cyclic(sizegraph.graph) && return prealignsizes(s.ifnok, vin, vout, will_rm)
+    end
+    return prealignsizes(s.ifok, vin, vout, will_rm)
+end
+
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     Δnin.(outputs(vin), s.Δoutsize...)
     return true
@@ -554,7 +597,7 @@ end
 
 Replace `vin` as input to all outputs of `vin` with vertex produced by `factory`.
 
-The function `factory` takes `vin` as input. 
+The function `factory` takes `vin` as input.
 
 Example:
 

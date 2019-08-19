@@ -154,7 +154,7 @@ julia> vertices(graph)
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```
 """
-vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
+LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
 
 """
     copy(g::CompGraph, opfun=cloneop)

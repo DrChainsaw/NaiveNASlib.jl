@@ -772,6 +772,7 @@
         NaiveNASlib.Δnout_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnout_touches_nin(SizeAbsorb(), v, from, s)
         NaiveNASlib.Δnin_touches_nin(::Ignore, v, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, s)
         NaiveNASlib.Δnin_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, from, s)
+        NaiveNASlib.update_state_nin!(t::Ignore, s, v, from) = NaiveNASlib.update_state_nin!(SizeAbsorb(), s, v, from)
 
         v1 = inpt(3, "v1")
         v2 = MutationVertex(CompVertex(identity, v1), IoSize(3, 5), Ignore()) # Note, does not catch size errors
