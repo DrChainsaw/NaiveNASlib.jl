@@ -139,7 +139,7 @@ using NaiveNASlib
         addsize = 7
         mmv1, mm1 = mcv(2, addsize, NaiveNASlib.OutputsVertex(InputVertex(1)), "mmv1")
         mmv2, mm2 = mcv(3, addsize, NaiveNASlib.OutputsVertex(InputVertex(2)), "mmv2")
-        add = InvariantVertex(CompVertex(+, mmv1, mmv2), IoIndices(addsize, addsize), tf("add"))
+        add = traitconf(tf("add")) >> mmv1 + mmv2
         mmv3, mm3 = mcv(addsize, 3, add, "mmv3")
 
         Δnout(add, Integer[1,3,5,7])
@@ -390,8 +390,8 @@ using NaiveNASlib
 
         # Select last part if inds are to be removed, otherwise pad with -1
         select_inds(orgsize, newsize) = NaiveNASlib.trunc_or_pad(1:orgsize, newsize) .+ max(0, orgsize - newsize)
-        select_in_inds(v) = select_inds.(nin_org(op(v)), nin(op(v)))
-        select_out_inds(v) = select_inds(nout_org(op(v)), nout(op(v)))
+        select_in_inds(v) = select_inds.(nin_org(v), nin(op(v)))
+        select_out_inds(v) = select_inds(nout_org(v), nout(op(v)))
 
         @testset "Linear graph" begin
             v1 = inpt(3)

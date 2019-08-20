@@ -27,6 +27,26 @@ Return the size of the output data from the vertex.
 """
 function nout end
 
+"""
+    nin_org(m::MutationState)
+    nin_org(v::AbstractMutationVertex)
+
+Return the size of the input data to the vertex before any mutation was performed.
+
+Computation may fail if input does not have size nin.
+Computation may also fail if vertex has MutationState which does not track changes.
+"""
+function nin_org end
+
+"""
+    nout_org(m::MutationState)
+    nout_org(v::AbstractMutationVertex)
+
+Return the size of the output data from the vertex before any mutation was performed.
+Computation may fail if vertex has MutationState which does not track changes.
+"""
+function nout_org end
+
 
 """
     Δnin(o::MutationOp, Δ)

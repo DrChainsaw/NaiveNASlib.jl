@@ -1,5 +1,5 @@
-
 @testset "Size mutations" begin
+    using LightGraphs, MetaGraphs
 
     inpt(size, id=1) = InputSizeVertex(id, size)
     nt(name) = t -> NamedTrait(t, name)
@@ -250,6 +250,9 @@
             return next
         end
 
+        vnames(Δg::MetaDiGraph) = mapfoldl(e -> name(Δg[e.src, :vertex]) => name(Δg[e.dst, :vertex]) , vcat, edges(Δg))
+        dirs(Δg::MetaDiGraph) =  mapfoldl(e -> get_prop(Δg, e, :direction), vcat, edges(Δg))
+
         @testset "Residual fork block" begin
             start = av(inputvertex("in", 3), 9, "start")
             p1 = stack(start, 3,4, bname = "p1")
@@ -393,6 +396,50 @@
             @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 5]
             @test nin(sv2) == nout.(inputs(sv2)) == [8, 4, 5]
             @test nin(sv3) == nout.(inputs(sv3)) == [12, 17, 13]
+
+            # Tip: Turn use a SizeChangeLogger to verify correct output
+            Δg = ΔnoutSizeGraph(sv2)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "sv2"=>"v5"   Output();
+            "sv2"=>"v3"   Output();
+            "sv2"=>"sv3"  Input();
+            "sv2"=>"v4"   Output();
+            "sv2"=>"o2"   Input();
+            "v3"=>"sv1"  Input();
+            "sv1"=>"sv3"  Input();
+            "sv1"=>"o1"   Input();
+            "sv3"=>"o3"   Input();
+            "v4"=>"sv1"  Input()]
+
+
+            Δg = ΔninSizeGraph(sv2)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "sv2"=>"v5"   Output();
+            "sv2"=>"v3"   Output();
+            "sv2"=>"sv3"  Input();
+            "sv2"=>"v4"   Output();
+            "sv2"=>"o2"   Input();
+            "v3"=>"sv1"  Input();
+            "sv1"=>"sv3"  Input();
+            "sv1"=>"o1"   Input();
+            "sv3"=>"o3"   Input();
+            "v4"=>"sv1"  Input()]
+
+            Δnin(sv2, 2, missing, 2)
+            @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 7]
+            @test nin(sv2) == nout.(inputs(sv2)) == [10, 4, 7]
+            @test nin(sv3) == nout.(inputs(sv3)) == [14, 21, 13]
+
+            Δg = ΔninSizeGraph(sv2, false, true ,false)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "sv2"=>"v5"   Output();
+            "sv2"=>"v4"   Output();
+            "sv2"=>"sv3"  Input();
+            "sv2"=>"o2"   Input();
+             "v4"=>"sv1"  Input();
+            "sv1"=>"sv3"  Input();
+            "sv1"=>"o1"   Input();
+            "sv3"=>"o3"   Input()]
         end
 
         @testset "SizeStack duplicate vertex cycle" begin
@@ -403,6 +450,7 @@
             v4 = concd1(v2, v3, name="v4")
 
             @test minΔnoutfactor(v4) == 2
+
             # Trouble as we might go Δnout(v4) -> Δnout(v2) -> Δnin(v3) and then exit at Δnout(v3) as v3 has already been vistited
             Δnout(v4, -4)
 
@@ -413,6 +461,19 @@
 
             @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 19
             @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 12
+
+            Δg = ΔnoutSizeGraph(v4)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "v4" => "v2" Output();
+            "v4" => "v3" Output();
+            "v3" => "v1" Output()]
+
+            Δg = ΔninSizeGraph(v3)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "v3" => "v1" Output();
+            "v3" => "v2" Output();
+            "v3" => "v4" Input();
+            "v2" => "v4" Input()]
         end
 
         @testset "Entangled SizeStack" begin
@@ -772,6 +833,7 @@
         NaiveNASlib.Δnout_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnout_touches_nin(SizeAbsorb(), v, from, s)
         NaiveNASlib.Δnin_touches_nin(::Ignore, v, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, s)
         NaiveNASlib.Δnin_touches_nin(::Ignore, v, from, s) = NaiveNASlib.Δnin_touches_nin(SizeAbsorb(), v, from, s)
+        NaiveNASlib.update_state_nin!(t::Ignore, s, v, from) = NaiveNASlib.update_state_nin!(SizeAbsorb(), s, v, from)
 
         v1 = inpt(3, "v1")
         v2 = MutationVertex(CompVertex(identity, v1), IoSize(3, 5), Ignore()) # Note, does not catch size errors
@@ -788,7 +850,7 @@
         @test nin(v5) == [nout(v3)] == [4]
 
         # Too many Δs!
-        @test_throws ArgumentError Δnin(v5, 1, 1)
+        @test_throws ArgumentError Δnin(v5, 1, 1,s=NaiveNASlib.VisitState{Int}(v5, 1))
     end
 
 end

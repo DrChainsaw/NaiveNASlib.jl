@@ -116,11 +116,14 @@
     end
 
     #Helper functions
-    inpt(size, id=1) = InputSizeVertex(id, size)
-    av(in, outsize; name="av", comp = identity) = AbsorbVertex(CompVertex(comp, in), IoSize(nout(in), outsize), t -> NamedTrait(t, name))
-    sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), t -> NamedTrait(t, name))
-    iv(in...; name="iv") = InvariantVertex(CompVertex(+, in...), t -> NamedTrait(t, name))
-    imu(in, outsize; name="imu") = MutationVertex(CompVertex(identity, in), IoSize(nout(in), outsize), NamedTrait(Immutable(), name))
+    nt(name) = t -> NamedTrait(t, name)
+    tf(name) = t -> nt(name)(t)
+    inpt(size, id="in") = inputvertex(id, size)
+    av(in, outsize; name="av", comp = identity) = absorbvertex(comp, outsize, in, traitdecoration = tf(name))
+    sv(in, ins...; name="sv") = conc(in, ins..., dims=2, traitdecoration = tf(name))
+    sv(in; name="sv") = vertex(identity, nout(in), tf(name)(SizeStack()), in)
+    iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
+    imu(in, outsize; name="imu") = immutablevertex(identity, outsize, in, traitdecoration= tf(name))
 
     @testset "Edge mutation" begin
         @testset "Edge removal" begin
@@ -1121,6 +1124,67 @@
                 remove!(v2)
                 @test inputs(p1) == inputs(p2₁) == [v1]
                 @test nin(p1) == nin(p2₁) == [nout(v1)] == [5]
+            end
+
+            @testset "Remove nout cycle back to nin aligned" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                v4 = av(v3, 5, name="v4")
+                v5 = iv(v4, name="v5")
+                v6 = "v6" >> v5 + v2
+
+                remove!(v4, RemoveStrategy(CheckNoSizeCycle()))
+                @test inputs(v5) == [v3]
+                @test nin(v5) == [nout(v3)] == [5]
+            end
+
+            @testset "Remove nout cycle back to nin abort" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1 = av(v3, 3, name="p1")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                # Evilness: Removing p1 would create a "size transparent loop" where nout(v4) = nout(v4) + nout(p2)
+                @test_logs (:warn, "Can not remove vertex $(p1)! Size cycle detected!") remove!(p1)
+                @test inputs(v4) == [p1, p2]
+                @test nout.(inputs(v4)) == nin(v4) == [3,2]
+                @test sum(nin(v4)) == nout(v4) == 5
+            end
+
+            @testset "Remove nout almost cycle back to nin" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1a = av(v3, 2, name="p1a")
+                p1b = av(p1a, 3, name="p1b")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1b,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                remove!(p1b)
+                @test inputs(v4) == [p1a, p2]
+                @test nout.(inputs(v4)) == nin(v4) == [3,2]
+                @test sum(nin(v4)) == nout(v4) == 5
+            end
+
+            @testset "Remove nout almost cycle back to nin" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1a = av(v3, 2, name="p1a")
+                p1b = av(p1a, 3, name="p1b")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1b,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                remove!(p1a)
+                @test inputs(v4) == [p1b, p2]
+                @test nout.(inputs(v4)) == nin(v4) == [3,2]
+                @test sum(nin(v4)) == nout(v4) == 5
             end
         end
     end
