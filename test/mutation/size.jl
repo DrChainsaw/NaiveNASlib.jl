@@ -403,6 +403,7 @@
             v4 = concd1(v2, v3, name="v4")
 
             @test minΔnoutfactor(v4) == 2
+
             # Trouble as we might go Δnout(v4) -> Δnout(v2) -> Δnin(v3) and then exit at Δnout(v3) as v3 has already been vistited
             Δnout(v4, -4)
 
@@ -413,6 +414,17 @@
 
             @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 19
             @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 12
+
+            import LightGraphs:edges
+            import MetaGraphs:get_prop
+            Δg = ΔnoutSizeGraph(v4)
+            @test mapfoldl(e -> name(Δg[e.src, :vertex]) => name(Δg[e.dst, :vertex]) , vcat, edges(Δg)) == [
+            "v4" => "v2";
+            "v4" => "v3";
+            "v3" => "v2";
+            "v3" => "v1"
+            ]
+            @test mapfoldl(e -> get_prop(Δg, e, :direction), vcat, edges(Δg)) == [Output(), Output(), Output(), Output()]
         end
 
         @testset "Entangled SizeStack" begin

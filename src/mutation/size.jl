@@ -717,20 +717,24 @@ struct Output <: Direction end
 """
     ΔSizeGraph
 
-Represents the information on how a size change will propagate as a `SimpleDiGraph`.
+Represents the information on how a size change will propagate as a `MetaDiGraph`.
 
-For a `ΔSizeGraph Δg`, the field `Δg.vertices` is index-mapped to `vertices(Δg.graph)` so that `Δg.vertices[i]` is represented by vertex `i` in `Δg.graph`.
+Each vertex `i` represents a unique `AbstractVertex vi`.
+Each edge `e` represents propagation of a size change between vertices `e.src` and `e.dst`.
+Edge weights denoted by the symbol `:size` represents the size of the output sent between the vertices.
 
-For a `ΔSizeGraph Δg`, the field `Δg.direction` is index-mapped to `edges(Δg.graph)` so that `Δg.direction[i]` is represented by edge `i` in `Δg.graph`.
+For the `AbstractVertex vi` associated with vertex `i` in the graph `g`, the following holds `g[i, :vertex] == vi` and `g[vi,:vertex] == i`)
 
-If an edge `e` is of type `Output` this means that `Δnout` of `e.dst` is called after processing `e.src`.
+For an edge `e` in graph `g`, the following holds:
 
-If an edge `e` is of type `Input` this means that `Δnin` of `e.dst` is called after processing `e.src`.
+If `get_prop(g, e, :direction)` is of type `Output` this means that `Δnout` of `e.dst` is called after processing `e.src`.
+
+If `get_prop(g, e, :direction)` is of type `Input` this means that `Δnin` of `e.dst` is called after processing `e.src`.
 """
-struct ΔSizeGraph
-    graph::SimpleDiGraph
-    vertices::Vector{AbstractVertex}
-    directions::Vector{Direction}
+function ΔSizeGraph()
+    g = MetaDiGraph(0, :size, -1)
+    set_indexing_prop!(g, :vertex)
+    return g
 end
 
 """
@@ -747,56 +751,57 @@ Return a `ΔSizeGraph` for the case when nout of `v` is changed, i.e when Δnout
 ΔnoutSizeGraph(v) = ΔSizeGraph(Output(), v)
 
 function ΔSizeGraph(::Input, v)
-    g = ΔSizeGraph(SimpleDiGraph(), [], [])
+    g = ΔSizeGraph()
+    set_prop!(g, :start, v => Input())
     Δnin_touches_nin(v, g)
 end
 
 function ΔSizeGraph(::Output, v)
-    g = ΔSizeGraph(SimpleDiGraph(), [], [])
+    g = ΔSizeGraph()
+    set_prop!(g, :start, v => Output())
     Δnout_touches_nin(v, g)
 end
 
-function vertexind!(g::ΔSizeGraph, v::AbstractVertex,)
-    ind = indexin([v], g.vertices)[]
-    if isnothing(ind)
-        add_vertex!(g.graph)
-        push!(g.vertices, v)
-        ind = length(g.vertices)
-    end
-    return ind
-end
-
-function LightGraphs.add_edge!(g::ΔSizeGraph, src::AbstractVertex, dst::AbstractVertex, d::Direction)
-    srcind = vertexind!(g, dst)
-    dstind = vertexind!(g, src)
-    has_edge(g.graph, srcind, dstind) && return true
-    add_edge!(g.graph, srcind, dstind)
-    push!(g.directions, d)
+function LightGraphs.add_edge!(g::MetaDiGraph, src::AbstractVertex, dst::AbstractVertex, d::Direction)
+    srcind = vertexind!(g, src)
+    dstind = vertexind!(g, dst)
+    has_edge(g, srcind, dstind) && return true
+    add_edge!(g, srcind, dstind, Dict(:direction => d, g.weightfield => edgesize(d, src, dst)))
     return false
 end
 
-update_state_nout_impl!(g::ΔSizeGraph,v,from) = add_edge!(g, from, v, Output())
-update_state_nin_impl!(g::ΔSizeGraph,v,from)  = add_edge!(g, from, v, Input())
+edgesize(::Input, src, dst) = nout(src)
+edgesize(::Output, src, dst) = nout(dst)
 
-function visited_out(g::ΔSizeGraph, v)
-    inds = findall(vx -> vx == v, g.vertices)
-    return any(d -> d == Output(), g.directions[inds])
+update_state_nout_impl!(g::MetaDiGraph,v,from) = add_edge!(g, from, v, Output())
+update_state_nin_impl!(g::MetaDiGraph,v,from)  = add_edge!(g, from, v, Input())
+
+function visited_out(g::MetaDiGraph, v)
+    get_prop(g, :start) == (v => Output()) && return true
+    ind = vertexind!(g, v)
+    return any(e -> e.dst == ind, filter_edges(g, :direction, Output()))
 end
 
-function clear_state_nin!(g::ΔSizeGraph, v)
-     v in s.vertices || return
-     v_ind = vertexind(v, g)
+function clear_state_nin!(g::MetaDiGraph, v)
+     v in vertexproplist(g, :vertex) || return
+     v_ind = vertexind!(g, v)
      # No need to delete the vertex, only edges matter
      # Furthermore, this function is only called when v anyways shall be in the graph
-     rem_e = []
-     for (e_ind, e) in enumerate(edges(g.graph))
-         if e.dst == v_ind && g.directions[e_ind] == Input()
-             rem_edge!(g.graph, e)
-             push!(rem_e, e_ind)
+     for e in filter_edges(g, :direction, Input())
+         if e.dst == v_ind
+             rem_edge!(g, e)
          end
      end
-    deleteat!(g.directions, rem_e)
 end
 
+vertexproplist(g::MetaDiGraph, prop::Symbol) = map(p -> p[:vertex], props.([g], vertices(g)))
+
+function vertexind!(g::MetaDiGraph, v::AbstractVertex,)
+    ind = indexin([v], vertexproplist(g, :vertex))[]
+    if isnothing(ind)
+        add_vertex!(g, :vertex, v)
+    end
+    return g[v, :vertex]
+end
 
 ## Generic helper methods end
