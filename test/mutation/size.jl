@@ -1,9 +1,11 @@
+import LightGraphs:edges
+import MetaGraphs:get_prop
 
 @testset "Size mutations" begin
 
     inpt(size, id=1) = InputSizeVertex(id, size)
     nt(name) = t -> NamedTrait(t, name)
-    tf(name) = t -> nt(name)(SizeChangeValidation(t))
+    tf(name) = t -> nt(name)(SizeChangeLogger(SizeChangeValidation(t)))
 
     @testset "AbsorbVertex" begin
         iv = AbsorbVertex(InputVertex(1), InvSize(2))
@@ -250,6 +252,9 @@
             return next
         end
 
+        vnames(Δg::MetaDiGraph) = mapfoldl(e -> name(Δg[e.src, :vertex]) => name(Δg[e.dst, :vertex]) , vcat, edges(Δg))
+        dirs(Δg::MetaDiGraph) =  mapfoldl(e -> get_prop(Δg, e, :direction), vcat, edges(Δg))
+
         @testset "Residual fork block" begin
             start = av(inputvertex("in", 3), 9, "start")
             p1 = stack(start, 3,4, bname = "p1")
@@ -393,6 +398,33 @@
             @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 5]
             @test nin(sv2) == nout.(inputs(sv2)) == [8, 4, 5]
             @test nin(sv3) == nout.(inputs(sv3)) == [12, 17, 13]
+
+            Δg = ΔnoutSizeGraph(sv2)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "sv2"=>"v5"   Output();
+            "sv2"=>"v3"   Output();
+            "sv2"=>"sv3"  Input();
+            "sv2"=>"v4"   Output();
+            "sv2"=>"o2"   Input();
+            "v3"=>"sv1"  Input();
+            "sv1"=>"sv3"  Input();
+            "sv1"=>"o1"   Input();
+            "sv3"=>"o3"   Input();
+            "v4"=>"sv1"  Input()]
+
+
+            Δg = ΔninSizeGraph(sv2)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "sv2"=>"v5"   Output();
+            "sv2"=>"v3"   Output();
+            "sv2"=>"sv3"  Input();
+            "sv2"=>"v4"   Output();
+            "sv2"=>"o2"   Input();
+            "v3"=>"sv1"  Input();
+            "sv1"=>"sv3"  Input();
+            "sv1"=>"o1"   Input();
+            "sv3"=>"o3"   Input();
+            "v4"=>"sv1"  Input()]
         end
 
         @testset "SizeStack duplicate vertex cycle" begin
@@ -415,16 +447,18 @@
             @test nout(v4) == sum(nin(v4)) == nout(v2) + nout(v3) == 19
             @test nout(v3) == sum(nin(v3)) == nout(v1) + nout(v2) == 12
 
-            import LightGraphs:edges
-            import MetaGraphs:get_prop
             Δg = ΔnoutSizeGraph(v4)
-            @test mapfoldl(e -> name(Δg[e.src, :vertex]) => name(Δg[e.dst, :vertex]) , vcat, edges(Δg)) == [
-            "v4" => "v2";
-            "v4" => "v3";
-            "v3" => "v2";
-            "v3" => "v1"
-            ]
-            @test mapfoldl(e -> get_prop(Δg, e, :direction), vcat, edges(Δg)) == [Output(), Output(), Output(), Output()]
+            @test [vnames(Δg) dirs(Δg)] == [
+            "v4" => "v2" Output();
+            "v4" => "v3" Output();
+            "v3" => "v1" Output()]
+
+            Δg = ΔninSizeGraph(v3)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "v3" => "v1" Output();
+            "v3" => "v2" Output();
+            "v3" => "v4" Input();
+            "v2" => "v4" Input()]
         end
 
         @testset "Entangled SizeStack" begin

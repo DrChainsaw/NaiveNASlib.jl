@@ -765,10 +765,24 @@ end
 function LightGraphs.add_edge!(g::MetaDiGraph, src::AbstractVertex, dst::AbstractVertex, d::Direction)
     srcind = vertexind!(g, src)
     dstind = vertexind!(g, dst)
-    has_edge(g, srcind, dstind) && return true
+    visited(g, srcind, dstind, d) && return true
     add_edge!(g, srcind, dstind, Dict(:direction => d, g.weightfield => edgesize(d, src, dst)))
     return false
 end
+
+function visited(g, srcind, dstind, d)
+    has_edge(g, srcind, dstind) && return true
+    return visited_out(d, g, dstind)
+end
+
+function visited_out(::Output, g, dstind)
+    for e in filter_edges(g, :direction, Output())
+        e.dst == dstind && return true
+    end
+    return false
+end
+visited_out(::Input, g, dstind) = false
+
 
 edgesize(::Input, src, dst) = nout(src)
 edgesize(::Output, src, dst) = nout(dst)
@@ -779,16 +793,20 @@ update_state_nin_impl!(g::MetaDiGraph,v,from)  = add_edge!(g, from, v, Input())
 function visited_out(g::MetaDiGraph, v)
     get_prop(g, :start) == (v => Output()) && return true
     ind = vertexind!(g, v)
-    return any(e -> e.dst == ind, filter_edges(g, :direction, Output()))
+    println("visit out $ind $(name(v)) edges: $(collect(filter_edges(g, :direction, Output()))) seen: $(any(e -> e.dst == ind, filter_edges(g, :direction, Output())))")
+    return any(e -> e.dst == ind || e.src == ind, filter_edges(g, :direction, Output()))
 end
 
 function clear_state_nin!(g::MetaDiGraph, v)
      v in vertexproplist(g, :vertex) || return
-     v_ind = vertexind!(g, v)
+     ind = vertexind!(g, v)
      # No need to delete the vertex, only edges matter
      # Furthermore, this function is only called when v anyways shall be in the graph
+     println("Remove from $ind $(name(v))")
      for e in filter_edges(g, :direction, Input())
-         if e.dst == v_ind
+         println("  edge: $e")
+         if e.dst == ind
+             println("  -remove!")
              rem_edge!(g, e)
          end
      end
