@@ -6,6 +6,7 @@
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
     av(in, outsize, name) = absorbvertex(MatMul(nout(in), outsize), outsize, in, traitdecoration=tf(name))
+    tv(in, name) = invariantvertex(identity, in, traitdecoration=tf(name))
 
     cc(ins...; name) = conc(ins...; dims=2, traitdecoration=tf(name))
     nc(name) = traitconf(nt(name))
@@ -331,5 +332,70 @@
         @test nout(v0) == 14
 
         @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
+    end
+
+    @testset "NoutMainVar after vertex removal" begin
+        inpt = iv(3)
+        v1 = av(inpt, 2, "v1a")
+        v2 = tv(v1, "v2")
+        v3 = av(v2, 4, "v3")
+        v4 = av(v3, 3, "v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy(DecreaseBigger()))
+
+        # What happened now is that nin(v4) got decreased from 4 to 2. We now need to select which inputs to keep
+        # However, there is absolutely no need at all to select anything from v2 and before as they have not changed.
+
+        # Approach used: Select best nout(v2) outputs from v3 (hoping that the best outputs for v3 are also the best inputs for v4)
+
+        # out=false because we are actually selecting for v4 in the input direction
+        cdict = validouts(v2, Set([v2]), Set(AbstractVertex[]), false)
+        valid, selinds = select_outputs(NoutMainVar(NoutExact(), NoutExact()), v2, 1:nout_org(v3), cdict)
+
+        # Don't want to propagate to v2!
+        s = NaiveNASlib.VisitState{Vector{Int}}(v2)
+        NaiveNASlib.visited_out!.(s, [v2])
+        Δnin(v4, selinds, s=s)
+
+        @test in_inds(op(v4))[] == [3, 4]
+        @test out_inds(op(v1)) == out_inds(op(v2)) == out_inds(op(v3)) == out_inds(op(v2)) == [1, 2]
+
+        apply_mutation(g)
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
+
+    @testset "NoutMainVar exact infeasible" begin
+        inpt = iv(3)
+        v1 = av(inpt, 2, "v1")
+        v2 = av(inpt, 2, "v2")
+        v3 = cc(v1, v2, v1, v2, name="v3")
+        v4 = av(v3, 3, "v4")
+
+        g = CompGraph(inpt, v3)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v3))
+
+        Δnout(v3, 6)
+
+        @test nout(v3) == 2nout(v1) + 2nout(v2) == 14
+        @test nout(v1) == 3
+        @test nout(v2) == 4
+
+        @test_logs (:warn, "Selection for vertex v3 failed! Relaxing size constraint...") select_outputs_and_change(NoutMainVar(NoutExact(), NoutRelaxSize()), v3, 1:(nout_org(v3)-1))
+
+        @test nout(v3) == 2nout(v1) + 2nout(v2) == 14
+        @test nout(v1) == 3
+        @test nout(v2) == 4
+
+        @test in_inds(op(v4))[] == out_inds(op(v3)) == [1, 2, -1, 3, -1, -1, -1, 5, 6, -1, 7, -1, -1, -1]
+        @test out_inds(op(v1)) ==  [1, 2, -1]
+        @test out_inds(op(v2)) ==  [1, -1, -1, -1]
+
+        apply_mutation(g)
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v3))
     end
 end

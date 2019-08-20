@@ -1,4 +1,3 @@
-# TODO: This file shall go to NaiveNASlib once things work somewhat well
 
 # Methods to help select or add a number of outputs given a new size as this problem apparently belongs to the class of FU-complete problems. And yes, I curse the day I conceived the idea for this project right now...
 
@@ -85,16 +84,17 @@ NoutRelaxSize(fallback=LogSelectionFallback("Reverting...", NoutRevert())) = Nou
 NoutRelaxSize(lower::Real, upper::Real) = NoutRelaxSize(lower, upper, NoutRevert())
 fallback(s::NoutRelaxSize) = s.fallback
 
+"""
+    NoutMainVar <: AbstractJuMPSelectionStrategy
+    NoutMainVar()
+    NoutMainVar(main::AbstractJuMPSelectionStrategy, child::AbstractJuMPSelectionStrategy)
 
-struct ValidOutsInfo{I <:Integer, T <: MutationTrait}
-    current::Matrix{I}
-    after::Matrix{I}
-    trait::T
-end
-ValidOutsInfo(currsize::I, aftersize::I, trait::T) where {T<:MutationTrait,I<:Integer} = ValidOutsInfo(zeros(I, currsize, 0), zeros(I, aftersize, 0), trait)
-addinds(v::ValidOutsInfo{I, T}, c::Integer, a::Integer) where {I,T} = ValidOutsInfo([v.current range(c, length=size(v.current,1))], [v.after range(a, length=size(v.after,1))], v.trait)
+Adds size constraints also for main variables while allowing other (typically relaxed) constraints for children (i.e vertices which will be changed as a consequence of changing the main vertex).
 
+Typically used after making a structural mutation so that part of the graph will be barred from size changes.
 
+Possible to set fallbackstrategies for both main and children. Note that with the exception of `LogSelection` only instances of `AbstractJuMPSelectionStrategy` are allowed for the child fallback strategy.
+"""
 struct NoutMainVar <: AbstractJuMPSelectionStrategy
     main::AbstractJuMPSelectionStrategy
     child::AbstractJuMPSelectionStrategy
@@ -103,6 +103,15 @@ NoutMainVar() = NoutMainVar(NoutExact(), NoutRelaxSize())
 NoutMainVar(m::LogSelection, c) = LogSelection(m.level, m.msgfun, NoutMainVar(m.andthen, c))
 NoutMainVar(m::AbstractSelectionStrategy, c) = m
 fallback(s::NoutMainVar) = NoutMainVar(fallback(s.main), fallback(s.child))
+
+
+struct ValidOutsInfo{I <:Integer, T <: MutationTrait}
+    current::Matrix{I}
+    after::Matrix{I}
+    trait::T
+end
+ValidOutsInfo(currsize::I, aftersize::I, trait::T) where {T<:MutationTrait,I<:Integer} = ValidOutsInfo(zeros(I, currsize, 0), zeros(I, aftersize, 0), trait)
+addinds(v::ValidOutsInfo{I, T}, c::Integer, a::Integer) where {I,T} = ValidOutsInfo([v.current range(c, length=size(v.current,1))], [v.after range(a, length=size(v.after,1))], v.trait)
 
 
 """
