@@ -302,6 +302,19 @@ end
 function select_outputs(s::AbstractJuMPSelectionStrategy, v, values, cdict)
     model = optmodel(s, v, values)
 
+    # Select indices using integer linear programming.
+    # High level description of formulation:
+    # `values` is the metric which we are out to maximize (although in the general case when things are engangled we're actually mostly interested in just getting any feasible solution)
+
+    # The binary variable `selectvar` tells us which indices of `values` to select
+    # The binary variable `inservar` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
+    # Thus, the result will consist of all selected indices with possibly interlaced -1s
+
+    # Now, the constraints are the following three types:
+    # 1. Row constraint: The values of `cdict` has matrices consisting of subsets of the indices in selectvar and insertvar respectively. The constraint is that for selection to be consistent, either all or none of the indices in each row in those matrices must be selected. Note that this applies to both selection and insertion. See documentation of validouts for a description of what the matrices represent.
+    # 2. Size constraint: Much more straighforward! The for each key `vi` of type `AbstractVertex` in `cdict`, select `min(nout(vi), nout_org(vi))` (i.e either all or a subset) of the rows in `mi.current` where `mi.current` is the selection matrix mapped to `vi`. Similarly, the number of rows in `mi.after` minus the number of selected rows in `mi.after` shall be equal to the number of inserted indices. Note that size constraint can be relaxed, meaning that more or fewer indices are selected from each row.
+    # 3. Δfactor constraint: This constraint makes sure minΔnoutfactors are respected, i.e any selection+insertion of outputs must result in a change which is an integer multiple of the associated minΔnoutfactor.
+
     # variable for selecting a subset of the existing outputs.
     selectvar = @variable(model, selectvar[1:length(values)], Bin)
     # Variable for deciding at what positions to insert new outputs.
@@ -411,7 +424,7 @@ function Δfactorconstraint(::NoutExact, model, f, Δsizeexp) end
 function Δfactorconstraint(::NoutRelaxSize, model, ::Missing, Δsizeexp) end
 function Δfactorconstraint(::NoutRelaxSize, model, f, Δsizeexp)
     # Δfactor constraint:
-    #  - Constraint that answer shall result in an integer multiple of f being not selected
+    #  - Constraint that answer shall result in a size change which is an integer multiple of f.
     fv = @variable(model, integer=true)
     @constraint(model, f * fv == Δsizeexp)
 end
