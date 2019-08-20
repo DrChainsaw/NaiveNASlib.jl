@@ -1,11 +1,9 @@
-import LightGraphs:edges
-import MetaGraphs:get_prop
-
 @testset "Size mutations" begin
+    using LightGraphs, MetaGraphs
 
     inpt(size, id=1) = InputSizeVertex(id, size)
     nt(name) = t -> NamedTrait(t, name)
-    tf(name) = t -> nt(name)(SizeChangeLogger(SizeChangeValidation(t)))
+    tf(name) = t -> nt(name)(SizeChangeValidation(t))
 
     @testset "AbsorbVertex" begin
         iv = AbsorbVertex(InputVertex(1), InvSize(2))
@@ -399,6 +397,7 @@ import MetaGraphs:get_prop
             @test nin(sv2) == nout.(inputs(sv2)) == [8, 4, 5]
             @test nin(sv3) == nout.(inputs(sv3)) == [12, 17, 13]
 
+            # Tip: Turn use a SizeChangeLogger to verify correct output
             Δg = ΔnoutSizeGraph(sv2)
             @test [vnames(Δg) dirs(Δg)] == [
             "sv2"=>"v5"   Output();
@@ -425,6 +424,22 @@ import MetaGraphs:get_prop
             "sv1"=>"o1"   Input();
             "sv3"=>"o3"   Input();
             "v4"=>"sv1"  Input()]
+
+            Δnin(sv2, 2, missing, 2)
+            @test nin(sv1) == nout.(inputs(sv1)) == [3, 4, 7]
+            @test nin(sv2) == nout.(inputs(sv2)) == [10, 4, 7]
+            @test nin(sv3) == nout.(inputs(sv3)) == [14, 21, 13]
+
+            Δg = ΔninSizeGraph(sv2, false, true ,false)
+            @test [vnames(Δg) dirs(Δg)] == [
+            "sv2"=>"v5"   Output();
+            "sv2"=>"v4"   Output();
+            "sv2"=>"sv3"  Input();
+            "sv2"=>"o2"   Input();
+             "v4"=>"sv1"  Input();
+            "sv1"=>"sv3"  Input();
+            "sv1"=>"o1"   Input();
+            "sv3"=>"o3"   Input()]
         end
 
         @testset "SizeStack duplicate vertex cycle" begin
@@ -835,7 +850,7 @@ import MetaGraphs:get_prop
         @test nin(v5) == [nout(v3)] == [4]
 
         # Too many Δs!
-        @test_throws ArgumentError Δnin(v5, 1, 1)
+        @test_throws ArgumentError Δnin(v5, 1, 1,s=NaiveNASlib.VisitState{Int}(v5, 1))
     end
 
 end

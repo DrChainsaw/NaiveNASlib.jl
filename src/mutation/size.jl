@@ -41,7 +41,8 @@ end
 VisitState{T}() where T = VisitState{T}(Dict{AbstractVertex, Vector{Bool}}())
 VisitState{T}(change_nin::Dict{AbstractVertex, Vector{Bool}}) where T = VisitState{T}([], [], OrderedDict{MutationVertex, Vector{Maybe{<:T}}}(), OrderedDict{MutationVertex, Maybe{<:T}}(), change_nin)
 VisitState{T}(origin::AbstractVertex) where T  = VisitState{T}(ΔnoutSizeInfo(origin).touch_nin)
-VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(ΔninSizeInfo(origin).touch_nin) # Here it *should* be required to send Δs to Δnin_touches_nin so that missing Δs can be masked, but so far it has not turned out to be neccessary...
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}) where T  = VisitState{T}(ΔninSizeInfo(origin).touch_nin)
+VisitState{T}(origin::AbstractVertex, Δs::Maybe{T}...) where T  = VisitState{T}(ΔninSizeInfo(origin, ismissing.(Δs)...).touch_nin)
 
 Base.Broadcast.broadcastable(s::VisitState) = Ref(s)
 
@@ -599,11 +600,16 @@ Return a `ΔSizeInfo` for the case when nout of `v` is changed, i.e when Δnout(
 """
 ΔnoutSizeInfo(v) = Δnout_touches_nin(v, ΔSizeInfo())
 """
-    ΔnoutSizeInfo(v)
+    ΔninSizeInfo(v, mask::Bool...)
+    ΔninSizeInfo(v, mask::BitArray{1}=falses(length(inputs(v))))
 
 Return a `ΔSizeInfo` for the case when nin of `v` is changed, i.e when Δnin(v, Δ) is called.
+
+Optionally, provide a `mask` where `mask[i] == ismissing(Δ[i])`, i.e `nin(v)[i]` will not be changed.
 """
-ΔninSizeInfo(v) = Δnin_touches_nin(v, ΔSizeInfo())
+ΔninSizeInfo(v, mask::Bool) = ΔninSizeInfo(v, BitArray([mask]))
+ΔninSizeInfo(v, mask::Bool...) = ΔninSizeInfo(v, BitArray(mask))
+ΔninSizeInfo(v, mask::BitArray{1}=falses(length(inputs(v)))) = Δnin_touches_nin(v, ΔSizeInfo(), mask)
 
 update_state_nout_impl!(s::ΔSizeInfo,v,from) = push!(s.touch_nout, v)
 visited_out(s::ΔSizeInfo, v) = v in s.touch_nout
@@ -618,21 +624,26 @@ function update_state_nin_impl!(s::ΔSizeInfo,v,from)
 end
 
 
-Δnin_touches_nin(v, s=ΔSizeInfo()) = Δnin_touches_nin(trait(v), v, s)
-Δnin_touches_nin(t::DecoratingTrait, v, s) = Δnin_touches_nin(base(t), v, s)
-Δnin_touches_nin(::SizeAbsorb, v, s) = mapreduce(vi -> Δnout_touches_nin(vi, v, s), (s1,s2) -> s1, inputs(v), init=s)
-function Δnin_touches_nin(::SizeInvariant, v, s)
-    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v))
+# "Entry points": Size change originates from here
+Δnin_touches_nin(v::AbstractVertex, s, mask::BitArray{1}=falses(length(inputs(v)))) = Δnin_touches_nin(trait(v), v, s, mask)
+Δnin_touches_nin(t::DecoratingTrait, v::AbstractVertex, s, mask::BitArray{1}) = Δnin_touches_nin(base(t), v, s, mask)
+function Δnin_touches_nin(::SizeAbsorb, v, s, mask::BitArray{1})
+    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v)[.!mask])
+    return s
+end
+function Δnin_touches_nin(::SizeInvariant, v, s, mask::BitArray{1})
+    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v)[.!mask])
     foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
     return s
 end
-function Δnin_touches_nin(::SizeStack, v, s)
-    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v))
+function Δnin_touches_nin(::SizeStack, v, s, mask::BitArray{1})
+    foreach(vi -> Δnout_touches_nin(vi, v, s), inputs(v)[.!mask])
     foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
     return s
 end
 
-function Δnin_touches_nin(v, from, s)
+# "Propagation points": Size changes here have propagated from somewhere else (from)
+function Δnin_touches_nin(v::AbstractVertex, from::AbstractVertex, s)
     update_state_nin!(s, v, from) && return s
     Δnin_touches_nin(trait(v), v, from, s)
  end
@@ -653,14 +664,14 @@ function Δnin_touches_nin(::SizeStack, v, from, s)
 end
 
 
-Δnout_touches_nin(v, s=ΔSizeInfo()) = Δnout_touches_nin(trait(v), v, s)
+Δnout_touches_nin(v, s) = Δnout_touches_nin(trait(v), v, s)
 Δnout_touches_nin(t::DecoratingTrait, v, s) = Δnout_touches_nin(base(t), v, s)
 Δnout_touches_nin(::Immutable, v, s) = s
 function Δnout_touches_nin(::SizeAbsorb, v, s)
     foreach(vo -> Δnin_touches_nin(vo, v, s), outputs(v))
     return s
 end
-Δnout_touches_nin(t::SizeTransparent, v, s) = Δnin_touches_nin(t, v, s)
+Δnout_touches_nin(t::SizeTransparent, v::AbstractVertex, s) = Δnin_touches_nin(v, s)
 
 
 function Δnout_touches_nin(v, from, s)
@@ -738,11 +749,16 @@ function ΔSizeGraph()
 end
 
 """
-    ΔninSizeGraph(v)
+    ΔninSizeGraph(v, mask::Bool...)
+    ΔninSizeGraph(v, mask=falses(length(inputs(v))))
 
 Return a `ΔSizeGraph` for the case when nin of `v` is changed, i.e when Δnin(v, Δ) is called.
+
+Optionally, provide a `mask` where `mask[i] == ismissing(Δ[i])`, i.e `nin(v)[i]` will not be changed.
 """
-ΔninSizeGraph(v) = ΔSizeGraph(Input(), v)
+ΔninSizeGraph(v, mask::Bool) = ΔninSizeGraph(v, BitArray([mask]))
+ΔninSizeGraph(v, mask::Bool...) = ΔninSizeGraph(v, BitArray(mask))
+ΔninSizeGraph(v, mask=falses(length(inputs(v)))) = ΔSizeGraph(Input(), v, mask)
 """
     ΔnoutSizeGraph(v)
 
@@ -750,10 +766,10 @@ Return a `ΔSizeGraph` for the case when nout of `v` is changed, i.e when Δnout
 """
 ΔnoutSizeGraph(v) = ΔSizeGraph(Output(), v)
 
-function ΔSizeGraph(::Input, v)
+function ΔSizeGraph(::Input, v, mask=falses(length(inputs(v))))
     g = ΔSizeGraph()
     set_prop!(g, :start, v => Input())
-    Δnin_touches_nin(v, g)
+    Δnin_touches_nin(v, g, mask)
 end
 
 function ΔSizeGraph(::Output, v)
@@ -793,7 +809,6 @@ update_state_nin_impl!(g::MetaDiGraph,v,from)  = add_edge!(g, from, v, Input())
 function visited_out(g::MetaDiGraph, v)
     get_prop(g, :start) == (v => Output()) && return true
     ind = vertexind!(g, v)
-    println("visit out $ind $(name(v)) edges: $(collect(filter_edges(g, :direction, Output()))) seen: $(any(e -> e.dst == ind, filter_edges(g, :direction, Output())))")
     return any(e -> e.dst == ind || e.src == ind, filter_edges(g, :direction, Output()))
 end
 
@@ -802,11 +817,8 @@ function clear_state_nin!(g::MetaDiGraph, v)
      ind = vertexind!(g, v)
      # No need to delete the vertex, only edges matter
      # Furthermore, this function is only called when v anyways shall be in the graph
-     println("Remove from $ind $(name(v))")
      for e in filter_edges(g, :direction, Input())
-         println("  edge: $e")
          if e.dst == ind
-             println("  -remove!")
              rem_edge!(g, e)
          end
      end
