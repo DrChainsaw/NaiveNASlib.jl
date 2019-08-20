@@ -6,32 +6,6 @@ using NaiveNASlib
     nt(name) = t -> NamedTrait(t, name)
     tf(name) = t -> nt(name)(SizeChangeValidation(t))
 
-    # Testing mock
-    mutable struct MatMul
-        W::AbstractMatrix
-        MatMul(nin, nout) = new(reshape(collect(1:nin*nout), nin,nout))
-        MatMul(W) = new(W)
-    end
-    (mm::MatMul)(x) = x * mm.W
-    function NaiveNASlib.mutate_inputs(mm::MatMul, inputs::AbstractArray{<:Integer, 1}...)
-        indskeep = filter(ind -> ind > 0, inputs[1])
-        newmap = inputs[1] .> 0
-
-        newmat = zeros(Int64, length(newmap), size(mm.W, 2))
-        newmat[newmap, :] = mm.W[indskeep, :]
-        mm.W = newmat
-    end
-    function NaiveNASlib.mutate_outputs(mm::MatMul, outputs::AbstractArray{<:Integer, 1})
-        indskeep = filter(ind -> ind > 0, outputs)
-        newmap = outputs .> 0
-
-        newmat = zeros(Int64, size(mm.W, 1), length(newmap))
-        newmat[:, newmap] = mm.W[:, indskeep]
-        mm.W = newmat
-    end
-    NaiveNASlib.minΔninfactor(::MatMul) = 1
-    NaiveNASlib.minΔnoutfactor(::MatMul) = 1
-
     function mcv(nin, nout, in, name="mcv")
         mm = MatMul(nin, nout)
         return AbsorbVertex(CompVertex(mm, in), IoIndices(nin, nout), tf(name)), mm

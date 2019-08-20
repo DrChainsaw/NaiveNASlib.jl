@@ -1,17 +1,18 @@
 
 @testset "Selection" begin
 
-    #In order to be easily portable to NaiveNASlib
-    iv(size, name="in") = inputvertex(name, size, FluxDense())
+    # Helper methods
+    nt(name) = t -> NamedTrait(t, name)
+    tf(name) = t -> nt(name)(t)
+    iv(size, name="in") = inputvertex(name, size)
+    av(in, outsize, name) = absorbvertex(MatMul(nout(in), outsize), outsize, in, traitdecoration=tf(name))
 
-    av(in, outsize, name) = mutable(name, Dense(nout(in), outsize), in)
+    cc(ins...; name) = conc(ins...; dims=2, traitdecoration=tf(name))
+    nc(name) = traitconf(nt(name))
 
-    cc(ins...; name) = concat(ins...; traitfun=named(name))
-    nc(name) = traitconf(named(name))
-
-    select_outputs_and_change(v, values) = select_outputs_and_change(NaiveGAflux.NoutExact(), v, values)
+    select_outputs_and_change(v, values) = select_outputs_and_change(NoutExact(), v, values)
     function select_outputs_and_change(s, v, values)
-        execute, selected = NaiveGAflux.select_outputs(s, v, values)
+        execute, selected = select_outputs(s, v, values)
         if execute
             Δnout(v, selected)
         end
@@ -30,7 +31,7 @@
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [3,4,5]
         apply_mutation(g)
 
-        @test size(g(ones(3, 1))) == (nout(v2), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v2))
 
         Δnout(v1, 3)
         select_outputs_and_change(v1, 1:nout_org(op(v1)))
@@ -38,7 +39,7 @@
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,-1,-1,-1]
         apply_mutation(g)
 
-        @test size(g(ones(3, 1))) == (nout(v2), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v2))
     end
 
     @testset "Absorb 2 Absorb revert" begin
@@ -49,21 +50,21 @@
         g = CompGraph(inpt, v2)
 
         Δnout(v1, -2)
-        select_outputs_and_change(NaiveGAflux.NoutRevert(), v1, 1:nout_org(op(v1)))
+        select_outputs_and_change(NoutRevert(), v1, 1:nout_org(op(v1)))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,4,5]
         apply_mutation(g)
 
-        @test size(g(ones(3, 1))) == (nout(v2), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v2))
 
         Δnout(v1, +3)
 
-        select_outputs_and_change(NaiveGAflux.NoutRevert(), v1, 1:nout_org(op(v1)))
+        select_outputs_and_change(NoutRevert(), v1, 1:nout_org(op(v1)))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,4,5]
         apply_mutation(g)
 
-        @test size(g(ones(3, 1))) == (nout(v2), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v2))
     end
 
     @testset "Absorb 2 Absorb fail" begin
@@ -72,7 +73,7 @@
         v2 = av(v1, 4, "v2")
 
         Δnout(v1, -2)
-        @test_throws ErrorException select_outputs_and_change(NaiveGAflux.SelectionFail(), v1, 1:nout_org(op(v1)))
+        @test_throws ErrorException select_outputs_and_change(SelectionFail(), v1, 1:nout_org(op(v1)))
     end
 
     @testset "SizeStack duplicate" begin
@@ -83,7 +84,7 @@
         v4 = cc(v3, v2, name="v4")
 
         g = CompGraph(inpt, v4)
-        @test size(g(ones(3,1))) == (nout(v4), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v4))
 
         @test minΔnoutfactor(v4) == 2
         Δnout(v4, -4)
@@ -97,7 +98,7 @@
         @test nout(v1) == 5
         @test nout(v2) == 3
 
-        @test size(g(ones(3,1))) == (nout(v4), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v4))
 
         Δnout(v4, 6)
 
@@ -110,7 +111,7 @@
         @test nout(v1) == 9
         @test nout(v2) == 4
 
-        @test size(g(ones(3,1))) == (nout(v4), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v4))
     end
 
     @testset "SizeInvariant duplicate" begin
@@ -125,7 +126,7 @@
         v6 = nc("v6") >> v4 + v5
 
         g = CompGraph(inpt, v6)
-        @test size(g(ones(3,1))) == (nout(v6), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v6))
 
         @test minΔnoutfactor(v6) == 2
         Δnout(v6, -4)
@@ -141,7 +142,7 @@
         @test nout(v2) == 2
         @test nout(v3) == 3
 
-        @test size(g(ones(3,1))) == (nout(v6), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v6))
 
         Δnout(v6, 6)
 
@@ -156,7 +157,7 @@
         @test nout(v2) == 4
         @test nout(v3) == 5
 
-        @test size(g(ones(3,1))) == (nout(v6), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v6))
     end
 
     @testset "SizeStack one immutable" begin
@@ -165,7 +166,7 @@
         v2 = cc(inpt, v1, name="v2")
 
         g = CompGraph(inpt, v2)
-        @test size(g(ones(3,1))) == (nout(v2), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v2))
 
         Δnout(v1, -3)
 
@@ -173,13 +174,13 @@
         @test nout(v2) == 5
 
         # "Tempt" optimizer to not select inputs from inpt
-        select_outputs_and_change(NaiveGAflux.NoutRelaxSize(0.5, 1), v2, -nout(inpt):nout_org(op(v1))-1)
+        select_outputs_and_change(NoutRelaxSize(0.5, 1), v2, -nout(inpt):nout_org(op(v1))-1)
         apply_mutation(g)
 
         @test nin(v2) == [nout(inpt), nout(v1)] == [3, 2]
         @test nout(v2) == 5
 
-        @test size(g(ones(3,1))) == (nout(v2), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v2))
     end
 
     @testset "SizeInvariant exact infeasible" begin
@@ -195,7 +196,7 @@
         v7 = nc("v7") >> v5 + v6
 
         g = CompGraph(inpt, v7)
-        @test size(g(ones(3,1))) == (nout(v7), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v7))
 
         @test minΔnoutfactor(v7) == 2
         Δnout(v7, -4)
@@ -213,7 +214,7 @@
         @test nout(v3) == 6
         @test nout(v4) == 3
 
-        @test size(g(ones(3,1))) == (nout(v7), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v7))
 
         Δnout(v7, 20)
 
@@ -231,7 +232,7 @@
         @test nout(v3) == 14
         @test nout(v4) == 7
 
-        @test size(g(ones(3,1))) == (nout(v7), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v7))
     end
 
     @testset "SizeInvariant increase exact infeasible" begin
@@ -247,7 +248,7 @@
         v7 = nc("v7") >> v5 + v6
 
         g = CompGraph(inpt, v7)
-        @test size(g(ones(3,1))) == (nout(v7), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v7))
 
         @test minΔnoutfactor(v7) == 1
         Δnout(v7, 5)
@@ -266,7 +267,7 @@
         @test nout(v3) == 5
         @test nout(v4) == 8
 
-        @test size(g(ones(3,1))) == (nout(v7), 1)
+        @test size(g(ones(1, 3))) == (1, nout(v7))
     end
 
     @testset "Constrained by remote subtree" begin
@@ -296,7 +297,7 @@
         v10 = av(v9, 5, "v10")
 
         g = CompGraph(inpt, [v1, v9])
-        @test size.(g(ones(3,1))) == ((nout(v1), 1), (nout(v9), 1))
+        @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
 
         @test minΔnoutfactor(v1) == 2
 
@@ -314,7 +315,7 @@
         @test nout(v7) == 10
         @test nout(v0) == 6
 
-        @test size.(g(ones(3,1))) == ((nout(v1), 1), (nout(v9), 1))
+        @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
 
         Δnout(v2, 8)
 
@@ -329,6 +330,6 @@
         @test nout(v7) == 16
         @test nout(v0) == 14
 
-        @test size.(g(ones(3,1))) == ((nout(v1), 1), (nout(v9), 1))
+        @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
     end
 end

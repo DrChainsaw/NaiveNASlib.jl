@@ -19,6 +19,7 @@ include("testutil.jl")
 
     include("mutation/size.jl")
     include("mutation/apply.jl")
+    include("mutation/selection.jl")
 
     @info "Testing structural mutation"
 
