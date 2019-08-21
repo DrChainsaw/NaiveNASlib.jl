@@ -6,49 +6,57 @@ using Statistics
 # For solving diophantine equations which pop up here and there when mutating size under constraints
 using AbstractAlgebra
 using LinearAlgebra
-using Base.CoreLogging
+using Logging
+
+# For solving pesky entangled neuron select problems. To be moved to NaiveNASlib if things work out
+import JuMP
+import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
+using Cbc
 
 
-export
+
 #Interface
-AbstractVertex, AbstractMutationVertex, MutationOp, MutationState,
+export AbstractVertex, AbstractMutationVertex, MutationOp, MutationState
 
 # Vertex
-InputVertex, CompVertex, inputs, outputs,
+export InputVertex, CompVertex, inputs, outputs
 
 # Information strings
-infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr,
+export infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr
 
 # Computation graph
-CompGraph, output!,flatten, nv, vertices,
+export CompGraph, output!,flatten, nv, vertices
 
 # Mutation operations
 #State
-InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org,
+export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org
 
 # Mutation vertex
-base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex,
+export base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex
 
 # Mutation traits
-trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation,
+export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation
 
 # Size util
-minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output,
+export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output
+
+#Selection util
+export AbstractSelectionStrategy, LogSelection, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, NoutExact, NoutRelaxSize, NoutMainVar, validouts, select_outputs
 
 # Connectivity mutation
-remove!, RemoveStrategy, insert!, create_edge!, remove_edge!,
+export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle,
+export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle
 
 # Connect strategies
-AbstractConnectStrategy, ConnectAll, ConnectNone,
+export AbstractConnectStrategy, ConnectAll, ConnectNone
 
 # apply mutation
-mutate_inputs, mutate_outputs, apply_mutation,
+export mutate_inputs, mutate_outputs, apply_mutation
 
 #sugar
-inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc, VertexConf, traitconf, mutationconf, outwrapconf
+export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc, VertexConf, traitconf, mutationconf, outwrapconf
 
 include("vertex.jl")
 include("compgraph.jl")
@@ -57,6 +65,7 @@ include("mutation/op.jl")
 include("mutation/vertex.jl")
 include("mutation/size.jl")
 include("mutation/apply.jl")
+include("mutation/select.jl")
 
 include("mutation/structure.jl")
 
