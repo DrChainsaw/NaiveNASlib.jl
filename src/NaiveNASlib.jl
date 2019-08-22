@@ -12,6 +12,8 @@ using Logging
 import JuMP
 import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
 using Cbc
+using Juniper
+using Ipopt
 
 
 
@@ -29,7 +31,7 @@ export CompGraph, output!,flatten, nv, vertices
 
 # Mutation operations
 #State
-export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org
+export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org, AbstractJuMPSizeStrategy, ΔnoutExact
 
 # Mutation vertex
 export base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex

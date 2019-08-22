@@ -92,10 +92,14 @@ LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(flatten(v))
 Return a SimpleDiGraph of all given vertices
 """
 function LightGraphs.SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
-    g = LightGraphs.SimpleDiGraph()
+    g = MetaDiGraph(0,:size, -1)
+    set_indexing_prop!(g, :vertex)
     add_vertices!(g, length(vertices))
     for (ind, v) in enumerate(vertices)
-        foreach(iv -> add_edge!(g, findall(vv -> vv == iv, vertices)[1], ind), inputs(v))
+        set_prop!(g, ind, :vertex, v)
+        for in_ind in indexin(inputs(v), vertices)
+            add_edge!(g, in_ind, ind, :size, nout(vertices[in_ind]))
+        end
     end
     return g
 end
