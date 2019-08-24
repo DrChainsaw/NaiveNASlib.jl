@@ -509,12 +509,17 @@
     end
 
     @testset "Size Mutation possibilities" begin
-
+        import JuMP: @variable, @constraint
         # Helpers
-        struct SizeConstraint constraint; end
+        struct SizeConstraint constraint;size; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
-        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize), size, in..., traitdecoration=tf(name))
+        function NaiveNASlib.compconstraint!(s, c::SizeConstraint, data)
+            println("sizec")
+            fv = @variable(data.model, integer=true)
+            @constraint(data.model, c.constraint * fv == c.size - data.noutvar)
+        end
+        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize,size), size, in..., traitdecoration=tf(name))
         sv(in...; name="sv") = conc(in..., dims=1, traitdecoration = tf(name))
         iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
 

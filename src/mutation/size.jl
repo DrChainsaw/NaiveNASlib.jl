@@ -237,10 +237,34 @@ collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findte
 
 
 ## Boilerplate
+"""
+    AbstractΔSizeStrategy
 
-# Dispatch on trait
-Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}(v, Δ...)) where T = Δnin(trait(v), v, Δ..., s=s)
-Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}(v)) where T = Δnout(trait(v), v, Δ, s=s)
+Abstract base type for strategies for how to change the size.
+
+Only used as a transition until JuMP approach has been fully verified.
+"""
+abstract type AbstractΔSizeStrategy end
+
+struct ΔNoutLegacy <: AbstractΔSizeStrategy end
+struct ΔNinLegacy <: AbstractΔSizeStrategy end
+
+# TODO: Remove once new way is verified with dependent packages
+global defaultΔNoutStrategy = ΔNoutLegacy()
+global defaultΔNinStrategy = ΔNinLegacy()
+export set_defaultΔNoutStrategy
+function set_defaultΔNoutStrategy(s)
+    global defaultΔNoutStrategy = s
+end
+
+# Dispatch on strategy
+Δnin(v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}(v, Δ...), strategy=defaultΔNinStrategy) where T = Δnin(strategy, v, Δ..., s=s)
+Δnout(v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}(v), strategy=defaultΔNoutStrategy) where T = Δnout(strategy, v, Δ, s=s)
+
+# Dispatch on trait for legacy approach (graph traversal)
+Δnin(::ΔNinLegacy, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}(v, Δ...)) where T = Δnin(trait(v), v, Δ..., s=s)
+Δnout(::ΔNoutLegacy, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}(v)) where T = Δnout(trait(v), v, Δ, s=s)
+
 
 # Unwrap DecoratingTrait(s)
 Δnin(t::DecoratingTrait, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T = Δnin(base(t), v, Δ..., s=s)
@@ -837,25 +861,83 @@ end
 
 ## Generic helper methods end
 
-abstract type AbstractJuMPSizeStrategy end
+"""
+    SizeDiGraph(g::CompGraph)
 
-struct SizeChangeFail <: AbstractJuMPSizeStrategy end
+Return `cg` as a `MetaDiGraph g`.
 
-struct DefaultJuMPSizeStrategy <: AbstractJuMPSizeStrategy end
+Each vertex `i` represents a unique `AbstractVertex vi`.
 
-struct ΔnoutExact <: AbstractJuMPSizeStrategy
+For the `AbstractVertex vi` associated with vertex `i` in the graph `g`, the following holds `g[i, :vertex] == vi` and `g[vi,:vertex] == i`)
+
+Each edge `e` represents output from `e.src` which is input to `e.dst`.
+Edge weights denoted by the symbol `:size` represents the size of the output sent between the vertices.
+
+Note that the order of the input edges to a vertex matters (in case there are more than one) and is not encoded in `g`.
+Instead, use `indexin(vi, inputs(v))` to find the index (or indices if input multiple times) of `vi` in `inputs(v)`.
+"""
+SizeDiGraph(cg::CompGraph) = SizeDiGraph(mapfoldl(v -> flatten(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), cg.outputs))
+
+"""
+    SizeDiGraph(v::AbstractVertex)
+
+Return a SizeDiGraph of all parents of v
+"""
+SizeDiGraph(v::AbstractVertex)= SizeDiGraph(flatten(v))
+
+"""
+    SizeDiGraph(vertices::AbstractArray{AbstractVertex,1})
+
+Return a SizeDiGraph of all given vertices
+"""
+function SizeDiGraph(vertices::AbstractArray{AbstractVertex,1})
+    g = MetaDiGraph(0,:size, 0)
+    set_indexing_prop!(g, :vertex)
+    add_vertices!(g, length(vertices))
+    for (ind, v) in enumerate(vertices)
+        set_prop!(g, ind, :vertex, v)
+        for in_ind in indexin(inputs(v), vertices)
+            add_edge!(g, in_ind, ind, :size, nout(vertices[in_ind]))
+        end
+    end
+    return g
+end
+
+fullgraph(v::AbstractVertex) = SizeDiGraph(all_in_graph(v))
+
+
+function all_in_graph(v::AbstractVertex, visited = AbstractVertex[])
+    v in visited && return visited
+    push!(visited, v)
+    foreach(vi -> all_in_graph(vi, visited), inputs(v))
+    foreach(vo -> all_in_graph(vo, visited), outputs(v))
+    return visited
+end
+
+abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
+
+struct ΔSizeFail <: AbstractJuMPΔSizeStrategy end
+
+struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
+
+struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
     Δ::Integer
     vertex::Integer
-    fallback::AbstractJuMPSizeStrategy
+    fallback::AbstractJuMPΔSizeStrategy
 end
-ΔnoutExact(Δ, vertex) = ΔnoutExact(Δ, vertex, SizeChangeFail())
+ΔNoutExact(Δ, vertex) = ΔNoutExact(Δ, vertex, ΔSizeFail())
 
-Δnout(g::MetaDiGraph, vertex::Integer, Δ::Integer) = Δnout(ΔnoutExact(Δ, vertex), g)
+function Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer
+    g = fullgraph(v)
+    Δnout(ΔNoutExact(Δ, g[v,:vertex]), g)
+end
 
-function Δnout(s::AbstractJuMPSizeStrategy, g::MetaDiGraph)
+
+Δnout(g::MetaDiGraph, vertex::Integer, Δ::Integer) = Δnout(ΔNoutExact(Δ, vertex), g)
+
+function Δnout(s::AbstractJuMPΔSizeStrategy, g::MetaDiGraph)
     adjmat = adjacency_matrix(g, Bool)
     currsize = Matrix(weights(g))
-    currsize[.!adjmat] .= 0
     display(currsize)
 
     sizemat,nouts = newsizes(s, g)
@@ -894,7 +976,7 @@ function newsizes(s, g)
     noutvars = @variable(model, noutvars[1:nv(g)], Int)
     sizetargets = Array{Int,1}(undef, nv(g))
     for i in 1:nv(g)
-        vertexconstraints!(g[i, :vertex], s, model, noutvars[i], i, sizevar, adjmat)
+        vertexconstraints!(g[i, :vertex], s, (model=model, noutvar=noutvars[i], vind=i, sizevar=sizevar, adjmat=adjmat, g=g))
         sizetargets[i] = nout(g[i,:vertex])
     end
     sizeobjective!(s, model, noutvars, sizetargets, size, adjmat)
@@ -904,13 +986,12 @@ function newsizes(s, g)
     @show JuMP.primal_status(model)
 
     newsizemat = Matrix(weights(g))
-    newsizemat[.!adjmat] .= 0
     newsizemat[adjmat] = round.(Int, JuMP.value.(size))
 
     return newsizemat, round.(Int, JuMP.value.(noutvars))
 end
 
-function sizemodel(s::AbstractJuMPSizeStrategy, g)
+function sizemodel(s::AbstractJuMPΔSizeStrategy, g)
     optimizer = Juniper.Optimizer
     params = Dict{Symbol,Any}()
     params[:nl_solver] = JuMP.with_optimizer(Ipopt.Optimizer, print_level=0)
@@ -919,43 +1000,49 @@ function sizemodel(s::AbstractJuMPSizeStrategy, g)
     return JuMP.Model(JuMP.with_optimizer(optimizer, params))
 end
 
-vertexconstraints!(v::AbstractVertex, s, model, noutvar, i, sizevar, adjmat) = vertexconstraints!(trait(v), v, s, model, noutvar, i, sizevar, adjmat)
-vertexconstraints!(t::DecoratingTrait, v, s, model, noutvar, i, sizevar, adjmat) = vertexconstraints!(base(t), v, s, model, noutvar, i, sizevar, adjmat)
-function vertexconstraints!(::Immutable, v, s, model, noutvar, i, sizevar, adjmat)
-    @constraint(model, nout(v) .== noutvar)
-    @constraint(model, nout(v) .== sizevar[i,adjmat[i,:]])
-    @constraint(model, nin(v) .== sizevar[adjmat[:,i],i])
+vertexconstraints!(v::AbstractVertex, s, data) = vertexconstraints!(trait(v), v, s, data)
+vertexconstraints!(t::DecoratingTrait, v, s, data) = vertexconstraints!(base(t), v, s,data)
+function vertexconstraints!(::Immutable, v, s, data)
+    i = data.vind
+    adjmat= data.adjmat
+    @constraint(data.model, nout(v) .== data.noutvar)
+    @constraint(data.model, nout(v) .== data.sizevar[i,adjmat[i,:]])
+    @constraint(data.model, nin(v) .== data.sizevar[adjmat[:,i],i])
 end
 
-vertexconstraints!(::MutationTrait, v, s, model, noutvar, i, sizevar, adjmat) = vertexconstraints!(s, v, model, noutvar, i, sizevar, adjmat)
+vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 
 
-function vertexconstraints!(s::AbstractJuMPSizeStrategy, v, model, noutvar, i, sizevar, adjmat)
-    @constraint(model, noutvar .== sizevar[i,adjmat[i,:]])
-    ninconstraint!(s, v, model, i, sizevar, adjmat, noutvar)
-    compconstraint!(s, v, model, noutvar, i, sizevar, adjmat)
-    return noutvar
+function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
+    i = data.vind
+    adjmat = data.adjmat
+    @constraint(data.model, data.noutvar .== data.sizevar[i,adjmat[i,:]])
+    ninconstraint!(s, v, data)
+    compconstraint!(s, v, data)
 end
 
-function vertexconstraints!(s::ΔnoutExact, v, model, noutvar, i, sizevar, adjmat)
-    vertexconstraints!(DefaultJuMPSizeStrategy(), v, model, noutvar, i, sizevar, adjmat)
-    if i == s.vertex
-        @constraint(model, delta_origin, noutvar == nout(v) + s.Δ)
+function vertexconstraints!(s::ΔNoutExact, v, data)
+    vertexconstraints!(DefaultJuMPΔSizeStrategy(), v, data)
+    if data.vind == s.vertex
+        @constraint(data.model, delta_origin, data.noutvar == nout(v) + s.Δ)
     end
 end
 
-ninconstraint!(s, v, model, i, sizevar, adjmat, noutvar) = ninconstraint!(s, trait(v), v, model, i, sizevar, adjmat, noutvar)
-ninconstraint!(s, t::DecoratingTrait, v, model, i, sizevar, adjmat, noutvar) = ninconstraint!(s, base(t), v, model, i, sizevar, adjmat, noutvar)
-function ninconstraint!(s, ::SizeAbsorb, v, model, i, sizevar, adjmat, noutvar) end
-ninconstraint!(s, ::SizeStack, v, model, i, sizevar, adjmat, noutvar) = @constraint(model, sum(sizevar[adjmat[:, i], i]) == noutvar)
-ninconstraint!(s, ::SizeInvariant, v, model, i, sizevar, adjmat, noutvar) = @constraint(model, sizevar[adjmat[:, i], i] .== noutvar)
+ninconstraint!(s, v, data) = ninconstraint!(s, trait(v), v, data)
+ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, data)
+function ninconstraint!(s, ::SizeAbsorb, v, data) end
+function ninconstraint!(s, ::SizeStack, v, data)
+    inds = map(vi -> data.g[vi, :vertex], inputs(v))
+    @constraint(data.model, sum(data.sizevar[inds, data.vind]) == data.noutvar)
+end
+ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, data.sizevar[data.adjmat[:, data.vind], data.vind] .== data.noutvar)
 
-compconstraint!(s, v::AbstractVertex, args...) = compconstraint!(s, base(v), args...)
-compconstraint!(s, v::CompVertex, args...) = compconstraint!(s, v.computation, args...)
-function compconstraint!(s, f, args...) end
+compconstraint!(s, v::AbstractVertex, data) = compconstraint!(s, base(v), data)
+compconstraint!(s, v::CompVertex, data) = compconstraint!(s, v.computation, data)
+function compconstraint!(s, f, data) end
 
 
-function sizeobjective!(s::AbstractJuMPSizeStrategy, model, noutvars, sizetargets, sizevars, adjmat)
+function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets, sizevars, adjmat)
     objective = JuMP.@NLexpression(model, objective[i=1:length(sizetargets)], (noutvars[i]/sizetargets[i] - 1)^2)
     JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
 end

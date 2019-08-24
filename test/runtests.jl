@@ -5,31 +5,43 @@ include("testutil.jl")
 
 @testset "NaiveNASlib.jl" begin
 
-    @info "Testing computation"
+    @testset "NaiveNASlib.jl legacy" begin
 
-    include("vertex.jl")
-    include("compgraph.jl")
+        @info "Testing computation"
 
-    @info "Testing mutation"
+        include("vertex.jl")
+        include("compgraph.jl")
 
-    include("mutation/op.jl")
-    include("mutation/vertex.jl")
+        @info "Testing mutation"
 
-    @info "Testing size mutation"
+        include("mutation/op.jl")
+        include("mutation/vertex.jl")
 
-    include("mutation/size.jl")
+        @info "Testing size mutation"
 
-    @info "Testing index mutation"
-    
-    include("mutation/apply.jl")
-    include("mutation/select.jl")
+        include("mutation/size.jl")
 
-    @info "Testing structural mutation"
+        @info "Testing index mutation"
 
-    include("mutation/structure.jl")
+        include("mutation/apply.jl")
+        include("mutation/select.jl")
 
-    @info "Testing sugar"
+        @info "Testing structural mutation"
 
-    include("mutation/sugar.jl")
+        include("mutation/structure.jl")
+
+        @info "Testing sugar"
+
+        include("mutation/sugar.jl")
+    end
+
+    @testset "NaiveNASlib.jl new" begin
+        # set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        # @info "Testing size mutation"
+        #
+        # include("mutation/size.jl")
+        #
+        # set_defaultΔNoutStrategy(ΔNoutLegacy())
+    end
 
 end

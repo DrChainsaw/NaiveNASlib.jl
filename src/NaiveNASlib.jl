@@ -15,8 +15,6 @@ using Cbc
 using Juniper
 using Ipopt
 
-
-
 #Interface
 export AbstractVertex, AbstractMutationVertex, MutationOp, MutationState
 
@@ -27,11 +25,11 @@ export InputVertex, CompVertex, inputs, outputs
 export infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr
 
 # Computation graph
-export CompGraph, output!,flatten, nv, vertices
+export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
 
 # Mutation operations
 #State
-export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org, AbstractJuMPSizeStrategy, ΔnoutExact
+export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org
 
 # Mutation vertex
 export base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex
@@ -41,6 +39,8 @@ export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSiz
 
 # Size util
 export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output
+
+export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFail, DefaultJuMPΔSizeStrategy, ΔNoutExact
 
 #Selection util
 export AbstractSelectionStrategy, LogSelection, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, NoutExact, NoutRelaxSize, NoutMainVar, validouts, select_outputs
@@ -72,7 +72,6 @@ include("mutation/select.jl")
 include("mutation/structure.jl")
 
 include("mutation/sugar.jl")
-
 
 
 end # module
