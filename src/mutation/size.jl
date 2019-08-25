@@ -903,8 +903,18 @@ function SizeDiGraph(vertices::AbstractArray{AbstractVertex,1})
     return g
 end
 
+"""
+    fullgraph(v::AbstractVertex)
+
+Return a `SizeDiGraph` of all vertices in the same graph (or connected component) as `v`
+"""
 fullgraph(v::AbstractVertex) = SizeDiGraph(all_in_graph(v))
 
+"""
+    all_in_graph(v::AbstractVertex)
+
+Return an array of vertices in the same graph (or connected component) as `v`
+"""
 function all_in_graph(v::AbstractVertex, visited = AbstractVertex[])
     v in visited && return visited
     push!(visited, v)
@@ -913,14 +923,41 @@ function all_in_graph(v::AbstractVertex, visited = AbstractVertex[])
     return visited
 end
 
+"""
+    AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
+
+Abstract type for strategies to change or align the sizes of vertices using JuMP.
+"""
 abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
 
+"""
+    ΔSizeFail <: AbstractJuMPΔSizeStrategy
+    ΔSizeFail(msg::String)
+
+Throws an `ErrorException` with message `msg`.
+"""
 struct ΔSizeFail <: AbstractJuMPΔSizeStrategy
     msg::String
 end
 
+"""
+    DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
+
+Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
+"""
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
+"""
+    ΔNoutExact <: AbstractJuMPΔSizeStrategy
+    ΔNoutExact(Δ::Integer, vertex::AbstractVertex)
+    ΔNoutExact(Δ::Integer, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+
+Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
+
+Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`.
+
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFail`).
+"""
 struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
     Δ::Integer
     vertex::AbstractVertex
@@ -929,8 +966,14 @@ end
 ΔNoutExact(Δ, vertex) = ΔNoutExact(Δ, vertex, ΔSizeFail("Could not change nout of $vertex by $(Δ)!!"))
 fallback(s::ΔNoutExact) = s.fallback
 
+# Temp method (hopefully) whose only purpose is to bridge the legacy API
 Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δnout(ΔNoutExact(Δ, v), all_in_graph(v))
 
+"""
+    Δnout(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+
+Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
+"""
 function Δnout(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
     nouts = newsizes(s, vertices)
 
@@ -950,9 +993,16 @@ function Δnout(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:Abstrac
     end
 end
 
-newsizes(s::ΔSizeFail, vertices) = error(s.msg)
+newsizes(s::ΔSizeFail, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
 
-function newsizes(s, vertices)
+"""
+    newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+
+Return a vector of new sizes for (potentially) all provided `vertices` using the strategy `s`.
+
+Result vector is index aligned with `vertices`.
+"""
+function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
 
     model = sizemodel(s, vertices)
 
@@ -975,7 +1025,12 @@ function newsizes(s, vertices)
     return newsizes(fallback(s), vertices)
 end
 
-function sizemodel(s::AbstractJuMPΔSizeStrategy, g)
+"""
+    sizemodel(s::AbstractJuMPΔSizeStrategy, vertices)
+
+Return a `JuMP.Model` for executing strategy `s` on `vertices`.
+"""
+function sizemodel(s::AbstractJuMPΔSizeStrategy, vertices)
     optimizer = Juniper.Optimizer
     params = Dict{Symbol,Any}()
     params[:nl_solver] = JuMP.with_optimizer(Ipopt.Optimizer, print_level=0)
@@ -984,6 +1039,7 @@ function sizemodel(s::AbstractJuMPΔSizeStrategy, g)
     return JuMP.Model(JuMP.with_optimizer(optimizer, params))
 end
 
+# Just a short for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
 
 vertexconstraints!(v::AbstractVertex, s, data) = vertexconstraints!(trait(v), v, s, data)
@@ -995,7 +1051,13 @@ end
 
 vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 
+"""
+    vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
 
+Add constraints for `AbstractVertex v` using strategy `s`.
+
+Extra info like the model and variables is provided in `data`.
+"""
 function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
     ninconstraint!(s, v, data)
     compconstraint!(s, v, (data..., vertex=v))
@@ -1008,6 +1070,13 @@ function vertexconstraints!(s::ΔNoutExact, v, data)
     end
 end
 
+"""
+    ninconstraint!(s, v, data)
+
+Add input size constraints for `AbstractVertex v` using strategy `s`.
+
+Extra info like the model and variables is provided in `data`.
+"""
 ninconstraint!(s, v, data) = ninconstraint!(s, trait(v), v, data)
 ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, data)
 function ninconstraint!(s, ::SizeAbsorb, v, data) end
@@ -1025,9 +1094,9 @@ end
 
 function filter_equality_exists!(eqdict, v::T, vs::AbstractArray{T}) where T
 
-    # This function is a hack to avoid redundant equality constraints which typically happens when SizeInvariant vertices are stacked
-    # Idea is to keep track of a set of vertices for which nout(vi) == nout(vj) for all vi != vj in the set, called `eqset` below.
-    # Since there might be multiple such sets for a set of vertices, a Dict eqdict which maps each member vi in an eqset eqi to eqi is used for no other reason than that it makes it a bit less messy to figure out if a new set shall be added or if two vertices are in en existing set (or sets).
+    # This function is a (presumably buggy) hack to avoid redundant equality constraints which typically happens when SizeInvariant vertices are stacked
+    # Idea is to keep track of a set of vertices which have the constraint nout(vi) == nout(vj) for all vi != vj in the set, called `eqset` below.
+    # Since there might be multiple such sets for a set of vertices, a Dict eqdict which maps each member vi in an eqset eqi to eqi is used for no other reason than that it makes it a bit less messy to figure out if a new set shall be added or if two vertices are in an existing set (or sets).
     # Two different sets eqi and eqj are merged if an equality constraint for any two vertices vi and vj belonging to eqi and eqj is added and the reference in eqdict is updated.
 
     eqset = get!(() -> Set{T}(), eqdict, v)
@@ -1053,17 +1122,33 @@ function filter_equality_exists!(eqdict, v::T, vs::AbstractArray{T}) where T
     return vsfilt
 end
 
+"""
+    ninconstraint!(s, v, data)
 
+Add constraints on the computation (e.g. neural network layer) for `AbstractVertex v` using strategy `s`.
+
+Extra info like the model and variables is provided in `data`.
+"""
 compconstraint!(s, v::AbstractVertex, data) = compconstraint!(s, base(v), data)
 compconstraint!(s, v::CompVertex, data) = compconstraint!(s, v.computation, data)
 function compconstraint!(s, f, data) end
 
 
+"""
+    sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
+
+Add the objective for `noutvars` using strategy `s`.
+"""
 function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
     objective = JuMP.@NLexpression(model, objective[i=1:length(sizetargets)], (noutvars[i]/sizetargets[i] - 1)^2)
     JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
 end
 
+"""
+    accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model)
+
+Return true of the solution for `model` is accepted using strategy `s`.
+"""
 accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT
 
 # TODO: Remove since only used for debugging. If only it wasn't so bloody cumbersome to just list the constraints in a JuMP model....

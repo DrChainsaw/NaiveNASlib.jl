@@ -1154,12 +1154,11 @@
 
             # TODO: How to also @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") ?
 
-            @test_throws ErrorException Δnout(v1, 2)
-            @test_throws ErrorException Δnout(v1, 3)
-            # Should use legacy strategy for now.
-            # TODO: What about the second? Don't know and I'm in a rush to figure it out
+            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 2))
+            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 3))
+            
             @test_throws ArgumentError Δnin(v2, 3)
-            @test_throws ErrorException Δnin(v2, 2)
+            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 2))
         end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())
