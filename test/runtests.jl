@@ -34,14 +34,4 @@ include("testutil.jl")
 
         include("mutation/sugar.jl")
     end
-
-    @testset "NaiveNASlib.jl new" begin
-        # set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
-        # @info "Testing size mutation"
-        #
-        # include("mutation/size.jl")
-        #
-        # set_defaultΔNoutStrategy(ΔNoutLegacy())
-    end
-
 end

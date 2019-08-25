@@ -939,7 +939,7 @@ function Δnout(s::AbstractJuMPΔSizeStrategy, g::MetaDiGraph)
     adjmat = adjacency_matrix(g, Bool)
     currsize = Matrix(weights(g))
     display(currsize)
-
+    @show name.(vertexproplist(g, :vertex))
     sizemat,nouts = newsizes(s, g)
     display(sizemat)
 
@@ -967,26 +967,42 @@ function newsizes(s, g)
     model = sizemodel(s, g)
 
     adjmat = adjacency_matrix(g, Bool)
-    size = @variable(model, size[1:sum(adjmat)], Int)
+    #size = @variable(model, size[i=1:sum(adjmat)], Int, start= weights(g)[adjmat][i])
 
-    @constraint(model, positive_nonzero_sizes, size .>= 1)
-    sizevar = Array{Union{Missing, JuMP.VariableRef}}(missing, nv(g), nv(g))
-    sizevar[adjmat] = size
+    #sizevar = Array{Union{Missing, JuMP.VariableRef}}(missing, nv(g), nv(g))
+    #sizevar[adjmat] = size
+    #display(sizevar)
 
-    noutvars = @variable(model, noutvars[1:nv(g)], Int)
+    # Consensus variables for nout: All outputs for vertex i must have the same nin, right?
+    noutvars = @variable(model, noutvars[i=1:nv(g)], Int, start=nout.(vertexproplist(g, :vertex))[i])
+    @constraint(model, positive_nonzero_sizes, noutvars .>= 1)
+
     sizetargets = Array{Int,1}(undef, nv(g))
+    eqdict = Dict{Int, Set{Int}}()
     for i in 1:nv(g)
-        vertexconstraints!(g[i, :vertex], s, (model=model, noutvar=noutvars[i], vind=i, sizevar=sizevar, adjmat=adjmat, g=g))
+        vertexconstraints!(g[i, :vertex], s, (model=model, noutvar=noutvars[i], vind=i, eqdict=eqdict, g=g, noutvars=noutvars))
         sizetargets[i] = nout(g[i,:vertex])
     end
     sizeobjective!(s, model, noutvars, sizetargets, size, adjmat)
+
+    list_constraints(model)
+
+    #pad_vars(model)
+
     JuMP.optimize!(model)
 
     @show JuMP.termination_status(model)
     @show JuMP.primal_status(model)
 
     newsizemat = Matrix(weights(g))
-    newsizemat[adjmat] = round.(Int, JuMP.value.(size))
+
+    @show JuMP.value.(noutvars)
+
+    #newsizemat[adjmat] = round.(Int, JuMP.value.(size))
+    outsizes = round.(Int, JuMP.value.(noutvars))
+    for (i, outsize) in enumerate(outsizes)
+        newsizemat[i, adjmat[i,:]] .= outsize
+    end
 
     return newsizemat, round.(Int, JuMP.value.(noutvars))
 end
@@ -1004,10 +1020,10 @@ vertexconstraints!(v::AbstractVertex, s, data) = vertexconstraints!(trait(v), v,
 vertexconstraints!(t::DecoratingTrait, v, s, data) = vertexconstraints!(base(t), v, s,data)
 function vertexconstraints!(::Immutable, v, s, data)
     i = data.vind
-    adjmat= data.adjmat
-    @constraint(data.model, nout(v) .== data.noutvar)
-    @constraint(data.model, nout(v) .== data.sizevar[i,adjmat[i,:]])
-    @constraint(data.model, nin(v) .== data.sizevar[adjmat[:,i],i])
+    #adjmat= data.adjmat
+    @constraint(data.model, data.noutvar == nout(v))
+    #@constraint(data.model, data.noutvar .== data.sizevar[i,adjmat[i,:]])
+    #@constraint(data.model, data.sizevar[adjmat[:,i],i] .== nin(v))
 end
 
 vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
@@ -1015,8 +1031,10 @@ vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 
 function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
     i = data.vind
-    adjmat = data.adjmat
-    @constraint(data.model, data.noutvar .== data.sizevar[i,adjmat[i,:]])
+    #adjmat = data.adjmat
+    #in_inds = map(vi -> data.g[vi, :vertex], inputs(v))
+    #@constraint()
+    #@constraint(data.model, data.noutvar .== data.sizevar[i,adjmat[i,:]])
     ninconstraint!(s, v, data)
     compconstraint!(s, v, data)
 end
@@ -1033,9 +1051,47 @@ ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, d
 function ninconstraint!(s, ::SizeAbsorb, v, data) end
 function ninconstraint!(s, ::SizeStack, v, data)
     inds = map(vi -> data.g[vi, :vertex], inputs(v))
-    @constraint(data.model, sum(data.sizevar[inds, data.vind]) == data.noutvar)
+    # @show data.eqdict
+    if length(inds) == 1
+        inds = filter_equality_exists!(data.eqdict, data.vind, inds)
+    end
+    # @show inds
+    # isempty(inds) && return
+    @constraint(data.model, sum(data.noutvars[inds]) == data.noutvar)
 end
-ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, data.sizevar[data.adjmat[:, data.vind], data.vind] .== data.noutvar)
+function ninconstraint!(s, ::SizeInvariant, v, data)
+    #sizevars = unique(data.sizevar[data.adjmat[:, data.vind], data.vind])
+    inds = map(vi -> data.g[vi, :vertex], inputs(v))
+    println("vert $(name(v)) ind : $(data.vind) inputs $(name.(inputs(v))) inds $inds" )
+    println("eqdict pre: $(data.eqdict)")
+    inds = filter_equality_exists!(data.eqdict, data.vind, inds)
+    println("inds post: $inds, eqdict post: $(data.eqdict)")
+    sizevars = data.noutvars[unique(inds)]
+    @constraint(data.model, sizevars .== data.noutvar)
+end
+
+function filter_equality_exists!(eqdict, vind, inds)
+    eqset = get!(() -> Set{Int}(), eqdict, vind)
+    for i in inds
+        pset = get(() -> Set{Int}(), eqdict, i)
+        union!(eqset, pset)
+        eqdict[i] = eqset
+    end
+
+    indsfilt = filter(i -> i ∉ eqset, inds)
+    @show eqset
+    @show vind
+    @show indsfilt
+    if indsfilt != inds && vind ∉ eqset && !isempty(eqset)
+        push!(indsfilt, first(eqset))
+    end
+    push!(eqset, vind)
+    for i in indsfilt
+        push!(eqset, i)
+    end
+    return indsfilt
+end
+
 
 compconstraint!(s, v::AbstractVertex, data) = compconstraint!(s, base(v), data)
 compconstraint!(s, v::CompVertex, data) = compconstraint!(s, v.computation, data)
@@ -1045,4 +1101,12 @@ function compconstraint!(s, f, data) end
 function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets, sizevars, adjmat)
     objective = JuMP.@NLexpression(model, objective[i=1:length(sizetargets)], (noutvars[i]/sizetargets[i] - 1)^2)
     JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
+end
+
+nconstraints(model) = mapreduce(tt -> JuMP.num_constraints.(model,tt...), +,  filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model)), init=0)
+
+function list_constraints(model)
+    for tt in filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model))
+        display(JuMP.all_constraints(model, tt...))
+    end
 end
