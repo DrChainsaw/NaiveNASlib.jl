@@ -89,7 +89,7 @@ struct SizeChangeLogger <: DecoratingTrait
     base::MutationTrait
 end
 SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
-SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Base.CoreLogging.Info, infostr, base)
+SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Logging.Info, infostr, base)
 base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
 

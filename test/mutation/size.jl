@@ -1304,6 +1304,14 @@
 
             @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 3))
             @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 2))
+
+            @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNoutExact(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))) == (false, [0,0,0])
+
+            @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNinExact(v2, 2, ΔSizeFailNoOp()), all_in_graph(v2))) == (false, [0,0,0])
+
+            using Logging
+            @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") (:info, "Giving up") newsizes(ΔNoutExact(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1))) == (false, [0,0,0])
+
         end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())
@@ -1328,5 +1336,4 @@
                 @test_logs (:info, "Change nout of v2 by -4") (:info, "Change nin of v3 by (-4,)") Δnout(v2, -4)
         end
     end
-
 end

@@ -935,14 +935,38 @@ Abstract type for strategies to change or align the sizes of vertices using JuMP
 abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
 
 """
-    ΔSizeFail <: AbstractJuMPΔSizeStrategy
-    ΔSizeFail(msg::String)
+    ΔSizeFailError <: AbstractJuMPΔSizeStrategy
+    ΔSizeFailError(msg::String)
 
 Throws an `ErrorException` with message `msg`.
 """
-struct ΔSizeFail <: AbstractJuMPΔSizeStrategy
+struct ΔSizeFailError <: AbstractJuMPΔSizeStrategy
     msg::String
 end
+
+"""
+    ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
+    ΔSizeFailNoOp()
+
+Does not perform any action.
+"""
+struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
+
+"""
+    LogΔSizeExec <: AbstractJuMPΔSizeStrategy
+    LogΔSizeExec(msg::String)
+    LogΔSizeExec(level::Logging.LogLevel, msg::String)
+    LogΔSizeExec(level::Logging.LogLevel, msg::String, andthen::AbstractJuMPΔSizeStrategy)
+
+Throws an `ErrorException` with message `msg`.
+"""
+struct LogΔSizeExec <: AbstractJuMPΔSizeStrategy
+    level::LogLevel
+    msg::String
+    andthen::AbstractJuMPΔSizeStrategy
+end
+LogΔSizeExec(msg::String) = LogΔSizeExec(Logging.Info, msg)
+LogΔSizeExec(level::LogLevel, msg::String) = LogΔSizeExec(level, msg, ΔSizeFailNoOp())
 
 """
     DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
@@ -960,20 +984,24 @@ Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + 
 
 Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFail`).
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
 """
 struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
     Δ::Integer
     vertex::AbstractVertex
     fallback::AbstractJuMPΔSizeStrategy
 end
-ΔNoutExact(Δ, vertex) = ΔNoutExact(Δ, vertex, ΔSizeFail("Could not change nout of $vertex by $(Δ)!!"))
+ΔNoutExact(v::AbstractVertex, Δ::Integer, fallback) = ΔNoutExact(Δ, v, fallback)
+ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNoutExact(Δ, v)
+ΔNoutExact(Δ::Integer, v::AbstractVertex) = ΔNoutExact(Δ, v, ΔSizeFailError("Could not change nout of $vertex by $(Δ)!!"))
 fallback(s::ΔNoutExact) = s.fallback
 
 """
     ΔNinExact <: AbstractJuMPΔSizeStrategy
-    ΔNinExact(Δ::Integer, vertex::AbstractVertex)
-    ΔNinExact(Δ::Integer, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNinExact(Δs::Vector{Maybe{Int}}, vertex::AbstractVertex)
+    ΔNinExact(Δs::Vector{Maybe{Int}}, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
+    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
 
 Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
 
@@ -981,14 +1009,23 @@ Use `missing` to indicate "no change required" as 0 will be interpreted as "must
 
 Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFail`).
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
 """
 struct ΔNinExact <: AbstractJuMPΔSizeStrategy
     Δs::Vector{Maybe{Int}}
     vertex::AbstractVertex
     fallback::AbstractJuMPΔSizeStrategy
+    function ΔNinExact(Δs, v, fallback)
+        @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
+        new(Δs, v, fallback)
+    end
 end
-ΔNinExact(Δs, vertex) = ΔNinExact(Δs, vertex, ΔSizeFail("Could not change nin of $vertex by $(Δs)!!"))
+ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}, fallback) = ΔNinExact(Δs, v, fallback)
+ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNinExact(Δs, v)
+ΔNinExact(Δs::Vector{<:Maybe{Int}}, vertex) = ΔNinExact(Δs, vertex, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
+ΔNinExact(v::AbstractVertex, Δ::Integer, fallback) = ΔNinExact([Δ], v, fallback)
+ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNinExact([Δ], v)
+ΔNinExact(Δs::Integer, vertex) = ΔNinExact([Δ], vertex, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
 fallback(s::ΔNinExact) = s.fallback
 
 # Temp methods (hopefully) whose only purpose is to bridge the legacy API
@@ -1002,8 +1039,18 @@ fallback(s::ΔNinExact) = s.fallback
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
 function Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
-    nouts = newsizes(s, vertices)
+    execute, nouts = newsizes(s, vertices)
+    if execute
+        Δsize(nouts, vertices)
+    end
+end
 
+"""
+    Δsize(nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+
+Set size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
+"""
+function Δsize(nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
 
     for (i, vi) in enumerate(vertices)
@@ -1020,7 +1067,12 @@ function Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:Abstrac
     end
 end
 
-newsizes(s::ΔSizeFail, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
+newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
+newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, zeros(Int, length(vertices))
+function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
+    @logmsg s.level s.msg
+    return newsizes(s.andthen, vertices)
+end
 
 """
     newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
@@ -1047,7 +1099,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     JuMP.optimize!(model)
 
     if accept(s, model)
-        return round.(Int, JuMP.value.(noutvars))
+        return true, round.(Int, JuMP.value.(noutvars))
     end
     return newsizes(fallback(s), vertices)
 end
