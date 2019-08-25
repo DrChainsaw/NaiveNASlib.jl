@@ -510,10 +510,10 @@
 
     @testset "Size Mutation possibilities" begin
         # Helpers
-        struct SizeConstraint constraint;size; end
+        struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
-        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize,size), size, in..., traitdecoration=tf(name))
+        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize), size, in..., traitdecoration=tf(name))
         sv(in...; name="sv") = conc(in..., dims=1, traitdecoration = tf(name))
         iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
 
@@ -854,20 +854,22 @@
 
 
     @testset "Size Mutation possibilities using JuMP" begin
-        import JuMP: @variable, @constraint
         set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
         # Helpers
-        struct SizeConstraint constraint;size; end
+        struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
         NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
         function NaiveNASlib.compconstraint!(s, c::SizeConstraint, data)
-            fv = @variable(data.model, integer=true)
-            @constraint(data.model, c.constraint * fv ==  c.size - data.noutdict[data.vertex])
+            fv_out = JuMP.@variable(data.model, integer=true)
+            JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
+
+            ins = inputs(data.vertex)
+            fv_in = JuMP.@variable(data.model, [1:length(ins)], integer=true)
+            JuMP.@constraint(data.model, [i=1:length(ins)], c.constraint * fv_in[i] ==  nout(ins[i]) - data.noutdict[ins[i]])
         end
-        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize,size), size, in..., traitdecoration=tf(name))
+        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize), size, in..., traitdecoration=tf(name))
         sv(in...; name="sv") = conc(in..., dims=1, traitdecoration = tf(name))
         iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
-
 
         @testset "SizeStack multi inputs" begin
             v1 = av(6,3, inpt(3), name="v1")
@@ -941,11 +943,11 @@
             # to sv3 input 1 through sv1 and sv2
             Δnout(v2, -12)
             @test nin(sv1) == nout.(inputs(sv1)) == [72, 100]
-            @test nin(sv2) == nout.(inputs(sv2)) == [172, 95]
-            @test nin(sv3) == nout.(inputs(sv3)) == [267, 85, 72]
+            @test nin(sv2) == nout.(inputs(sv2)) == [172, 96]
+            @test nin(sv3) == nout.(inputs(sv3)) == [268, 85, 72]
             @test nout(sv1) == nout(v2) + nout(v3) == 172
-            @test nout(sv2) == nout(sv1) + nout(v1) == 267
-            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [424]
+            @test nout(sv2) == nout(sv1) + nout(v1) == 268
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [425]
         end
 
         @testset "SizeStack large Δ" begin
@@ -1150,10 +1152,14 @@
             v1 = av(100,3, inpt(3), name="v1")
             v2 = av(100,2, v1, name="v2")
 
-            @test_throws ArgumentError Δnout(v1, 2)
-            @test_throws ArgumentError Δnout(v1, 3)
+            # TODO: How to also @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") ?
+
+            @test_throws ErrorException Δnout(v1, 2)
+            @test_throws ErrorException Δnout(v1, 3)
+            # Should use legacy strategy for now.
+            # TODO: What about the second? Don't know and I'm in a rush to figure it out
             @test_throws ArgumentError Δnin(v2, 3)
-            @test_throws ArgumentError Δnin(v2, 2)
+            @test_throws ErrorException Δnin(v2, 2)
         end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())

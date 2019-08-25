@@ -1,12 +1,10 @@
 using NaiveNASlib
 using Test
+import JuMP
 
 include("testutil.jl")
 
 @testset "NaiveNASlib.jl" begin
-
-    @testset "NaiveNASlib.jl legacy" begin
-
         @info "Testing computation"
 
         include("vertex.jl")
@@ -33,5 +31,4 @@ include("testutil.jl")
         @info "Testing sugar"
 
         include("mutation/sugar.jl")
-    end
 end

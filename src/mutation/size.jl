@@ -905,7 +905,6 @@ end
 
 fullgraph(v::AbstractVertex) = SizeDiGraph(all_in_graph(v))
 
-
 function all_in_graph(v::AbstractVertex, visited = AbstractVertex[])
     v in visited && return visited
     push!(visited, v)
@@ -916,7 +915,9 @@ end
 
 abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
 
-struct ΔSizeFail <: AbstractJuMPΔSizeStrategy end
+struct ΔSizeFail <: AbstractJuMPΔSizeStrategy
+    msg::String
+end
 
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
@@ -925,7 +926,8 @@ struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
     vertex::AbstractVertex
     fallback::AbstractJuMPΔSizeStrategy
 end
-ΔNoutExact(Δ, vertex) = ΔNoutExact(Δ, vertex, ΔSizeFail())
+ΔNoutExact(Δ, vertex) = ΔNoutExact(Δ, vertex, ΔSizeFail("Could not change nout of $vertex by $(Δ)!!"))
+fallback(s::ΔNoutExact) = s.fallback
 
 Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δnout(ΔNoutExact(Δ, v), all_in_graph(v))
 
@@ -948,6 +950,8 @@ function Δnout(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:Abstrac
     end
 end
 
+newsizes(s::ΔSizeFail, vertices) = error(s.msg)
+
 function newsizes(s, vertices)
 
     model = sizemodel(s, vertices)
@@ -965,9 +969,10 @@ function newsizes(s, vertices)
 
     JuMP.optimize!(model)
 
-    # TODO: Check status an fallback if failed
-
-    return round.(Int, JuMP.value.(noutvars))
+    if accept(s, model)
+        return round.(Int, JuMP.value.(noutvars))
+    end
+    return newsizes(fallback(s), vertices)
 end
 
 function sizemodel(s::AbstractJuMPΔSizeStrategy, g)
@@ -1058,6 +1063,8 @@ function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetarg
     objective = JuMP.@NLexpression(model, objective[i=1:length(sizetargets)], (noutvars[i]/sizetargets[i] - 1)^2)
     JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
 end
+
+accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT
 
 # TODO: Remove since only used for debugging. If only it wasn't so bloody cumbersome to just list the constraints in a JuMP model....
 nconstraints(model) = mapreduce(tt -> JuMP.num_constraints.(model,tt...), +,  filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model)), init=0)
