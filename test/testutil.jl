@@ -65,3 +65,16 @@ function NaiveNASlib.mutate_outputs(mm::MatMul, outputs::AbstractArray{<:Integer
 end
 NaiveNASlib.minΔninfactor(::MatMul) = 1
 NaiveNASlib.minΔnoutfactor(::MatMul) = 1
+
+
+# Run a simple optimization to avoid warnings about optimization taking to long time.
+function warmup_JuMP()
+    model = NaiveNASlib.sizemodel(DefaultJuMPΔSizeStrategy(), [])
+
+    JuMP.@variable(model, x[1:3], Int)
+    JuMP.@constraint(model, x .<= 0)
+    JuMP.@NLobjective(model, Min, sum((x[i]  - 2)^2 for i in 1:3))
+    JuMP.optimize!(model)
+
+end
+warmup_JuMP()

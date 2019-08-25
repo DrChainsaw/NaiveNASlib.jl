@@ -253,8 +253,12 @@ struct ΔNinLegacy <: AbstractΔSizeStrategy end
 global defaultΔNoutStrategy = ΔNoutLegacy()
 global defaultΔNinStrategy = ΔNinLegacy()
 export set_defaultΔNoutStrategy
+export set_defaultΔNinStrategy
 function set_defaultΔNoutStrategy(s)
     global defaultΔNoutStrategy = s
+end
+function set_defaultΔNinStrategy(s)
+    global defaultΔNinStrategy = s
 end
 
 # Dispatch on strategy
@@ -966,15 +970,38 @@ end
 ΔNoutExact(Δ, vertex) = ΔNoutExact(Δ, vertex, ΔSizeFail("Could not change nout of $vertex by $(Δ)!!"))
 fallback(s::ΔNoutExact) = s.fallback
 
-# Temp method (hopefully) whose only purpose is to bridge the legacy API
-Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δnout(ΔNoutExact(Δ, v), all_in_graph(v))
+"""
+    ΔNinExact <: AbstractJuMPΔSizeStrategy
+    ΔNinExact(Δ::Integer, vertex::AbstractVertex)
+    ΔNinExact(Δ::Integer, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+
+Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
+
+Use `missing` to indicate "no change required" as 0 will be interpreted as "must not change".
+
+Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
+
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFail`).
+"""
+struct ΔNinExact <: AbstractJuMPΔSizeStrategy
+    Δs::Vector{Maybe{Int}}
+    vertex::AbstractVertex
+    fallback::AbstractJuMPΔSizeStrategy
+end
+ΔNinExact(Δs, vertex) = ΔNinExact(Δs, vertex, ΔSizeFail("Could not change nin of $vertex by $(Δs)!!"))
+fallback(s::ΔNinExact) = s.fallback
+
+# Temp methods (hopefully) whose only purpose is to bridge the legacy API
+Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δsize(ΔNoutExact(Δ, v), all_in_graph(v))
+
+Δnin(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δs::Maybe{T}...; s=nothing) where T <:Integer = Δsize(ΔNinExact(collect(Δs), v), all_in_graph(v))
 
 """
-    Δnout(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+    Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
 
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
-function Δnout(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+function Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
     nouts = newsizes(s, vertices)
 
     Δnouts = nouts .- nout.(vertices)
@@ -1064,9 +1091,23 @@ function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
 end
 
 function vertexconstraints!(s::ΔNoutExact, v, data)
+    # TODO: Replace hardcoded type (DefaultJuMPΔSizeStrategy) with struct field to allow for deeper composition?
     vertexconstraints!(DefaultJuMPΔSizeStrategy(), v, data)
     if v == s.vertex
+        # TODO: The name has to go as well so one can compose several ΔNouts
         @constraint(data.model, Δnout_origin, data.noutdict[v] == nout(v) + s.Δ)
+    end
+end
+
+function vertexconstraints!(s::ΔNinExact, v, data)
+    # TODO: Replace hardcoded type (DefaultJuMPΔSizeStrategy) with struct field to allow for deeper composition? Just create one ΔNoutExact for each input for example.
+    vertexconstraints!(DefaultJuMPΔSizeStrategy(), v, data)
+    if v == s.vertex
+        inds = .!ismissing.(s.Δs)
+        noutvars = getall(data.noutdict, inputs(v)[inds])
+        nins = nin(v)[inds]
+        Δs = s.Δs[inds]
+        @constraint(data.model, Δnin_origin, noutvars .== nins .+ Δs)
     end
 end
 

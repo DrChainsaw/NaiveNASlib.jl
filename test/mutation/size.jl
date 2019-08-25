@@ -852,9 +852,154 @@
         @test_throws ArgumentError Δnin(v5, 1, 1,s=NaiveNASlib.VisitState{Int}(v5, 1))
     end
 
+    @testset "Mutate tricky structures JuMP" begin
+
+        set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
+
+        ## Helper functions
+        rb(start, residual,name="add") = traitconf(tf(name)) >> start + residual
+        iv(in; name="iv") = invariantvertex(identity, in, traitdecoration=tf(name))
+        concd1(paths...;name="conc") = conc(paths..., dims=1, traitdecoration=tf(name))
+        mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
+        av(in, outsize, name="comp") = absorbvertex(mm(nout(in), outsize), outsize, in, traitdecoration = tf(name))
+        function stack(start, nouts...; bname = "stack")
+            # Can be done on one line with mapfoldl, but it is not pretty...
+            next = start
+            for i in 1:length(nouts)
+                next = av(next, nouts[i], "$(bname)_$i")
+            end
+            return next
+        end
+
+        @testset "Residual fork block" begin
+            start = av(inputvertex("in", 3), 9, "start")
+            p1 = stack(start, 3,4, bname = "p1")
+            p2 = stack(start, 4,5, bname = "p2")
+            resout = rb(start, concd1(p1, p2))
+            out = av(resout, 9, "out")
+
+            @test nout(resout) == 9
+
+            # Propagates to out, start outputs of start and also to p1 as objective is minimized by increasing p1 by 1
+            Δnout(p2, -2)
+            @test nout(p2) == 3
+            @test nin(out) == [nout(start)] == [8]
+            @test nout(p2) + nout(p1) == 8
+            #outputs(start) = first vertex in p1, p2 and resout (which has two inputs)
+            @test foldl(vcat, nin.(outputs(start))) == [8, 8, 8, 8]
+
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == [10]
+            @test foldl(vcat, nin.(outputs(start))) == [10, 10, 10, 10]
+        end
+
+        @testset "Half transparent residual fork block" begin
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 4, "split")
+            p1 = iv(split, name="p1") #Just an identity vertex
+            p2 = stack(split, 3,2,4, bname="p2")
+            resout = rb(start, concd1(p1, p2))
+            out = av(resout, 3, "out")
+
+            @test nout(resout) == 8
+
+            # Propagates to input of first vertex of p2, input of out and start
+            # via p1 and resout as well as to input of split
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [7]
+            @test foldl(vcat, nin.(outputs(split))) == [3, 3]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +1)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+        end
+
+        @testset "Transparent fork block" begin
+            start = av(inputvertex("in", 3), 4, "start")
+            p1 = iv(start, name="p1")
+            p2 = iv(start, name="p2")
+            joined = concd1(p1, p2, name="join")
+            out = av(joined, 3, "out")
+
+            @test nout(joined) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(start, -1)
+            @test nin(out) == [2nout(start)] == [6]
+
+            # Should basically undo the previous mutation
+            @test minΔninfactor(out) == 2
+            Δnin(out, +2)
+            @test nin(out) == [2nout(start)] == [8]
+        end
+
+        @testset "Transparent residual fork block" begin
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 4, "split")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            resout = rb(start, concd1(p1, p2, name="join"))
+            out = av(resout, 3, "out")
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+
+            @test minΔninfactor(out) == 2
+            Δnout(start, -2)
+            @test nin(out) == [nout(start)] == [6]
+            @test nout(split) == 3
+        end
+
+        @testset "Transparent residual fork block with single absorbing path" begin
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 3, "split")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            p3 = av(split, 2, "p3")
+            resout = rb(start, concd1(p1, p2, p3, name="join"), "add")
+            out = av(resout, 3, "out")
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+
+            @test minΔninfactor(out) == 2
+            Δnout(start, -2)
+            @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)] == [6]
+            @test nout(split) == 2
+            @test nout(p3) == 2
+        end
+        set_defaultΔNoutStrategy(ΔNoutLegacy())
+        set_defaultΔNinStrategy(ΔNinLegacy())
+    end
+
 
     @testset "Size Mutation possibilities using JuMP" begin
         set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
         # Helpers
         struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
@@ -1156,12 +1301,13 @@
 
             @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 2))
             @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 3))
-            
-            @test_throws ArgumentError Δnin(v2, 3)
+
+            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 3))
             @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 2))
         end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())
+        set_defaultΔNinStrategy(ΔNinLegacy())
 
     end
 

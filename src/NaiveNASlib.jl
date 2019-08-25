@@ -38,9 +38,9 @@ export base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, Invar
 export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation
 
 # Size util
-export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output
+export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output, all_in_graph, newsizes
 
-export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFail, DefaultJuMPΔSizeStrategy, ΔNoutExact
+export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFail, DefaultJuMPΔSizeStrategy, ΔNoutExact, ΔNinExact
 
 #Selection util
 export AbstractSelectionStrategy, LogSelection, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, NoutExact, NoutRelaxSize, NoutMainVar, validouts, select_outputs
