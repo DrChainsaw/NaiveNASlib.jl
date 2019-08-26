@@ -1149,7 +1149,7 @@
             iv2 = iv(iv1, v1, name="iv2")
             iv3 = iv(iv2, v4, v2, name="iv3")
 
-            # Everything thouches everything in this setup
+            # Everything touches everything in this setup
             @test minΔnoutfactor(iv1) == minΔninfactor(iv1) == 1*2*3*5
             @test minΔnoutfactor(iv2) == minΔninfactor(iv2) == 1*2*3*5
             @test minΔnoutfactor(iv3) == minΔninfactor(iv3) == 1*2*3*5
@@ -1293,26 +1293,26 @@
             @test minΔnoutfactor(v4) == 4
         end
 
-        @testset "Fail invalid size change" begin
-            v1 = av(100,3, inpt(3), name="v1")
-            v2 = av(100,2, v1, name="v2")
-
-            # TODO: How to also @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") ?
-
-            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 2))
-            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 3))
-
-            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 3))
-            @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 2))
-
-            @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNoutExact(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))) == (false, [0,0,0])
-
-            @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNinExact(v2, 2, ΔSizeFailNoOp()), all_in_graph(v2))) == (false, [0,0,0])
-
-            using Logging
-            @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") (:info, "Giving up") newsizes(ΔNoutExact(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1))) == (false, [0,0,0])
-
-        end
+        # @testset "Fail invalid size change" begin
+        #     v1 = av(100,3, inpt(3), name="v1")
+        #     v2 = av(100,2, v1, name="v2")
+        #
+        #     # TODO: How to also @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") ?
+        #
+        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 2))
+        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 3))
+        #
+        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 3))
+        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 2))
+        #
+        #     @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNoutExact(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))) == (false, [0,0,0])
+        #
+        #     @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNinExact(v2, 2, ΔSizeFailNoOp()), all_in_graph(v2))) == (false, [0,0,0])
+        #
+        #     using Logging
+        #     @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") (:info, "Giving up") newsizes(ΔNoutExact(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1))) == (false, [0,0,0])
+        #
+        # end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())
         set_defaultΔNinStrategy(ΔNinLegacy())
