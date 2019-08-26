@@ -1112,7 +1112,7 @@ Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 function sizemodel(s::AbstractJuMPΔSizeStrategy, vertices)
     optimizer = Juniper.Optimizer
     params = Dict{Symbol,Any}()
-    params[:nl_solver] = JuMP.with_optimizer(Ipopt.Optimizer, print_level=0)
+    params[:nl_solver] = JuMP.with_optimizer(Ipopt.Optimizer, print_level=0, sb="yes")
     #params[:mip_solver] = JuMP.with_optimizer(Cbc.Optimizer, logLevel=0)
     params[:log_levels] = []
     return JuMP.Model(JuMP.with_optimizer(optimizer, params))
