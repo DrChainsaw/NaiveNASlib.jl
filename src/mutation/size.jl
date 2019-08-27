@@ -1113,7 +1113,7 @@ function sizemodel(s::AbstractJuMPΔSizeStrategy, vertices)
     optimizer = Juniper.Optimizer
     params = Dict{Symbol,Any}()
     params[:nl_solver] = JuMP.with_optimizer(Ipopt.Optimizer, print_level=0, sb="yes")
-    #params[:mip_solver] = JuMP.with_optimizer(Cbc.Optimizer, logLevel=0)
+    params[:mip_solver] = JuMP.with_optimizer(Cbc.Optimizer, logLevel=0)
     params[:log_levels] = []
     return JuMP.Model(JuMP.with_optimizer(optimizer, params))
 end
@@ -1234,7 +1234,7 @@ Add the objective for `noutvars` using strategy `s`.
 """
 function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices)
     sizetargets = nout.(vertices)
-    objective = JuMP.@NLexpression(model, objective[i=1:length(noutvars)], (noutvars[i]/sizetargets[i] - 1)^2)
+    objective = JuMP.@NLexpression(model, objective[i=1:length(noutvars)], (noutvars[i]/sizetargets[i] - 1.001)^2)
     JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
 end
 
