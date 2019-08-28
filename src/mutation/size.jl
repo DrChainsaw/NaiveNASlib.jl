@@ -1028,11 +1028,67 @@ end
 ΔNinExact(Δs::Integer, vertex) = ΔNinExact([Δ], vertex, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
 fallback(s::ΔNinExact) = s.fallback
 
+"""
+    AlignNinToNout <: AbstractJuMPΔSizeStrategy
+    AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
+
+Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
+
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+"""
 struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
     nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
     vstrat::AbstractJuMPΔSizeStrategy
+    fallback::AbstractJuMPΔSizeStrategy
 end
-AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy()) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat)
+AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError()) = AlignNinToNout(vstrat, fallback)
+AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
+fallback(s::AlignNinToNout) = s.fallback
+
+
+"""
+    JuMPNorm
+
+Abstract type for norms to a JuMP model.
+"""
+abstract type JuMPNorm end
+
+"""
+    L1NormLinear
+    L1NormLinear()
+
+Add a set of linear constraints to a model to map an expression to a variable which is the L1 norm of that expression.
+"""
+struct L1NormLinear <: JuMPNorm end
+"""
+    MaxNormLinear
+    MaxNormLinear()
+
+Add a set of linear constraints to a model to map an expression to a variable which is the max norm of that expression.
+"""
+struct MaxNormLinear <: JuMPNorm end
+
+"""
+    ScaleNorm{S<:Real,N} <: JuMPNorm
+    ScaleNorm(scale, n)
+
+Scales result from `n` with a factor `scale`.
+"""
+struct ScaleNorm{S<:Real,N<:JuMPNorm} <: JuMPNorm
+    scale::S
+    n::N
+end
+
+"""
+    SumNorm{N<:JuMPNorm} <: JuMPNorm
+
+Sum of `ns`.
+"""
+struct SumNorm{N<:JuMPNorm} <: JuMPNorm
+    ns::Vector{N}
+end
+SumNorm(ns::JuMPNorm...) = SumNorm(collect(ns))
+SumNorm(sns::Pair{<:Real, <:JuMPNorm}...) = SumNorm(ScaleNorm.(first.(sns), last.(sns))...)
 
 
 # Temp methods (hopefully) whose only purpose is to bridge the legacy API
@@ -1092,14 +1148,12 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
 
     model = sizemodel(s, vertices)
 
-    sizetargets = nout.(vertices)
     noutvars = @variable(model, noutvars[i=1:length(vertices)], Int)
     @constraint(model, positive_nonzero_sizes, noutvars .>= 1)
 
     noutdict = Dict(zip(vertices, noutvars))
-    eqdict = Dict{AbstractVertex, Set{AbstractVertex}}()
     for v in vertices
-        vertexconstraints!(v, s, (model=model, eqdict=eqdict, noutdict=noutdict))
+        vertexconstraints!(v, s, (model=model, noutdict=noutdict))
     end
     sizeobjective!(s, model, noutvars, vertices)
 
@@ -1116,14 +1170,7 @@ end
 
 Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 """
-function sizemodel(s::AbstractJuMPΔSizeStrategy, vertices)
-    optimizer = Juniper.Optimizer
-    params = Dict{Symbol,Any}()
-    params[:nl_solver] = JuMP.with_optimizer(Ipopt.Optimizer, print_level=0, sb="yes")
-    params[:mip_solver] = JuMP.with_optimizer(Cbc.Optimizer, logLevel=0)
-    params[:log_levels] = []
-    return JuMP.Model(JuMP.with_optimizer(optimizer, params))
-end
+sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.with_optimizer(Cbc.Optimizer, loglevel=0))
 
 # Just a short for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
@@ -1191,47 +1238,10 @@ Extra info like the model and variables is provided in `data`.
 ninconstraint!(s, v, data) = ninconstraint!(s, trait(v), v, data)
 ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, data)
 function ninconstraint!(s, ::SizeAbsorb, v, data) end
-function ninconstraint!(s, ::SizeStack, v, data)
-    ins = inputs(v)
-    if length(ins) == 1 # Then it is equivalent to a SizeInvariant vertex
-        ins = filter_equality_exists!(data.eqdict, v, ins)
-    end
-    @constraint(data.model, sum(getall(data.noutdict, ins)) == data.noutdict[v])
-end
-function ninconstraint!(s, ::SizeInvariant, v, data)
-    ins = unique(filter_equality_exists!(data.eqdict, v, inputs(v)))
-    @constraint(data.model, getall(data.noutdict, ins) .== data.noutdict[v])
-end
+ninconstraint!(s, ::SizeStack, v, data) = @constraint(data.model, sum(getall(data.noutdict, inputs(v))) == data.noutdict[v])
+ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, getall(data.noutdict, unique(inputs(v))) .== data.noutdict[v])
 
-function filter_equality_exists!(eqdict, v::T, vs::AbstractArray{T}) where T
 
-    # This function is a (presumably buggy) hack to avoid redundant equality constraints which typically happens when SizeInvariant vertices are stacked
-    # Idea is to keep track of a set of vertices which have the constraint nout(vi) == nout(vj) for all vi != vj in the set, called `eqset` below.
-    # Since there might be multiple such sets for a set of vertices, a Dict eqdict which maps each member vi in an eqset eqi to eqi is used for no other reason than that it makes it a bit less messy to figure out if a new set shall be added or if two vertices are in an existing set (or sets).
-    # Two different sets eqi and eqj are merged if an equality constraint for any two vertices vi and vj belonging to eqi and eqj is added and the reference in eqdict is updated.
-
-    eqset = get!(() -> Set{T}(), eqdict, v)
-    for vi in vs
-        pset = get(() -> Set{T}(), eqdict, vi)
-        union!(eqset, pset)
-        eqdict[vi] = eqset
-    end
-
-    # Remove all entries for which an equality constraint already exists
-    vsfilt = filter(vi -> vi ∉ eqset, vs)
-
-    # If all entries in vs have an equality constraint but v does not have an equality constraint to any of them we must add an equality constraint between a member of the set (does not matter which one) and v
-    if vsfilt != vs && v ∉ eqset && !isempty(eqset)
-        push!(vsfilt, first(eqset))
-    end
-    push!(eqset, v)
-
-    # TODO: Can this be done above?
-    for vi in vsfilt
-        push!(eqset, vi)
-    end
-    return vsfilt
-end
 
 """
     ninconstraint!(s, v, data)
@@ -1244,6 +1254,39 @@ compconstraint!(s, v::AbstractVertex, data) = compconstraint!(s, base(v), data)
 compconstraint!(s, v::CompVertex, data) = compconstraint!(s, v.computation, data)
 function compconstraint!(s, f, data) end
 
+"""
+    norm!(s::L1NormLinear, model, X)
+
+Add a set of linear constraints to a model to map `X` to an expression `X′` which is the L1 norm of that expression.
+"""
+function norm!(s::L1NormLinear, model, X)
+    # Use trick from http://lpsolve.sourceforge.net/5.1/absolute.htm to make objective linear
+    X′ = @variable(model, [1:length(X)], integer=true)
+    @constraint(model,  X .<= X′)
+    @constraint(model, -X .<= X′)
+    return @expression(model, sum(X′))
+end
+
+"""
+    norm!(s::L1NormLinear, model, X)
+
+Add a set of linear constraints to a model to map `X` to a variable `X′` which is the max norm of that expression.
+"""
+function norm!(s::MaxNormLinear, model, X)
+    # Use trick from https://math.stackexchange.com/questions/2589887/how-can-the-infinity-norm-minimization-problem-be-rewritten-as-a-linear-program to make objective linear
+    X′ = @variable(model, integer=true)
+    @constraint(model,  X .<= X′)
+    @constraint(model, -X .<= X′)
+    return X′
+end
+
+function norm!(s::ScaleNorm, model, X)
+    X′ = norm!(s.n, model, X)
+    return @expression(model, s.scale * X′)
+end
+
+norm!(s::SumNorm, model, X) = mapfoldl(n -> norm!(n, model, X), (X′,X″) -> @expression(model, X′+X″), s.ns, init=@expression(model, 0))
+
 
 """
     sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
@@ -1252,8 +1295,10 @@ Add the objective for `noutvars` using strategy `s`.
 """
 function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices)
     sizetargets = nout.(vertices)
-    objective = JuMP.@NLexpression(model, objective[i=1:length(noutvars)], (noutvars[i]/sizetargets[i] - 1)^2)
-    JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
+    # L1 norm prevents change in vertices which does not need to change.
+    # Max norm tries to spread out the change so no single vertex takes most of the change.
+    objective = norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], 1e6 * noutvars[i]/sizetargets[i] - 1e6)) # Multiply with a large number to mitigate interger trunking effects
+    @objective(model, Min, objective)
 end
 
 """

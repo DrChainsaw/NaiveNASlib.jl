@@ -907,12 +907,12 @@
             # Propagates to input of first vertex of p2, input of out and start
             # via p1 and resout as well as to input of split
             Δnout(split, -1)
-            @test nin(out) == [nout(start)] == nin(split) == [7]
+            @test nin(out) == [nout(start)] == nin(split) == [8]
             @test foldl(vcat, nin.(outputs(split))) == [3, 3]
 
             # Should basically undo the previous mutation
             Δnin(out, +1)
-            @test nin(out) == [nout(start)] == nin(split) == [8]
+            @test nin(out) == [nout(start)] == nin(split) == [9]
         end
 
         @testset "Transparent fork block" begin
@@ -1063,12 +1063,13 @@
             @test minΔnoutfactor(sv1) == minΔninfactor(sv1) == 6
             @test minΔnoutfactor(sv2) == minΔninfactor(sv2)== 6
             @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60 # v2 is input twice through sc2->sv1
+
             Δnout(sv3, -60)
-            @test nin(sv1) == nout.(inputs(sv1)) == [84, 97]
-            @test nin(sv2) == nout.(inputs(sv2)) == [181, 90]
-            @test nin(sv3) == nout.(inputs(sv3)) == [271, 85, 84]
-            @test nout(sv1) == nout(v2) + nout(v3) == 181
-            @test nout(sv2) == nout(sv1) + nout(v1) == 271
+            @test nin(sv1) == nout.(inputs(sv1)) == [86, 91]
+            @test nin(sv2) == nout.(inputs(sv2)) == [177, 87]
+            @test nin(sv3) == nout.(inputs(sv3)) == [264, 90, 86]
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 264
             @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
 
             v5 = av(10, 3, sv3, name="v5")
@@ -1077,22 +1078,22 @@
             @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60
 
             Δnout(v1, 3)
-            @test nin(sv1) == nout.(inputs(sv1)) == [84, 97]
-            @test nin(sv2) == nout.(inputs(sv2)) == [181, 93]
-            @test nin(sv3) == nout.(inputs(sv3)) == [274, 85, 84]
-            @test nout(sv1) == nout(v2) + nout(v3) == 181
-            @test nout(sv2) == nout(sv1) + nout(v1) == 274
+            @test nin(sv1) == nout.(inputs(sv1)) == [86, 91]
+            @test nin(sv2) == nout.(inputs(sv2)) == [177, 90]
+            @test nin(sv3) == nout.(inputs(sv3)) == [267, 90, 86]
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 267
             @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [443]
 
             # Evil action! Must have understanding that the change in v2 will propagate
             # to sv3 input 1 through sv1 and sv2
             Δnout(v2, -12)
-            @test nin(sv1) == nout.(inputs(sv1)) == [72, 100]
-            @test nin(sv2) == nout.(inputs(sv2)) == [172, 96]
-            @test nin(sv3) == nout.(inputs(sv3)) == [268, 85, 72]
-            @test nout(sv1) == nout(v2) + nout(v3) == 172
-            @test nout(sv2) == nout(sv1) + nout(v1) == 268
-            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [425]
+            @test nin(sv1) == nout.(inputs(sv1)) == [74, 103]
+            @test nin(sv2) == nout.(inputs(sv2)) == [177, 90]
+            @test nin(sv3) == nout.(inputs(sv3)) == [267, 90, 74]
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 267
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [431]
         end
 
         @testset "SizeStack large Δ" begin
@@ -1187,7 +1188,7 @@
 
             @test nout(v5) == nout(v4) == nout(v3) == 490
             @test nin(v5) == [nout(v4), nout(v3)] == [490, 490]
-            @test nin(v3) == [nout(v1), nout(v2), nout(v1)] == [152, 186, 152]
+            @test nin(v3) == [nout(v1), nout(v2), nout(v1)] == [140, 210, 140]
         end
 
         @testset "Invariant input to SizeInvariant" begin
@@ -1288,31 +1289,36 @@
             pa2 = sv(pa1pa1, pa1pb1, name = "pa2")
             v4 = sv(pa2, pb1, pc1, pd1, name = "v4")
 
+            @test minΔnoutfactor(v4) == 4
+
             Δnout(v4, 8)
 
-            @test minΔnoutfactor(v4) == 4
+            @test nout(v4) == 61
+            @test nin(v4) == nout.(inputs(v4)) == [28, 14, 14, 5]
+            @test nin(pa2) == nout.(inputs(pa2)) == [14, 14]
+            @test nin(pa1pa1) == nin(pa1pb1) == [14]
+            @test nin(pa1) == nin(pb1) == nin(pc1) == [nout(v3)] == [14]
+            @test nin(v3) == [10, 4]
         end
 
-        # @testset "Fail invalid size change" begin
-        #     v1 = av(100,3, inpt(3), name="v1")
-        #     v2 = av(100,2, v1, name="v2")
-        #
-        #     # TODO: How to also @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") ?
-        #
-        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 2))
-        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnout(v1, 3))
-        #
-        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 3))
-        #     @test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE")  (@test_throws ErrorException Δnin(v2, 2))
-        #
-        #     @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNoutExact(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))) == (false, [0,0,0])
-        #
-        #     @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") newsizes(ΔNinExact(v2, 2, ΔSizeFailNoOp()), all_in_graph(v2))) == (false, [0,0,0])
-        #
-        #     using Logging
-        #     @test (@test_logs (:warn, "MIP couldn't be solved to optimality. Terminated with status: INFEASIBLE") (:info, "Giving up") newsizes(ΔNoutExact(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1))) == (false, [0,0,0])
-        #
-        # end
+        @testset "Fail invalid size change" begin
+            v1 = av(100,3, inpt(3), name="v1")
+            v2 = av(100,2, v1, name="v2")
+
+                @test_throws ErrorException Δnout(v1, 2)
+            @test_throws ErrorException Δnout(v1, 3)
+
+            @test_throws ErrorException Δnin(v2, 3)
+            @test_throws ErrorException Δnin(v2, 2)
+
+            @test newsizes(ΔNoutExact(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1)) == (false, [0,0,0])
+
+            @test newsizes(ΔNinExact(v2, 2, ΔSizeFailNoOp()), all_in_graph(v2)) == (false, [0,0,0])
+
+            using Logging
+            @test (@test_logs (:info, "Giving up") newsizes(ΔNoutExact(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1))) == (false, [0,0,0])
+
+        end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())
         set_defaultΔNinStrategy(ΔNinLegacy())

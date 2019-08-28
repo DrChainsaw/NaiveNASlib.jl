@@ -363,7 +363,7 @@ function postalignsizes(s::PostAlignJuMP, vin, vout)
     if vin ∉ inputs(vout)
         deleteat!(vertices, vertices .== vin)
     end
-    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat), vertices)
+    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), vertices)
     if !success
         postalignsizes(s.fallback, vin, vout, t)
     end

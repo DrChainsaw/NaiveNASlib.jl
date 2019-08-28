@@ -12,8 +12,6 @@ using Logging
 import JuMP
 import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
 using Cbc
-using Juniper
-using Ipopt
 
 #Interface
 export AbstractVertex, AbstractMutationVertex, MutationOp, MutationState
