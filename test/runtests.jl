@@ -19,8 +19,9 @@ include("testutil.jl")
                 params[:log_levels] = []
                 model = JuMP.Model(JuMP.with_optimizer(optimizer, params))
 
-                x = JuMP.@variable(model, x[1:9], Int)
-                JuMP.@constraint(model, x .>= 1)
+                xtargets = [9, 8, 8, 3, 3, 5, 8, 3, 4]
+                x = JuMP.@variable(model, x[i=1:9], Int, start=xtargets[i])
+                JuMP.@constraint(model, positive_nonzero_sizes, x .>= 1)
 
                 JuMP.@constraint(model, x[2] == 10)
                 JuMP.@constraint(model, x[3] == x[2])
@@ -28,7 +29,7 @@ include("testutil.jl")
                 JuMP.@constraint(model, x[4] == 3)
                 JuMP.@constraint(model, x[6] + x[8] == x[7])
 
-                xtargets = [9, 8, 8, 3, 3, 5, 8, 3, 4]
+
                 objective = JuMP.@NLexpression(model, objective[i=1:length(x)], (x[i]/xtargets[i] - 1)^2)
                 JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
 

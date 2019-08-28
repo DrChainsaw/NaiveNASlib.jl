@@ -1093,13 +1093,11 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     model = sizemodel(s, vertices)
 
     sizetargets = nout.(vertices)
-    noutvars = @variable(model, noutvars[i=1:length(vertices)], Int, start=sizetargets[i])
+    noutvars = @variable(model, noutvars[i=1:length(vertices)], Int)
     @constraint(model, positive_nonzero_sizes, noutvars .>= 1)
 
     noutdict = Dict(zip(vertices, noutvars))
-    nindict = Dict()
     eqdict = Dict{AbstractVertex, Set{AbstractVertex}}()
-    nincnt = 1
     for v in vertices
         vertexconstraints!(v, s, (model=model, eqdict=eqdict, noutdict=noutdict))
     end
