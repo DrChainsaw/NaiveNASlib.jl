@@ -1028,6 +1028,13 @@ end
 ΔNinExact(Δs::Integer, vertex) = ΔNinExact([Δ], vertex, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
 fallback(s::ΔNinExact) = s.fallback
 
+struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
+    nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
+    vstrat::AbstractJuMPΔSizeStrategy
+end
+AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy()) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat)
+
+
 # Temp methods (hopefully) whose only purpose is to bridge the legacy API
 Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δsize(ΔNoutExact(Δ, v), all_in_graph(v))
 
@@ -1039,9 +1046,9 @@ fallback(s::ΔNinExact) = s.fallback
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
 function Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
-    execute, nouts = newsizes(s, vertices)
+    execute, nins, nouts = newsizes(s, vertices)
     if execute
-        Δsize(nouts, vertices)
+        Δsize(nins, nouts, vertices)
     end
 end
 
@@ -1050,12 +1057,11 @@ end
 
 Set size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
 """
-function Δsize(nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+function Δsize(nins::Dict{<:AbstractVertex, Vector{Int}}, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
 
     for (i, vi) in enumerate(vertices)
-        input_inds = indexin(inputs(vi), vertices)
-        ninΔs = Δnouts[input_inds]
+        ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
         if any(ninΔs .!= 0)
             Δnin(op(vi), ninΔs...)
         end
@@ -1077,9 +1083,10 @@ end
 """
     newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
 
-Return a vector of new sizes for (potentially) all provided `vertices` using the strategy `s`.
+Return a vector of new outputs sizes for and a `Dict` of new input sizes for all provided `vertices` using the strategy `s`.
 
 Result vector is index aligned with `vertices`.
+Result `Dict` has a vector of input sizes for each element of `vertices` which has an input (i.e everything except input vertices).
 """
 function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
 
@@ -1090,7 +1097,9 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     @constraint(model, positive_nonzero_sizes, noutvars .>= 1)
 
     noutdict = Dict(zip(vertices, noutvars))
+    nindict = Dict()
     eqdict = Dict{AbstractVertex, Set{AbstractVertex}}()
+    nincnt = 1
     for v in vertices
         vertexconstraints!(v, s, (model=model, eqdict=eqdict, noutdict=noutdict))
     end
@@ -1099,7 +1108,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     JuMP.optimize!(model)
 
     if accept(s, model)
-        return true, round.(Int, JuMP.value.(noutvars))
+        return true, ninsAndNouts(s, vertices, noutvars)...
     end
     return newsizes(fallback(s), vertices)
 end
@@ -1126,6 +1135,17 @@ vertexconstraints!(t::DecoratingTrait, v, s, data) = vertexconstraints!(base(t),
 function vertexconstraints!(::Immutable, v, s, data)
     @constraint(data.model, data.noutdict[v] == nout(v))
     @constraint(data.model, getall(data.noutdict, inputs(v)) .== nin(v))
+end
+
+function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
+    vertexconstraints!(v, s.vstrat, data)
+    for vo in outputs(v)
+        ninvar = @variable(data.model, integer=true)
+        @constraint(data.model, data.noutdict[v] == ninvar)
+
+        ninarr = get!(() -> Vector{JuMP.VariableRef}(undef, length(inputs(vo))), s.nindict, vo)
+        ninarr[inputs(vo) .== v] .= ninvar
+    end
 end
 
 vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
@@ -1234,7 +1254,7 @@ Add the objective for `noutvars` using strategy `s`.
 """
 function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices)
     sizetargets = nout.(vertices)
-    objective = JuMP.@NLexpression(model, objective[i=1:length(noutvars)], (noutvars[i]/sizetargets[i] - 1.001)^2)
+    objective = JuMP.@NLexpression(model, objective[i=1:length(noutvars)], (noutvars[i]/sizetargets[i] - 1)^2)
     JuMP.@NLobjective(model, Min, sum(objective[i] for i in 1:length(objective)))
 end
 
@@ -1244,6 +1264,18 @@ end
 Return true of the solution for `model` is accepted using strategy `s`.
 """
 accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT
+
+function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
+    nouts = round.(Int, JuMP.value.(noutvars))
+    nins = Dict(vs .=> map(vi -> nouts[indexin(inputs(vi), vs)], vs))
+    return nins, nouts
+end
+
+function ninsAndNouts(s::AlignNinToNout, vs, noutvars)
+    nouts = round.(Int, JuMP.value.(noutvars))
+    nins = Dict(key => round.(Int, JuMP.value.(value)) for (key, value) in s.nindict)
+    return nins,nouts
+end
 
 # TODO: Remove since only used for debugging. If only it wasn't so bloody cumbersome to just list the constraints in a JuMP model....
 nconstraints(model) = mapreduce(tt -> JuMP.num_constraints.(model,tt...), +,  filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model)), init=0)

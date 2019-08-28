@@ -952,6 +952,24 @@
             @test nin(v5) == nin(v4) == [nout(v1)] == [6]
         end
 
+        @testset "Remove one of many outputs PostAlignJuMP" begin
+            v0 = inpt(3)
+            v1 = av(v0, 4, name="v1")
+            v2 = av(v1, 5, name="v2")
+            v3 = av(v1, 6, name="v3")
+            v4 = av(v1, 7, name="v4")
+            v5 = av(v2, 8, name="v5")
+
+            remove!(v2, RemoveStrategy(PostAlignJuMP()))
+            @test outputs(v1) == [v5, v3, v4]
+            @test nin(v5) == nin(v3) == nin(v4) == [nout(v1)] == [4]
+
+            # Test that it is possible to remove vertex without any outputs
+            remove!(v3, RemoveStrategy(PostAlignJuMP()))
+            @test outputs(v1) == [v5, v4]
+            @test nin(v5) == nin(v4) == [nout(v1)] == [4]
+        end
+
         @testset "Hidden immutable" begin
             v0 = inpt(3)
             v1 = sv(v0)
