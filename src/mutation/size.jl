@@ -1259,11 +1259,11 @@ function compconstraint!(s, f, data) end
 
 Add a set of linear constraints to a model to map `X` to an expression `X′` which is the L1 norm of that expression.
 """
-function norm!(s::L1NormLinear, model, X)
+function norm!(s::L1NormLinear, model, X, denom=1)
     # Use trick from http://lpsolve.sourceforge.net/5.1/absolute.htm to make objective linear
-    X′ = @variable(model, [1:length(X)], integer=true)
-    @constraint(model,  X .<= X′)
-    @constraint(model, -X .<= X′)
+    X′ = @variable(model, [1:length(X)])
+    @constraint(model,  X .<= X′ .* denom)
+    @constraint(model, -X .<= X′ .* denom)
     return @expression(model, sum(X′))
 end
 
@@ -1272,20 +1272,20 @@ end
 
 Add a set of linear constraints to a model to map `X` to a variable `X′` which is the max norm of that expression.
 """
-function norm!(s::MaxNormLinear, model, X)
+function norm!(s::MaxNormLinear, model, X, denom=1)
     # Use trick from https://math.stackexchange.com/questions/2589887/how-can-the-infinity-norm-minimization-problem-be-rewritten-as-a-linear-program to make objective linear
-    X′ = @variable(model, integer=true)
-    @constraint(model,  X .<= X′)
-    @constraint(model, -X .<= X′)
+    X′ = @variable(model)
+    @constraint(model,  X .<= X′ .* denom)
+    @constraint(model, -X .<= X′ .* denom)
     return X′
 end
 
-function norm!(s::ScaleNorm, model, X)
-    X′ = norm!(s.n, model, X)
+function norm!(s::ScaleNorm, model, X, denom=1)
+    X′ = norm!(s.n, model, X, denom)
     return @expression(model, s.scale * X′)
 end
 
-norm!(s::SumNorm, model, X) = mapfoldl(n -> norm!(n, model, X), (X′,X″) -> @expression(model, X′+X″), s.ns, init=@expression(model, 0))
+norm!(s::SumNorm, model, X, denom=1) = mapfoldl(n -> norm!(n, model, X, denom), (X′,X″) -> @expression(model, X′+X″), s.ns, init=@expression(model, 0))
 
 
 """
@@ -1297,7 +1297,8 @@ function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices
     sizetargets = nout.(vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
-    objective = norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], 1e6 * noutvars[i]/sizetargets[i] - 1e6)) # Multiply with a large number to mitigate interger trunking effects
+    objective = norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
+
     @objective(model, Min, objective)
 end
 
