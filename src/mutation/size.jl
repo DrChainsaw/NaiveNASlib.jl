@@ -62,7 +62,7 @@ function setnoutΔ!(missing, s::VisitState, v::AbstractVertex) end
 
 #TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
 # all MutationVertex has state?
-nin(v::InputSizeVertex) = v.size
+nin(v::InputSizeVertex) = []
 nin(v::MutationVertex) = nin(v, op(v))
 nin(v::AbstractVertex, op::MutationState) = nin(op)
 nin(v::AbstractVertex, op::MutationOp) = nin(trait(v), v)
@@ -86,6 +86,7 @@ nout_org(t::DecoratingTrait, v) = nout_org(base(t), v)
 nout_org(::MutationSizeTrait, v::MutationVertex) = nout_org(op(v))
 nout_org(::Immutable, v) = nout(v)
 
+nin_org(v::InputSizeVertex) = []
 nin_org(v::AbstractVertex) = nin_org(trait(v), v)
 nin_org(t::DecoratingTrait, v) = nin_org(base(t), v)
 nin_org(::MutationSizeTrait, v::MutationVertex) = nin_org(op(v))
@@ -984,7 +985,7 @@ Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + 
 
 Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔNoutRelaxed`).
 """
 struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
     Δ::Integer
@@ -993,8 +994,31 @@ struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
 end
 ΔNoutExact(v::AbstractVertex, Δ::Integer, fallback) = ΔNoutExact(Δ, v, fallback)
 ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNoutExact(Δ, v)
-ΔNoutExact(Δ::Integer, v::AbstractVertex) = ΔNoutExact(Δ, v, ΔSizeFailError("Could not change nout of $vertex by $(Δ)!!"))
+ΔNoutExact(Δ::Integer, v::AbstractVertex) = ΔNoutExact(Δ, v, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(Δ, v)))
 fallback(s::ΔNoutExact) = s.fallback
+
+"""
+    ΔNoutRelaxed <: AbstractJuMPΔSizeStrategy
+    ΔNoutRelaxed(Δ::Integer, vertex::AbstractVertex)
+    ΔNoutRelaxed(Δ::Integer, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+
+Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
+
+Size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`.
+
+In addition, a constraint that `nout(vertex)` must change is also added.
+
+If the operation fails, the it will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+"""
+struct ΔNoutRelaxed <:AbstractJuMPΔSizeStrategy
+    Δ::Integer
+    vertex::AbstractVertex
+    fallback::AbstractJuMPΔSizeStrategy
+end
+ΔNoutRelaxed(v::AbstractVertex, Δ::Integer, fallback) = ΔNoutRelaxed(Δ, v, fallback)
+ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNoutRelaxed(Δ, v)
+ΔNoutRelaxed(Δ::Integer, v::AbstractVertex) = ΔNoutRelaxed(Δ, v, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
+fallback(s::ΔNoutRelaxed) = s.fallback
 
 """
     ΔNinExact <: AbstractJuMPΔSizeStrategy
@@ -1130,7 +1154,7 @@ function Δsize(nins::Dict{<:AbstractVertex, Vector{Int}}, nouts::AbstractVector
 end
 
 newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
-newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, zeros(Int, length(vertices))
+newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)
 function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
     @logmsg s.level s.msg
     return newsizes(s.andthen, vertices)
@@ -1155,6 +1179,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     for v in vertices
         vertexconstraints!(v, s, (model=model, noutdict=noutdict))
     end
+
     sizeobjective!(s, model, noutvars, vertices)
 
     JuMP.optimize!(model)
@@ -1257,10 +1282,12 @@ function compconstraint!(s, f, data) end
 """
     norm!(s::L1NormLinear, model, X)
 
-Add a set of linear constraints to a model to map `X` to an expression `X′` which is the L1 norm of that expression.
+Add a set of linear constraints to a model to map `X` to an expression `X′` which is the L1 norm of `X`.
+
+Note that it only works for the objective function and only for minimization.
 """
 function norm!(s::L1NormLinear, model, X, denom=1)
-    # Use trick from http://lpsolve.sourceforge.net/5.1/absolute.htm to make objective linear
+    # Use trick from http://lpsolve.sourceforge.net/5.1/absolute.htm to make min abs(expression) linear
     X′ = @variable(model, [1:length(X)])
     @constraint(model,  X .<= X′ .* denom)
     @constraint(model, -X .<= X′ .* denom)
@@ -1270,10 +1297,12 @@ end
 """
     norm!(s::L1NormLinear, model, X)
 
-Add a set of linear constraints to a model to map `X` to a variable `X′` which is the max norm of that expression.
+Add a set of linear constraints to a model to map `X` to a variable `X′` which is the max norm of `X`.
+
+Note that it only works for the objective function and only for minimization.
 """
 function norm!(s::MaxNormLinear, model, X, denom=1)
-    # Use trick from https://math.stackexchange.com/questions/2589887/how-can-the-infinity-norm-minimization-problem-be-rewritten-as-a-linear-program to make objective linear
+    # Use trick from https://math.stackexchange.com/questions/2589887/how-can-the-infinity-norm-minimization-problem-be-rewritten-as-a-linear-program to make min abs(expression) linear
     X′ = @variable(model)
     @constraint(model,  X .<= X′ .* denom)
     @constraint(model, -X .<= X′ .* denom)
@@ -1293,13 +1322,30 @@ norm!(s::SumNorm, model, X, denom=1) = mapfoldl(n -> norm!(n, model, X, denom), 
 
 Add the objective for `noutvars` using strategy `s`.
 """
-function sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices)
+sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices) = @objective(model, Min, objective!(s, model, noutvars, vertices))
+
+function objective!(s, model, noutvars, vertices)
     sizetargets = nout.(vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
-    objective = norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
+    return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
+end
 
-    @objective(model, Min, objective)
+function objective!(s::ΔNoutRelaxed, model, noutvars, vertices)
+    inds = vertices .== s.vertex
+    def_obj = objective!(DefaultJuMPΔSizeStrategy(), model, noutvars[.!inds], vertices[.!inds])
+    sizetarget = nout(s.vertex) + s.Δ
+    Δnout_obj = norm!(L1NormLinear(), model, @expression(model, noutvars[inds] .- sizetarget))
+    # Force it to change as s.Δ might be too small
+    # Trick from http://lpsolve.sourceforge.net/5.1/absolute.htm
+    Δnout_const = @expression(model, noutvars[inds] - nout(s.vertex))
+    B = @variable(model, binary=true)
+    M = 1e5
+    ϵ = 1e-2 # abs(Δnout_const) must be larger than this
+    @constraint(model, Δnout_const + M * B .>= ϵ)
+    @constraint(model, Δnout_const + M * B .<= M - ϵ)
+
+    return @expression(model, def_obj + 1e6*Δnout_obj)
 end
 
 """

@@ -28,7 +28,8 @@ import InteractiveUtils:subtypes
     @testset "InputSizeVertex" begin
         iv = InputSizeVertex(InputVertex(1), 3)
 
-        @test nout(iv) == nin(iv) == 3
+        @test nout(iv) == 3
+        @test nin(iv) == []
         @test inputs(iv) == []
         @test outputs(iv) == []
 
