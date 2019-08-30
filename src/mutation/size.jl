@@ -976,81 +976,63 @@ Default strategy intended to be used when adding some extra constraints or objec
 """
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
+struct Exact end
+struct Relaxed end
+
 """
-    ΔNoutExact <: AbstractJuMPΔSizeStrategy
-    ΔNoutExact(Δ::Integer, vertex::AbstractVertex)
-    ΔNoutExact(Δ::Integer, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNout{T} <: AbstractJuMPΔSizeStrategy
+    ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
+    ΔNoutExact(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNoutRelaxed(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
 
 Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
 
-Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`.
+If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`. If the operation fails, it will be retried with the `fallback` strategy (default `ΔNoutRelaxed`).
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔNoutRelaxed`).
+If `T == Relaxed`, size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`. In addition, a constraint that `nout(vertex)` must change is also added.
+
+If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
-struct ΔNoutExact <: AbstractJuMPΔSizeStrategy
-    Δ::Integer
+struct ΔNout{T} <: AbstractJuMPΔSizeStrategy
     vertex::AbstractVertex
+    Δ::Integer
     fallback::AbstractJuMPΔSizeStrategy
 end
-ΔNoutExact(v::AbstractVertex, Δ::Integer, fallback) = ΔNoutExact(Δ, v, fallback)
-ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNoutExact(Δ, v)
-ΔNoutExact(Δ::Integer, v::AbstractVertex) = ΔNoutExact(Δ, v, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(Δ, v)))
-fallback(s::ΔNoutExact) = s.fallback
+ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(v, Δ)))
+ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
+fallback(s::ΔNout) = s.fallback
 
 """
-    ΔNoutRelaxed <: AbstractJuMPΔSizeStrategy
-    ΔNoutRelaxed(Δ::Integer, vertex::AbstractVertex)
-    ΔNoutRelaxed(Δ::Integer, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
-
-Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
-
-Size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`.
-
-In addition, a constraint that `nout(vertex)` must change is also added.
-
-If the operation fails, the it will be retried with the `fallback` strategy (default `ΔSizeFailError`).
-"""
-struct ΔNoutRelaxed <:AbstractJuMPΔSizeStrategy
-    Δ::Integer
-    vertex::AbstractVertex
-    fallback::AbstractJuMPΔSizeStrategy
-end
-ΔNoutRelaxed(v::AbstractVertex, Δ::Integer, fallback) = ΔNoutRelaxed(Δ, v, fallback)
-ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNoutRelaxed(Δ, v)
-ΔNoutRelaxed(Δ::Integer, v::AbstractVertex) = ΔNoutRelaxed(Δ, v, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
-fallback(s::ΔNoutRelaxed) = s.fallback
-
-"""
-    ΔNinExact <: AbstractJuMPΔSizeStrategy
-    ΔNinExact(Δs::Vector{Maybe{Int}}, vertex::AbstractVertex)
-    ΔNinExact(Δs::Vector{Maybe{Int}}, vertex::AbstractVertex, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNin{T} <: AbstractJuMPΔSizeStrategy
+    ΔNin{T}(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
     ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
-    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNinRelaxed(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
 
 Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
 
 Use `missing` to indicate "no change required" as 0 will be interpreted as "must not change".
 
-Size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
+If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+If `T == Relaxed`, size change will be added as an objective to the model which means that `nin(vertex)` might not change by exactly `Δs`. In addition, a constraint that `nin(vertex)` must change is also added.
+
+If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
-struct ΔNinExact <: AbstractJuMPΔSizeStrategy
-    Δs::Vector{Maybe{Int}}
+struct ΔNin{T} <: AbstractJuMPΔSizeStrategy
     vertex::AbstractVertex
+    Δs::Vector{Maybe{Int}}
     fallback::AbstractJuMPΔSizeStrategy
-    function ΔNinExact(Δs, v, fallback)
+    function ΔNin{T}(v, Δs, fallback) where T
         @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
-        new(Δs, v, fallback)
+        new(v, Δs, fallback)
     end
 end
-ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}, fallback) = ΔNinExact(Δs, v, fallback)
-ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNinExact(Δs, v)
-ΔNinExact(Δs::Vector{<:Maybe{Int}}, vertex) = ΔNinExact(Δs, vertex, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
-ΔNinExact(v::AbstractVertex, Δ::Integer, fallback) = ΔNinExact([Δ], v, fallback)
-ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNinExact([Δ], v)
-ΔNinExact(Δs::Integer, vertex) = ΔNinExact([Δ], vertex, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
-fallback(s::ΔNinExact) = s.fallback
+ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Exact}(v, Δs, LogΔSizeExec(Logging.Warn, "Could not change nin of $v by $(Δs)! Relaxing constraints...", ΔNinRelaxed(v, Δs)))
+ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNin{Exact}(v, [Δ])
+ΔNinRelaxed(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Relaxed}(v, Δs, ΔSizeFailError("Could not change nin of $vertex by $(Δs)!!"))
+ΔNinRelaxed(v::AbstractVertex, Δ::Integer) = ΔNin{Relaxed}(v, [Δ])
+fallback(s::ΔNin) = s.fallback
+
 
 """
     AlignNinToNout <: AbstractJuMPΔSizeStrategy
@@ -1116,9 +1098,9 @@ SumNorm(sns::Pair{<:Real, <:JuMPNorm}...) = SumNorm(ScaleNorm.(first.(sns), last
 
 
 # Temp methods (hopefully) whose only purpose is to bridge the legacy API
-Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δsize(ΔNoutExact(Δ, v), all_in_graph(v))
+Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δsize(ΔNoutExact(v, Δ), all_in_graph(v))
 
-Δnin(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δs::Maybe{T}...; s=nothing) where T <:Integer = Δsize(ΔNinExact(collect(Δs), v), all_in_graph(v))
+Δnin(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δs::Maybe{T}...; s=nothing) where T <:Integer = Δsize(ΔNinExact(v, collect(Δs)), all_in_graph(v))
 
 """
     Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
@@ -1232,7 +1214,7 @@ function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
     compconstraint!(s, v, (data..., vertex=v))
 end
 
-function vertexconstraints!(s::ΔNoutExact, v, data)
+function vertexconstraints!(s::ΔNout{Exact}, v, data)
     # TODO: Replace hardcoded type (DefaultJuMPΔSizeStrategy) with struct field to allow for deeper composition?
     vertexconstraints!(DefaultJuMPΔSizeStrategy(), v, data)
     if v == s.vertex
@@ -1241,7 +1223,7 @@ function vertexconstraints!(s::ΔNoutExact, v, data)
     end
 end
 
-function vertexconstraints!(s::ΔNinExact, v, data)
+function vertexconstraints!(s::ΔNin{Exact}, v, data)
     # TODO: Replace hardcoded type (DefaultJuMPΔSizeStrategy) with struct field to allow for deeper composition? Just create one ΔNoutExact for each input for example.
     vertexconstraints!(DefaultJuMPΔSizeStrategy(), v, data)
     if v == s.vertex
@@ -1331,21 +1313,30 @@ function objective!(s, model, noutvars, vertices)
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
 end
 
-function objective!(s::ΔNoutRelaxed, model, noutvars, vertices)
-    inds = vertices .== s.vertex
+objective!(s::ΔNout{Relaxed}, model, noutvars, vertices) = noutrelax!(model, [s.vertex], [s.Δ], noutvars, vertices)
+
+function objective!(s::ΔNin{Relaxed}, model, noutvars, vertices)
+    ininds = .!ismissing.(s.Δs)
+    vs = inputs(s.vertex)[ininds]
+    return noutrelax!(model, vs, s.Δs[ininds], noutvars, vertices)
+end
+
+
+function noutrelax!(model, vs, Δs, noutvars, vertices)
+    inds = mapreduce(v -> vertices .== v, (i1,i2) -> i1 .| i2, vs)
     def_obj = objective!(DefaultJuMPΔSizeStrategy(), model, noutvars[.!inds], vertices[.!inds])
-    sizetarget = nout(s.vertex) + s.Δ
+    sizetarget = nout.(vs) + Δs
     Δnout_obj = norm!(L1NormLinear(), model, @expression(model, noutvars[inds] .- sizetarget))
     # Force it to change as s.Δ might be too small
     # Trick from http://lpsolve.sourceforge.net/5.1/absolute.htm
-    Δnout_const = @expression(model, noutvars[inds] - nout(s.vertex))
-    B = @variable(model, binary=true)
+    Δnout_const = @expression(model, noutvars[inds] - nout.(vs))
+    B = @variable(model, [1:length(vs)], binary=true)
     M = 1e5
     ϵ = 1e-2 # abs(Δnout_const) must be larger than this
-    @constraint(model, Δnout_const + M * B .>= ϵ)
-    @constraint(model, Δnout_const + M * B .<= M - ϵ)
+    @constraint(model, Δnout_const .+ M .* B .>= ϵ)
+    @constraint(model, Δnout_const .+ M .* B .<= M .- ϵ)
 
-    return @expression(model, def_obj + 1e6*Δnout_obj)
+    return @expression(model, def_obj + 1e6*sum(Δnout_obj))
 end
 
 """

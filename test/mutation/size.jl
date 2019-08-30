@@ -1305,21 +1305,36 @@
             v0 = inpt(3)
             v1 = av(3,3, v0, name="v1")
             v2 = av(5,2, v1, name="v2")
+            import NaiveNASlib:Exact, Relaxed
 
-            @test_throws ErrorException newsizes(ΔNoutExact(v1, 2, ΔSizeFailError("")), all_in_graph(v1))
-            @test_throws ErrorException newsizes(ΔNoutExact(v1, 3, ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 2, ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 3, ΔSizeFailError("")), all_in_graph(v1))
 
-            @test_throws ErrorException Δnin(v2, 3)
-            @test_throws ErrorException Δnin(v2, 2)
+            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [2], ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [3], ΔSizeFailError("")), all_in_graph(v1))
 
-            @test newsizes(ΔNoutExact(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))[1] == false
-            @test newsizes(ΔNinExact(v2, 2, ΔSizeFailNoOp()), all_in_graph(v2))[1] == false
+            @test newsizes(ΔNout{Exact}(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))[1] == false
+            @test newsizes(ΔNin{Exact}(v2, [2], ΔSizeFailNoOp()), all_in_graph(v2))[1] == false
 
             using Logging
-            @test (@test_logs (:info, "Giving up") newsizes(ΔNoutExact(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1)))[1] == false
+            @test (@test_logs (:info, "Giving up") newsizes(ΔNout{Exact}(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1)))[1] == false
 
             @test_logs (:warn, r"Could not change nout of .* by 2! Relaxing constraints...") Δnout(v1, 2)
             @test [nout(v1)] == nin(v2) == [9]
+
+            @test_logs (:warn, r"Could not change nin of .* by \[-2\]! Relaxing constraints...") Δnin(v2, -2)
+            @test [nout(v1)] == nin(v2) == [3]
+
+            v3 = sv(v1,v2, name="v3")
+
+            @test_logs (:warn, r"Could not change nin of .* by \[2, 6\]! Relaxing constraints...") Δnin(v3, 2, 6)
+            @test [nout(v1)] == nin(v2) == [9]
+            @test nin(v3) == [nout(v1), nout(v2)] == [9, 11]
+
+            @test_logs (:warn, r"Could not change nout of .* by -3! Relaxing constraints...") Δnout(v3, -3)
+            @test [nout(v1)] == nin(v2) == [9]
+            @test nin(v3) == [nout(v1), nout(v2)] == [9, 9]
+
         end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())
