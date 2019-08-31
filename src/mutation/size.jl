@@ -1138,6 +1138,12 @@ function Δsize(nins::Dict{<:AbstractVertex, Vector{Int}}, nouts::AbstractVector
         Δnin_no_prop(vi, ninΔs...)
         Δnout_no_prop(vi, Δnouts[i])
     end
+
+    for (i, vi) in enumerate(vertices)
+        ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
+        after_Δnin(vi, ninΔs...)
+        after_Δnout(vi, Δnouts[i])
+    end
 end
 
 function Δnin_no_prop(v, Δs::Integer...)
@@ -1161,6 +1167,17 @@ function Δnout_no_prop(t::SizeChangeLogger, v, Δ)
     Δnout_no_prop(base(t), v, Δ)
 end
 Δnout_no_prop(::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
+
+after_Δnin(v, Δs...) = after_Δnin(trait(v), v, Δs)
+after_Δnin(t::DecoratingTrait, v, Δs) = after_Δnin(base(t), v, Δs)
+after_Δnin(t::SizeChangeValidation, v, Δs) = validate_Δnin(v, Δs, () -> after_Δnin(base(t), v, Δs))
+function after_Δnin(t, v, Δs) end
+
+after_Δnout(v, Δ) = after_Δnout(trait(v), v, Δ)
+after_Δnout(t::DecoratingTrait, v, Δ) = after_Δnout(base(t), v, Δ)
+after_Δnout(t::SizeChangeValidation, v, Δ) = validate_Δnout(v, Δ, () -> after_Δnout(base(t), v, Δ))
+function after_Δnout(t, v, Δ) end
+
 
 
 newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
