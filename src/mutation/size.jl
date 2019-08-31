@@ -294,14 +294,20 @@ function Δnout(t::SizeChangeLogger, v::AbstractVertex, Δ::T; s::VisitState{T}=
 end
 
 # Validation
+function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+    validvisit = !has_visited_in(s, v)
+    Δfun = () -> Δnin(base(t), v, Δ..., s=s)
+    validate_Δnin(v, Δ, Δfun, validvisit)
+end
+
 sizeΔ(Δ::Integer) = Δ
 sizeΔ(Δ::AbstractArray) = length(Δ)
-function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::VisitState{T}=VisitState{T}()) where T
+function validate_Δnin(v::AbstractVertex, Δ, Δfun, validvisit = true)
 
     # Yeah, this is checking more than one thing. Cba to have three different structs and methods for validation
     length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
 
-    validvisit = !has_visited_in(s, v)
+
 
     if validvisit
         # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
@@ -309,7 +315,7 @@ function Δnin(t::SizeChangeValidation, v::AbstractVertex, Δ::Maybe{T}...; s::V
         any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
     end
 
-    Δnin(base(t), v, Δ..., s=s)
+    Δfun()
 
     if validvisit
         nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
@@ -319,6 +325,11 @@ end
 
 function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState{T}=VisitState{T}()) where T
     validvisit = !has_visited_out(s, v) && !(v in keys(noutΔs(s)))
+    Δfun = () -> Δnout(base(t), v, Δ, s=s)
+    validate_Δnout(v, Δ, Δfun, validvisit)
+end
+
+function validate_Δnout(v::AbstractVertex, Δ, Δfun, validvisit=true)
 
     if validvisit
         # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
@@ -326,7 +337,7 @@ function Δnout(t::SizeChangeValidation, v::AbstractVertex, Δ::T; s::VisitState
         sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
     end
 
-    Δnout(base(t), v, Δ, s=s)
+    Δfun()
 
     if validvisit
         nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
@@ -1124,16 +1135,33 @@ function Δsize(nins::Dict{<:AbstractVertex, Vector{Int}}, nouts::AbstractVector
 
     for (i, vi) in enumerate(vertices)
         ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
-        if any(ninΔs .!= 0)
-            Δnin(op(vi), ninΔs...)
-        end
-
-        # To avoid things like getting op for immutable vertices. Shall be replaced by some "set nout for only this vertex" type of function.
-        if Δnouts[i] != 0
-            Δnout(op(vi), Δnouts[i])
-        end
+        Δnin_no_prop(vi, ninΔs...)
+        Δnout_no_prop(vi, Δnouts[i])
     end
 end
+
+function Δnin_no_prop(v, Δs::Integer...)
+    any(Δs .!= 0) || return
+    Δnin_no_prop(trait(v), v, Δs)
+end
+Δnin_no_prop(t::DecoratingTrait, v, Δs) = Δnin_no_prop(base(t), v, Δs)
+function Δnin_no_prop(t::SizeChangeLogger, v, Δs)
+    @logmsg t.level "Change nin of $(infostr(t, v)) by $Δs"
+    Δnin_no_prop(base(t), v, Δs)
+end
+Δnin_no_prop(::MutationSizeTrait, v, Δs) = Δnin(op(v), Δs...)
+
+function Δnout_no_prop(v, Δ::Integer)
+    Δ == 0 && return
+    Δnout_no_prop(trait(v), v, Δ)
+end
+Δnout_no_prop(t::DecoratingTrait, v, Δ) = Δnout_no_prop(base(t), v, Δ)
+function Δnout_no_prop(t::SizeChangeLogger, v, Δ)
+    @logmsg t.level "Change nout of $(infostr(t, v)) by $Δ"
+    Δnout_no_prop(base(t), v, Δ)
+end
+Δnout_no_prop(::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
+
 
 newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
 newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)

@@ -805,11 +805,10 @@
     end
 
     @testset "SizeChangeLogger" begin
-        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
 
-        av(in, size ;name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), size), traitfun(name))
-        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), traitfun(name))
-        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), traitfun(name))
+        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+        av(in, size ;name = "av") = absorbvertex(identity, size, in, traitdecoration=traitfun(name))
+
 
         @testset "Log size change" begin
                 v1 = inpt(3, "v1")
@@ -1342,12 +1341,12 @@
 
     end
 
-    @testset "SizeChangeLogger" begin
-        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+    @testset "SizeChangeLogger JuMP" begin
+        set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
 
-        av(in, size ;name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), size), traitfun(name))
-        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), traitfun(name))
-        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), traitfun(name))
+        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+        av(in, size ;name = "av") = absorbvertex(identity, size, in, traitdecoration=traitfun(name))
 
         @testset "Log size change" begin
                 v1 = inpt(3, "v1")
@@ -1358,5 +1357,8 @@
 
                 @test_logs (:info, "Change nout of v2 by -4") (:info, "Change nin of v3 by (-4,)") Δnout(v2, -4)
         end
+
+        set_defaultΔNoutStrategy(ΔNoutLegacy())
+        set_defaultΔNinStrategy(ΔNinLegacy())
     end
 end
