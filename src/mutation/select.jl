@@ -247,7 +247,6 @@ function has_visited!(visited, x)
     return false
 end
 
-# Step 1: Select which outputs to use given possible constraints described by validouts. Since this might be infeasible to do (in special cases) we get the execute flag which is true if we shall proceed with the selection
 """
     select_outputs(v::AbstractVertex, values)
     select_outputs(s::AbstractSelectionStrategy, v, values)
@@ -307,7 +306,7 @@ function select_outputs(s::NoutRevert, v, values, cdict)
 end
 
 function select_outputs(s::AbstractJuMPSelectionStrategy, v, values, cdict)
-    model = optmodel(s, v, values)
+    model = selectmodel(s, v, values)
 
     # Select indices using integer linear programming.
     # High level description of formulation:
@@ -385,7 +384,7 @@ end
 
 accept(::AbstractJuMPSelectionStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
 
-optmodel(::AbstractJuMPSelectionStrategy, v, values) = JuMP.Model(JuMP.with_optimizer(Cbc.Optimizer, loglevel=0))
+selectmodel(::AbstractJuMPSelectionStrategy, v, values) = JuMP.Model(JuMP.with_optimizer(Cbc.Optimizer, loglevel=0))
 
 function rowconstraint(::AbstractJuMPSelectionStrategy, model, x, indmat)
     # Valid rows don't include all rows when vertex to select from has not_org < nout_org of a vertex in cdict.
@@ -434,4 +433,160 @@ function Δfactorconstraint(::NoutRelaxSize, model, f, Δsizeexp)
     #  - Constraint that answer shall result in a size change which is an integer multiple of f.
     fv = @variable(model, integer=true)
     @constraint(model, f * fv == Δsizeexp)
+end
+
+Δoutputs(v, valuefun::Function) = Δoutputs(NoutExact(), v, valuefun)
+
+# TODO: Change all_in_graph to all_in_Δsize_graph to reduce size of problem
+Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
+
+function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
+    success, ins, outs = solve_outputs_selection(s, vs, valuefun)
+    if success
+        Δoutputs(ins, outs, vs)
+    end
+end
+
+"""
+    Δoutputs(ins::Dict outs::Dict, vertices::AbstractVector{<:AbstractVertex})
+
+Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` respectively.
+"""
+function Δoutputs(ins::Dict, outs::Dict, vs::AbstractVector{<:AbstractVertex})
+
+    for vi in vs
+        Δnin_no_prop(vi, ins[vi]...)
+        Δnout_no_prop(vi, outs[vi])
+    end
+
+    for vi in vs
+        after_Δnin(vi, ins[vi]...)
+        after_Δnout(vi, outs[vi])
+    end
+end
+
+function Δnin_no_prop(v) end
+function Δnin_no_prop(v, inds::AbstractVector{<:Integer}...)
+    any(inds .!= [1:insize for insize in nin(v)]) || return
+    Δnin_no_prop(trait(v), v, inds)
+end
+
+function Δnout_no_prop(v, inds::AbstractVector{<:Integer})
+    inds == 1:nout(v) && return
+    Δnout_no_prop(trait(v), v, inds)
+end
+
+
+function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Vector{AbstractVertex}, valuefun::Function)
+    model = selectmodel(s, vertices, values)
+
+    outselectvars = Dict(vertices .=> map(v -> @variable(model, [1:nout_org(v)], binary=true), vertices))
+    outinsertvars = Dict(vertices .=> map(v -> @variable(model, [1:nout(v)], binary=true), vertices))
+    # Optimization: Init outinsertvars as empty and only add if needed: outinsertvars = Dict{eltype(outselectvars).types...}()
+
+    objexpr = @expression(model, objective, 0)
+    for v in vertices
+        data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, objexpr = objexpr, valuefun = valuefun)
+        vertexconstraints!(v, s, data)
+        objexpr = selectobjective!(s, v, data)
+    end
+
+    @objective(model, Max, objexpr)
+
+    JuMP.optimize!(model)
+
+    !accept(s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
+
+    return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
+
+end
+
+# First dispatch on traits to sort out things like immutable vertices
+vertexconstraints!(v::AbstractVertex, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(trait(v), v, s, data)
+vertexconstraints!(t::DecoratingTrait, v, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(base(t), v, s, data)
+vertexconstraints!(t::MutationSizeTrait, v, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(s, t, v, data) # Now dispatch on strategy (and trait)
+function vertexconstraints!(::Immutable, v, s::AbstractJuMPSelectionStrategy, data)
+     @constraint(data.model, data.outselectvars[v] .== 1)
+     @constraint(data.model, data.outinsertvars[v] .== 0)
+ end
+
+
+function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTrait, v, data)
+    sizeconstraint!(s, t, v, data)
+    inoutconstraint!(s, t, v, data)
+end
+
+function sizeconstraint!(::NoutExact, t, v, data)
+    outsel = data.outselectvars[v]
+    @constraint(data.model, sum(outsel) == nselect_out(v))
+
+    # Handle insertions
+    outins = data.outinsertvars[v]
+    if length(outins) > length(outsel)
+        @constraint(data.model, sum(outins) == length(outins) - sum(outsel))
+    elseif length(outins) > 0
+        @constraint(data.model, outins .== 0)
+    end
+end
+
+function inoutconstraint!(s, ::SizeAbsorb, v, data) end
+function inoutconstraint!(s, t::SizeTransparent, v, data)
+    inoutconstraint!(s, t, v, data.model, data.outselectvars)
+    inoutconstraint!(s, t, v, data.model, data.outinsertvars)
+end
+
+function inoutconstraint!(s, ::SizeStack, v, model, vardict::Dict)
+    offs = 1
+    var = vardict[v]
+    for vi in inputs(v)
+        var_i = vardict[vi]
+        @constraint(model, var_i .== var[offs:offs+length(var_i)-1])
+        offs += length(var_i)
+    end
+end
+
+function inoutconstraint!(s, ::SizeInvariant, v, model, vardict::Dict)
+    var = vardict[v]
+    for vi in inputs(v)
+        @constraint(model, vardict[vi] .== var)
+    end
+end
+
+function selectobjective!(s::AbstractJuMPSelectionStrategy, v, data)
+    value = valueobjective!(s, v, data)
+    insertlast = insertlastobjective!(s, v, data)
+    return @expression(data.model, data.objexpr + value + insertlast)
+end
+
+valueobjective!(s::AbstractJuMPSelectionStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
+
+function insertlastobjective!(s,v,data)
+    insvars = data.outinsertvars[v]
+    preferend = collect(1:length(insvars))
+    return @expression(data.model, 0.05*sum(insvars .* preferend))
+end
+
+function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
+    outinds = Dict([v => extract_inds(s, outselectvars[v], outinsertvars[v]) for v in keys(outselectvars)])
+    ininds = Dict([v => getall(outinds, inputs(v)) for v in keys(outselectvars)])
+    return ininds, outinds
+end
+
+function extract_inds(s::AbstractJuMPSelectionStrategy, selectvars::T, insertvars::T) where T <: AbstractVector{JuMP.VariableRef}
+    # insertvar is 1.0 at indices where a new output shall be added and 0.0 where an existing one shall be selected
+    result = -round.(Int, JuMP.value.(insertvars))
+    selected = findall(xi -> xi > 0, JuMP.value.(selectvars))
+
+    # TODO: Needs investigation
+    sum(result) == 0 && return selected
+
+    j = 1
+    for i in eachindex(result)
+        if result[i] == 0
+            result[i] = selected[j]
+            j += 1
+        end
+    end
+
+    return result
 end

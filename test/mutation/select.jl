@@ -18,7 +18,6 @@
             Δnout(v, selected)
         end
     end
-
     @testset "Absorb 2 Absorb" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
@@ -27,7 +26,7 @@
         g = CompGraph(inpt, v2)
 
         Δnout(v1, -2)
-        select_outputs_and_change(v1, 1:nout_org(op(v1)))
+        Δoutputs(v1, v -> 1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [3,4,5]
         apply_mutation(g)
@@ -35,7 +34,7 @@
         @test size(g(ones(1, 3))) == (1, nout(v2))
 
         Δnout(v1, 3)
-        select_outputs_and_change(v1, 1:nout_org(op(v1)))
+        Δoutputs(v1, v->1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,-1,-1,-1]
         apply_mutation(g)
@@ -93,7 +92,7 @@
         @test nout(v1) == 5
         @test nout(v2) == 3
 
-        select_outputs_and_change(v4, 1:nout_org(op(v4)))
+        Δoutputs(v4, v -> 1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 5
@@ -106,7 +105,7 @@
         @test nout(v1) == 9
         @test nout(v2) == 4
 
-        select_outputs_and_change(v4, 1:nout_org(op(v4)))
+        Δoutputs(v4, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 9
@@ -136,7 +135,7 @@
         @test nout(v2) == 2
         @test nout(v3) == 3
 
-        select_outputs_and_change(v6, 1:nout_org(op(v6)))
+        Δoutputs(v6, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 5
@@ -151,7 +150,7 @@
         @test nout(v2) == 4
         @test nout(v3) == 5
 
-        select_outputs_and_change(v6, 1:nout_org(op(v6)))
+        Δoutputs(v6, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 9
