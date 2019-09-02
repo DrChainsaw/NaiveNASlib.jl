@@ -435,7 +435,34 @@ function Δfactorconstraint(::NoutRelaxSize, model, f, Δsizeexp)
     @constraint(model, f * fv == Δsizeexp)
 end
 
-Δoutputs(v, valuefun::Function) = Δoutputs(NoutExact(), v, valuefun)
+
+"""
+    OutSelect{T} <: AbstractSelectionStrategy
+    OutSelectExact()
+    OutSelectRelaxed()
+    OutSelect{T}(fallback)
+
+If `T == Exact`, output indices for each vertex `v` are selected with the constraint that `nout(v)` shall not change.
+
+If `T == Relaxed`, output indices for each vertex `v` are selected with the objective to deviate as little as possible from `nout(v)`.
+
+Possible to set a `fallback AbstractSelectionStrategy` should it be impossible to select indices according to the strategy.
+"""
+struct OutSelect{T} <: AbstractJuMPSelectionStrategy
+    fallback::AbstractSelectionStrategy
+end
+OutSelectExact() = OutSelect{Exact}(LogSelectionFallback("Relaxing size constraint...", OutSelectRelaxed()))
+OutSelectRelaxed() = OutSelect{Relaxed}(LogSelectionFallback("Reverting...", NoutRevert()))
+fallback(s::OutSelect) = s.fallback
+
+"""
+    DefaultJuMPSelectionStrategy <: AbstractJuMPSelectionStrategy
+
+Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
+"""
+struct DefaultJuMPSelectionStrategy <: AbstractJuMPSelectionStrategy end
+
+Δoutputs(v, valuefun::Function) = Δoutputs(OutSelectExact(), v, valuefun)
 
 # TODO: Change all_in_graph to all_in_Δsize_graph to reduce size of problem
 Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
@@ -477,6 +504,24 @@ function Δnout_no_prop(v, inds::AbstractVector{<:Integer})
 end
 
 
+function solve_outputs_selection(s::LogSelection, vertices::Vector{AbstractVertex}, valuefun::Function)
+    @logmsg s.level s.msgfun(vertices[1])
+    return solve_outputs_selection(s.andthen, vertices, valuefun)
+end
+
+solve_outputs_selection(s::SelectionFail, vertices::Vector{AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
+
+function solve_outputs_selection(s::NoutRevert, vertices::Vector{AbstractVertex}, valuefun::Function)
+    for v in vertices
+        diff = nout_org(v) - nout(v)
+        if diff != 0
+            Δnout(v, diff)
+        end
+    end
+
+    return false, Dict(vertices .=> UnitRange.(1, nout.(vertices))), Dict(vertices .=> map(nins -> UnitRange.(1,nins), nin.(vertices)))
+end
+
 function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Vector{AbstractVertex}, valuefun::Function)
     model = selectmodel(s, vertices, values)
 
@@ -516,11 +561,17 @@ function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTra
     inoutconstraint!(s, t, v, data)
 end
 
-function sizeconstraint!(::NoutExact, t, v, data)
-    outsel = data.outselectvars[v]
-    @constraint(data.model, sum(outsel) == nselect_out(v))
+function sizeconstraint!(::OutSelect{Exact}, t, v, data)
+    @constraint(data.model, sum(data.outselectvars[v]) == nselect_out(v))
+    sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
+end
 
+function sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data)
     # Handle insertions
+    # The constraint that either there are no new outputs or the total number of outputs must be equal to the length of outinsertvars is a somewhat unfortunate result of the approach chosen to solve the problem.
+    # If not enforced, we will end up in situations where some indices shall neither be selected nor have insertions. For example, the result might say "keep indices 1,2,3 and insert a new output at index 10".
+    # If one can come up with a constraint to formulate "no gaps" (such as the gab above) instead of the current approach the chances of finding a feasible soluion would probably increase.
+    outsel = data.outselectvars[v]
     outins = data.outinsertvars[v]
     if length(outins) > length(outsel)
         @constraint(data.model, sum(outins) == length(outins) - sum(outsel))
@@ -556,6 +607,17 @@ function selectobjective!(s::AbstractJuMPSelectionStrategy, v, data)
     value = valueobjective!(s, v, data)
     insertlast = insertlastobjective!(s, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
+end
+
+function selectobjective!(s::OutSelect{Relaxed}, v, data)
+
+    # No thought behind scaling other than wanting to have roughly same order of magnitude
+    scale = sum(data.valuefun(v))
+    sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v))
+    sizediffnorm = norm!(ScaleNorm(scale, MaxNormLinear()), data.model, sizediff)
+
+    default = selectobjective!(DefaultJuMPSelectionStrategy(), v, data)
+    return @expression(data.model, default - sizediffnorm)
 end
 
 valueobjective!(s::AbstractJuMPSelectionStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))

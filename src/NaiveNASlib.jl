@@ -41,7 +41,7 @@ export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor
 export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNin, ΔNinExact
 
 #Selection util
-export AbstractSelectionStrategy, LogSelection, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, NoutExact, NoutRelaxSize, NoutMainVar, validouts, select_outputs, Δoutputs, solve_outputs_selection
+export AbstractSelectionStrategy, LogSelection, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, NoutExact, NoutRelaxSize, NoutMainVar, validouts, select_outputs, Δoutputs, solve_outputs_selection, OutSelect, OutSelectExact, OutSelectRelaxed
 
 # Connectivity mutation
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
