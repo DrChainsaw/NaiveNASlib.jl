@@ -525,7 +525,7 @@ end
 function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Vector{AbstractVertex}, valuefun::Function)
     model = selectmodel(s, vertices, values)
 
-    outselectvars = Dict(vertices .=> map(v -> @variable(model, [1:nout_org(v)], binary=true), vertices))
+    outselectvars = Dict(vertices .=> map(v -> @variable(model, [1:length(valuefun(v))], binary=true), vertices))
     outinsertvars = Dict(vertices .=> map(v -> @variable(model, [1:nout(v)], binary=true), vertices))
     # Optimization: Init outinsertvars as empty and only add if needed: outinsertvars = Dict{eltype(outselectvars).types...}()
 
@@ -571,6 +571,7 @@ function sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data)
     # The constraint that either there are no new outputs or the total number of outputs must be equal to the length of outinsertvars is a somewhat unfortunate result of the approach chosen to solve the problem.
     # If not enforced, we will end up in situations where some indices shall neither be selected nor have insertions. For example, the result might say "keep indices 1,2,3 and insert a new output at index 10".
     # If one can come up with a constraint to formulate "no gaps" (such as the gab above) instead of the current approach the chances of finding a feasible soluion would probably increase.
+    # Maybe this https://cs.stackexchange.com/questions/12102/express-boolean-logic-operations-in-zero-one-integer-linear-programming-ilp in combination with this https://math.stackexchange.com/questions/2022967/how-to-model-a-constraint-of-consecutiveness-in-0-1-programming?rq=1
     outsel = data.outselectvars[v]
     outins = data.outinsertvars[v]
     if length(outins) > length(outsel)
@@ -589,17 +590,23 @@ end
 function inoutconstraint!(s, ::SizeStack, v, model, vardict::Dict)
     offs = 1
     var = vardict[v]
-    for vi in inputs(v)
+    for (i, vi) in enumerate(inputs(v))
         var_i = vardict[vi]
-        @constraint(model, var_i .== var[offs:offs+length(var_i)-1])
+        # Sizes mismatch when vertex/edge was removed (or edge added)
+        if nout_org(vi) == nin_org(v)[i]
+            @constraint(model, var_i .== var[offs:offs+length(var_i)-1])
+        end
         offs += length(var_i)
     end
 end
 
 function inoutconstraint!(s, ::SizeInvariant, v, model, vardict::Dict)
     var = vardict[v]
-    for vi in inputs(v)
-        @constraint(model, vardict[vi] .== var)
+    for (i, vi) in enumerate(inputs(v))
+        # Sizes mismatch when vertex/edge was removed (or edge added)
+        nout_org(vi) == nout_org(v) || continue
+        var_i = vardict[vi]
+        @constraint(model, var_i .== var)
     end
 end
 

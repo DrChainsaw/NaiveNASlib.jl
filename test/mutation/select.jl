@@ -175,7 +175,7 @@
         @test nout(v2) == 5
 
         # "Tempt" optimizer to not select inputs from inpt
-        Δoutputs(OutSelect{NaiveNASlib.Relaxed}(SelectionFail()), v2, v -> v == v2 ? (-nout(inpt):nout_org(v1)-1) : nout_org(v))
+        Δoutputs(OutSelect{NaiveNASlib.Relaxed}(SelectionFail()), v2, v -> v == v2 ? (-nout(inpt):nout_org(v1)-1) : 1:nout_org(v))
         apply_mutation(g)
 
         @test nin(v2) == [nout(inpt), nout(v1)] == [3, 2]
@@ -333,9 +333,31 @@
         @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
     end
 
-    @testset "NoutMainVar after vertex removal" begin
+    @testset "Increase after vertex removal" begin
         inpt = iv(3)
-        v1 = av(inpt, 2, "v1a")
+        v1 = av(inpt, 2, "v1")
+        v2 = tv(v1, "v2")
+        v3 = av(v2, 4, "v3")
+        v4 = av(v3, 3, "v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy())
+
+        Δoutputs(v2, v -> 1:nout_org(v))
+
+        @test in_inds(op(v4))[] == [1,2,-1,-1] # TODO: Should be [1,2,3,4]
+        @test out_inds(op(v1)) == out_inds(op(v2)) == [1, 2, -1, -1]
+
+        apply_mutation(g)
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
+
+    @testset "Decrease after vertex removal" begin
+        inpt = iv(3)
+        v1 = av(inpt, 2, "v1")
         v2 = tv(v1, "v2")
         v3 = av(v2, 4, "v3")
         v4 = av(v3, 3, "v4")
@@ -347,20 +369,53 @@
 
         # What happened now is that nin(v4) got decreased from 4 to 2. We now need to select which inputs to keep
         # However, there is absolutely no need at all to select anything from v2 and before as they have not changed.
+        Δoutputs(v2, v -> 1:nout_org(v))
 
-        # Approach used: Select best nout(v2) outputs from v3 (hoping that the best outputs for v3 are also the best inputs for v4)
+        @test in_inds(op(v4))[] == out_inds(op(v1)) == out_inds(op(v2)) == out_inds(op(v3)) == [1, 2]
 
-        # out=false because we are actually selecting for v4 in the input direction
-        cdict = validouts(v2, Set([v2]), Set(AbstractVertex[]), false)
-        valid, selinds = select_outputs(NoutMainVar(NoutExact(), NoutExact()), v2, 1:nout_org(v3), cdict)
+        apply_mutation(g)
 
-        # Don't want to propagate to v2!
-        s = NaiveNASlib.VisitState{Vector{Int}}(v2)
-        NaiveNASlib.visited_out!.(s, [v2])
-        Δnin(v4, selinds, s=s)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
 
-        @test in_inds(op(v4))[] == [3, 4]
-        @test out_inds(op(v1)) == out_inds(op(v2)) == out_inds(op(v3)) == out_inds(op(v2)) == [1, 2]
+    @testset "Increase after vertex removal SizeStack" begin
+        inpt = iv(3)
+        v1 = av(inpt, 3, "v1")
+        v2 = av(inpt, 4, "v2")
+        v3 = av(v1, 5, "v3")
+        v4 = cc(v2, v3, name="v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy())
+
+        Δoutputs(v2, v -> 1:nout_org(v))
+
+        @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3,-1,-1]]
+        @test out_inds(op(v4)) == 1:9
+
+        apply_mutation(g)
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
+
+    @testset "Decrease after vertex removal SizeStack" begin
+        inpt = iv(3)
+        v1 = av(inpt, 3, "v1")
+        v2 = av(inpt, 4, "v2")
+        v3 = av(v1, 5, "v3")
+        v4 = cc(v2, v3, name="v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy(DecreaseBigger()))
+
+        Δoutputs(v2, v -> 1:nout_org(v))
+
+        @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3]]
+        @test out_inds(op(v4)) == [1,2,3,4,7,8,9]
 
         apply_mutation(g)
 
