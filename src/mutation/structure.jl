@@ -114,6 +114,35 @@ end
 IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
 
 """
+    SelectOutputs <: AbstractAlignSizeStrategy
+    SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v)))
+
+First align size using `align`, then select outputs (through `Δoutputs`) using `select` and `valuefun` if size alignment is successful.
+
+Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
+"""
+struct SelectOutputs <: AbstractAlignSizeStrategy
+    selectstrategy::AbstractSelectionStrategy
+    alignstrategy::AbstractAlignSizeStrategy
+    valuefun::Function
+end
+SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v))) = SelectOutputs(select, align, valuefun)
+
+"""
+    ApplyMutation <: AbstractAlignSizeStrategy
+    ApplyMutation()
+    ApplyMutation(strategy::AbstractAlignSizeStrategy)
+
+First align size using `strategy`, then invoke `apply_mutation` if size alignment is successful.
+
+Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
+"""
+struct ApplyMutation <: AbstractAlignSizeStrategy
+    strategy::AbstractAlignSizeStrategy
+end
+ApplyMutation() = ApplyMutation(SelectOutputs())
+
+"""
     CheckNoSizeCycle <: AbstractAlignSizeStrategy
     CheckNoSizeCycle()
     CheckNoSizeCycle(;ifok, ifnok)
@@ -289,6 +318,23 @@ end
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     Δnin.(outputs(vin), s.Δoutsize...)
     return true
+end
+
+function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
+    if prealignsizes(s.strategy, vin, vout, will_rm)
+        apply_mutation.(all_in_graph(vin))
+        return true
+    end
+    return false
+end
+
+
+function prealignsizes(s::SelectOutputs, vin, vout, will_rm)
+    if prealignsizes(s.alignstrategy, vin, vout, will_rm)
+        Δoutputs(s.selectstrategy, vin, s.valuefun)
+        return nout(vin) == tot_nin(vout)
+    end
+    return false
 end
 
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, will_rm)

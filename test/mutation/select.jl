@@ -422,6 +422,61 @@
         @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
     end
 
+    @testset "SelectOutputs after increse due to vertex removal" begin
+        inpt = iv(3)
+        v1 = av(inpt, 2, "v1")
+        v2 = av(v1, 3, "v2")
+        v3 = av(v2, 5, "v3")
+        v4 = av(v3, 3, "v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy(SelectOutputs(valuefun= v -> 1:nout_org(v))))
+
+        @test out_inds(op(v2)) == [1,2,3,-1,-1]
+        @test in_inds(op(v4))[] == [1,2,3,4,5]
+
+        apply_mutation(g)
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
+
+    @testset "SelectOutputs after decrease due to vertex removal" begin
+        inpt = iv(3)
+        v1 = av(inpt, 2, "v1")
+        v2 = av(v1, 3, "v2")
+        v3 = av(v2, 5, "v3")
+        v4 = av(v3, 3, "v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy(SelectOutputs(align=DecreaseBigger(), valuefun= v -> 1:nout_org(v))))
+
+        @test in_inds(op(v4))[] == out_inds(op(v3)) == [3,4,5]
+
+        apply_mutation(g)
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
+
+    @testset "ApplyMutation vertex removal SizeStack" begin
+        inpt = iv(3)
+        v1 = av(inpt, 3, "v1")
+        v2 = av(inpt, 4, "v2")
+        v3 = av(v1, 5, "v3")
+        v4 = cc(v2, v3, name="v4")
+
+        g = CompGraph(inpt, v4)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+
+        remove!(v3, RemoveStrategy(ApplyMutation()))
+        @test nout(v1) == 5
+
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+    end
+
     @testset "NoutMainVar exact infeasible" begin
         inpt = iv(3)
         v1 = av(inpt, 2, "v1")
