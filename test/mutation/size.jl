@@ -1342,6 +1342,16 @@
     end
 
     @testset "SizeChangeLogger JuMP" begin
+
+        @testset "Compressed array string" begin
+            @test NaiveNASlib.compressed_string([1,2,3,4]) == "[1, 2, 3, 4]"
+            @test NaiveNASlib.compressed_string(1:23) == "[1,…, 23]"
+            @test NaiveNASlib.compressed_string([1,2,3,5,6,8,9,10:35...]) == "[1, 2, 3, 5, 6, 8,…, 35]"
+            @test NaiveNASlib.compressed_string(-ones(Int, 24)) == "[-1×24]"
+            @test NaiveNASlib.compressed_string([-1, 5:9...,-ones(Int, 6)...,23,25,99,100,102,23:32...,34]) ==  "[-1, 5,…, 9, -1×6, 23, 25, 99, 100, 102, 23,…, 32, 34]"
+            @test NaiveNASlib.compressed_string([1,2,4:13..., 10:20...,-1]) == "[1, 2, 4,…, 13, 10,…, 20, -1]"
+        end
+        
         set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
         set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
 
@@ -1353,9 +1363,16 @@
                 v2 = av(v1, 10, name="v2")
                 v3 = av(v2, 4, name="v3")
 
-                @test_logs (:info, "Change nin of v3 by (3,)") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
+                @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
 
-                @test_logs (:info, "Change nout of v2 by -4") (:info, "Change nin of v3 by (-4,)") Δnout(v2, -4)
+                @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout(v2, -3)
+
+                v4 = av(v1, nout(v3), name="v4")
+                v5 = traitconf(traitfun("v5")) >> v3 + v4
+
+                @test_logs  (:info, "Change nin of v5 by 30, 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout(v5, 30)
+
+                @test_logs  (:info, "Change nin of v5 by [1, 2, 3, 4, -1×30], [1, 2, 3, 4, -1×30]") (:info, "Change nout of v5 by [1, 2, 3, 4, -1×30]") (:info, "Change nout of v3 by [1, 2, 3, 4, -1×30]") (:info, "Change nout of v4 by [1, 2, 3, 4, -1×30]") Δoutputs(v5, v -> 1:nout_org(v))
         end
 
         set_defaultΔNoutStrategy(ΔNoutLegacy())

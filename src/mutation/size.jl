@@ -1152,7 +1152,8 @@ function Δnin_no_prop(v, Δs::Integer...)
 end
 Δnin_no_prop(t::DecoratingTrait, v, Δs) = Δnin_no_prop(base(t), v, Δs)
 function Δnin_no_prop(t::SizeChangeLogger, v, Δs)
-    @logmsg t.level "Change nin of $(infostr(t, v)) by $Δs"
+
+    @logmsg t.level "Change nin of $(infostr(t, v)) by $(join(compressed_string.(Δs), ", "))"
     Δnin_no_prop(base(t), v, Δs)
 end
 Δnin_no_prop(::MutationSizeTrait, v, Δs) = Δnin(op(v), Δs...)
@@ -1163,10 +1164,88 @@ function Δnout_no_prop(v, Δ::Integer)
 end
 Δnout_no_prop(t::DecoratingTrait, v, Δ) = Δnout_no_prop(base(t), v, Δ)
 function Δnout_no_prop(t::SizeChangeLogger, v, Δ)
-    @logmsg t.level "Change nout of $(infostr(t, v)) by $Δ"
+    @logmsg t.level "Change nout of $(infostr(t, v)) by $(compressed_string(Δ))"
     Δnout_no_prop(base(t), v, Δ)
 end
 Δnout_no_prop(::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
+
+compressed_string(x) = string(x)
+struct RangeState
+    start
+    cnt
+end
+struct ConsecState
+    val
+    cnt
+end
+struct AnyState
+    val
+end
+
+function form_state(prev, curr)
+    Δ = curr - prev
+    Δ == 0 && return ConsecState(prev, 2)
+    Δ == 1 && return RangeState(prev, 1)
+    return AnyState(curr)
+end
+
+# Is this.... FP?
+increment(h0::RangeState, h1::RangeState, buffer) = RangeState(h0.start, h0.cnt+1)
+increment(h0::ConsecState, h1::ConsecState, buffer) = ConsecState(h0.val, h0.cnt+1)
+function increment(h0::AnyState, h1::AnyState, buffer)
+    write(buffer, "$(h0.val), ")
+    return h1
+end
+
+function compressed_string(a::AbstractVector)
+    length(a) < 20 && return string(a)
+    buffer = IOBuffer()
+    write(buffer, "[")
+
+    prev = a[1]
+    hyp = AnyState(a[1])
+    for curr in a[2:end]
+        hyp = new_state(hyp, prev, curr, buffer)
+        prev = curr
+    end
+    write_state(hyp, buffer, true)
+    write(buffer, "]")
+    return String(take!(buffer))
+end
+
+new_state(h, prev, curr, buffer) = new_state(h, form_state(prev, curr), buffer)
+new_state(h0::T, h1::T, buffer) where T = increment(h0, h1, buffer)
+function new_state(h0, h1, buffer)
+    write_state(h0, buffer)
+    return h1
+end
+
+function write_state(h::RangeState, buffer, last=false)
+    if h.cnt > 3
+        write(buffer, "$(h.start),…, $(h.start + h.cnt)")
+    else
+        write(buffer, join(string.(h.start:h.start+h.cnt), ", "))
+    end
+    if !last
+        write(buffer, ", ")
+    end
+end
+
+function write_state(h::ConsecState, buffer, last=false)
+    if h.cnt > 3
+        write(buffer, "$(h.val)×$(h.cnt)")
+    else
+        write(buffer, join(repeat([h.val], h.cnt), ", "))
+    end
+    if !last
+        write(buffer, ", ")
+    end
+end
+function write_state(h::AnyState, buffer, last=false)
+    if last
+        write(buffer, string(h.val))
+    end
+end
 
 after_Δnin(v, Δs...) = after_Δnin(trait(v), v, Δs)
 after_Δnin(t::DecoratingTrait, v, Δs) = after_Δnin(base(t), v, Δs)
@@ -1177,7 +1256,6 @@ after_Δnout(v, Δ) = after_Δnout(trait(v), v, Δ)
 after_Δnout(t::DecoratingTrait, v, Δ) = after_Δnout(base(t), v, Δ)
 after_Δnout(t::SizeChangeValidation, v, Δ) = validate_Δnout(v, Δ, () -> after_Δnout(base(t), v, Δ))
 function after_Δnout(t, v, Δ) end
-
 
 
 newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
