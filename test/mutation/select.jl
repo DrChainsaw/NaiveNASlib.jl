@@ -476,35 +476,4 @@
 
         @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
     end
-
-    @testset "NoutMainVar exact infeasible" begin
-        inpt = iv(3)
-        v1 = av(inpt, 2, "v1")
-        v2 = av(inpt, 2, "v2")
-        v3 = cc(v1, v2, v1, v2, name="v3")
-        v4 = av(v3, 3, "v4")
-
-        g = CompGraph(inpt, v3)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v3))
-
-        Δnout(v3, 6)
-
-        @test nout(v3) == 2nout(v1) + 2nout(v2) == 14
-        @test nout(v1) == 3
-        @test nout(v2) == 4
-
-        @test_logs (:warn, "Selection for vertex v3 failed! Relaxing size constraint...") select_outputs_and_change(NoutMainVar(NoutExact(), NoutRelaxSize()), v3, 1:(nout_org(v3)-1))
-
-        @test nout(v3) == 2nout(v1) + 2nout(v2) == 14
-        @test nout(v1) == 3
-        @test nout(v2) == 4
-
-        @test in_inds(op(v4))[] == out_inds(op(v3)) == [1, 2, -1, 3, -1, -1, -1, 5, 6, -1, 7, -1, -1, -1]
-        @test out_inds(op(v1)) ==  [1, 2, -1]
-        @test out_inds(op(v2)) ==  [1, -1, -1, -1]
-
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v3))
-    end
 end
