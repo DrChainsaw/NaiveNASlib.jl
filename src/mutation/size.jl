@@ -762,9 +762,24 @@ struct Input <: Direction end
 """
     Output
 
-Represents the output direction, i.e coming from the output of another vertex.
+Represents the output direction, i.e coming from the input of another vertex.
 """
 struct Output <: Direction end
+"""
+    Both
+
+Represents both directions (`Input` and `Output`).
+"""
+struct Both <: Direction end
+
+"""
+    opposite(d::Direction)
+
+Return the opposite direction of `d`.
+"""
+opposite(::Input) = Output()
+opposite(::Output) = Input()
+opposite(b::Both) = b
 
 """
     ΔSizeGraph
@@ -940,6 +955,36 @@ function all_in_graph(v::AbstractVertex, visited = AbstractVertex[])
 end
 
 """
+    all_in_Δsize_graph(v::AbstractVertex, d::Direction)
+
+Return an array of vertices which will be affected if `v` changes size in direction `d`.
+"""
+function all_in_Δsize_graph(v::AbstractVertex, d::Direction, visited=AbstractVertex[])
+    v in visited && return visited
+    push!(visited, v)
+    all_in_Δsize_graph(trait(v),d, v, visited)
+    return visited
+end
+function all_in_Δsize_graph(v::AbstractVertex, d::Both, visited=AbstractVertex[])
+    all_in_Δsize_graph(v, Input(), visited)
+    all_in_Δsize_graph(v, Output(), visited)
+    return visited
+end
+
+
+neighbours(::Input, v) = inputs(v)
+neighbours(::Output, v) = outputs(v)
+neighbours(::Both, v) = vcat(inputs(v), outputs(v))
+
+all_in_Δsize_graph(t::DecoratingTrait, d, v, visited) = all_in_Δsize_graph(base(t), d, v, visited)
+function all_in_Δsize_graph(::Immutable, ::Input, v, visited) end
+all_in_Δsize_graph(::SizeAbsorb, d, v, visited) = foreach(vn -> all_in_Δsize_graph(vn, opposite(d), visited), neighbours(d, v))
+function all_in_Δsize_graph(::SizeTransparent, d, v, visited)
+    foreach(vin -> all_in_Δsize_graph(vin, Output(), visited), inputs(v))
+    foreach(vout -> all_in_Δsize_graph(vout, Input(), visited), outputs(v))
+end
+
+"""
     AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
 
 Abstract type for strategies to change or align the sizes of vertices using JuMP.
@@ -1109,9 +1154,17 @@ SumNorm(sns::Pair{<:Real, <:JuMPNorm}...) = SumNorm(ScaleNorm.(first.(sns), last
 
 
 # Temp methods (hopefully) whose only purpose is to bridge the legacy API
-Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::T; s=nothing) where T <:Integer = Δsize(ΔNoutExact(v, Δ), all_in_graph(v))
+Δnout(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δ::Integer; s=nothing) = Δsize(Output(), v, Δ)
+Δnin(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δs::Maybe{<:Integer}...; s=nothing) = Δsize(Input(), v, Δs...)
 
-Δnin(::AbstractJuMPΔSizeStrategy, v::AbstractVertex, Δs::Maybe{T}...; s=nothing) where T <:Integer = Δsize(ΔNinExact(v, collect(Δs)), all_in_graph(v))
+"""
+    Δsize(d::Direction, v::AbstractVertex, Δ...)
+
+Change size of `v` by `Δ` in direction `d`.
+"""
+Δsize(d::Input, v, Δs::Maybe{T}...) where T <: Integer = Δsize(ΔNinExact(v, collect(Δs)), all_in_Δsize_graph(v, d))
+Δsize(d::Output, v, Δ::T) where T <: Integer = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
+
 
 """
     Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
@@ -1128,9 +1181,10 @@ end
 """
     Δsize(nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
 
-Set size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
+Set output size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
+Set input size of all keys `vi` in `nins` to `nins[vi]`.
 """
-function Δsize(nins::Dict{<:AbstractVertex, Vector{Int}}, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+function Δsize(nins::Dict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
 
     for (i, vi) in enumerate(vertices)
@@ -1146,8 +1200,8 @@ function Δsize(nins::Dict{<:AbstractVertex, Vector{Int}}, nouts::AbstractVector
     end
 end
 
-function Δnin_no_prop(v, Δs::Integer...)
-    any(Δs .!= 0) || return
+function Δnin_no_prop(v, Δs::Maybe{<:Integer}...)
+    any(skipmissing(Δs) .!= 0) || return
     Δnin_no_prop(trait(v), v, Δs)
 end
 Δnin_no_prop(t::DecoratingTrait, v, Δs) = Δnin_no_prop(base(t), v, Δs)
@@ -1471,7 +1525,10 @@ accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_statu
 
 function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
     nouts = round.(Int, JuMP.value.(noutvars))
-    nins = Dict(vs .=> map(vi -> nouts[indexin(inputs(vi), vs)], vs))
+    mapnout(i::Integer) = nouts[i]
+    mapnout(i::Nothing) = missing
+
+    nins = Dict(vs .=> map(vi -> mapnout.(indexin(inputs(vi), vs)), vs))
     return nins, nouts
 end
 

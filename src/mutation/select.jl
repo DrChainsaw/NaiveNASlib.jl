@@ -39,6 +39,20 @@ Reverts output size change for a vertex.
 struct NoutRevert <: AbstractSelectionStrategy end
 
 """
+    SelectDirection <: AbstractSelectionStrategy
+    SelectDirection()
+    SelectDirection(s::AbstractSelectionStrategy)
+
+Select indices for a vertex using `AbstractSelectionStrategy s` (default `OutSelect{Exact}`) in only the direction(s) in which the vertex has changed size.
+
+Intended use it to reduce the number of constraints for a `AbstractJuMPSelectionStrategy` as only the parts of the graph which are changed will be considered.
+"""
+struct SelectDirection <: AbstractSelectionStrategy
+    strategy::AbstractSelectionStrategy
+end
+SelectDirection() = SelectDirection(OutSelectExact())
+
+"""
     AbstractJuMPSelectionStrategy
 
 Base type for how to select the exact inputs/outputs indices from a vertex given a size change using JuMP to handle the constraints.
@@ -462,10 +476,34 @@ Default strategy intended to be used when adding some extra constraints or objec
 """
 struct DefaultJuMPSelectionStrategy <: AbstractJuMPSelectionStrategy end
 
-Δoutputs(v, valuefun::Function) = Δoutputs(OutSelectExact(), v, valuefun)
+"""
+    Δoutputs(v::AbstractVertex, valuefun::Function)
+    Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function)
+    Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function)
+    Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function)
 
-# TODO: Change all_in_graph to all_in_Δsize_graph to reduce size of problem
+Change outputs of `v` according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
+
+Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output index `i` shall be preferred over `j` for vertex `vx`.
+
+If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
+"""
+Δoutputs(v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), v, valuefun)
 Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
+function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
+    nin_change = nin_org(v) != nin(v)
+    nout_change = nout(v) != nout(v)
+    if nout_change && nin_change
+        Δoutputs(s.strategy, Both(), v, valuefun)
+    elseif nout_change
+        Δoutputs(s.strategy, Output(), v, valuefun)
+    elseif nin_change
+        Δoutputs(s.strategy, Input(), v, valuefun)
+    end
+ end
+
+Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), d, v, valuefun)
+Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_Δsize_graph(v, d), valuefun)
 
 function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
@@ -493,11 +531,13 @@ function Δoutputs(ins::Dict, outs::Dict, vs::AbstractVector{<:AbstractVertex})
 end
 
 function Δnin_no_prop(v) end
+function Δnin_no_prop(v, inds::Missing) end
 function Δnin_no_prop(v, inds::AbstractVector{<:Integer}...)
     any(inds .!= [1:insize for insize in nin(v)]) || return
     Δnin_no_prop(trait(v), v, inds)
 end
 
+function Δnout_no_prop(v, inds::Missing) end
 function Δnout_no_prop(v, inds::AbstractVector{<:Integer})
     inds == 1:nout(v) && return
     Δnout_no_prop(trait(v), v, inds)
@@ -524,6 +564,10 @@ end
 
 function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Vector{AbstractVertex}, valuefun::Function)
     model = selectmodel(s, vertices, values)
+
+    # The binary variables `outselectvars` tells us which existing output indices to select
+    # The binary variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
+    # Thus, the result will consist of all selected indices with possibly interlaced -1s
 
     outselectvars = Dict(vertices .=> map(v -> @variable(model, [1:length(valuefun(v))], binary=true), vertices))
     outinsertvars = Dict(vertices .=> map(v -> @variable(model, [1:nout(v)], binary=true), vertices))

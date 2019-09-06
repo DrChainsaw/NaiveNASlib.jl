@@ -328,7 +328,6 @@ function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
     return false
 end
 
-
 function prealignsizes(s::SelectOutputs, vin, vout, will_rm)
     if prealignsizes(s.alignstrategy, vin, vout, will_rm)
         Δoutputs(s.selectstrategy, vin, s.valuefun)
@@ -411,7 +410,7 @@ function postalignsizes(s::PostAlignJuMP, vin, vout)
     end
     success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), vertices)
     if !success
-        postalignsizes(s.fallback, vin, vout, t)
+        return postalignsizes(s.fallback, vin, vout, t)
     end
     Δsize(nins, nouts, vertices)
 end

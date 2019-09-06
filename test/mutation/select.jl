@@ -35,7 +35,7 @@
         @test size(g(ones(1, 3))) == (1, nout(v2))
 
         Δnout(v1, 3)
-        Δoutputs(v1, v->1:nout_org(v))
+        Δoutputs(Output(), v1, v->1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,-1,-1,-1]
         apply_mutation(g)
@@ -106,7 +106,7 @@
         @test nout(v1) == 9
         @test nout(v2) == 4
 
-        Δoutputs(v4, v->1:nout_org(v))
+        Δoutputs(Output(), v4, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 9
@@ -151,7 +151,7 @@
         @test nout(v2) == 4
         @test nout(v3) == 5
 
-        Δoutputs(v6, v->1:nout_org(v))
+        Δoutputs(Output(), v6, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 9
@@ -225,7 +225,7 @@
         @test nout(v4) == 7
 
         # Works on the first try this time around
-        Δoutputs(v7, v->1:nout_org(v))
+        Δoutputs(Output(), v7, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 10
@@ -259,7 +259,7 @@
         @test nout(v3) == 5
         @test nout(v4) == 8
 
-        @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v -> 1:nout_org(v))
+        @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(Output(), v7, v -> 1:nout_org(v))
         apply_mutation(g)
 
         # Sizes can't change when increasing, even if problem is relaxed :(
@@ -323,7 +323,7 @@
         @test nout(v7) == 15
         @test nout(v0) == 12
 
-        Δoutputs(v1, v->1:nout_org(v))
+        Δoutputs(Output(), v1, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v6) == 5
@@ -369,7 +369,7 @@
 
         # What happened now is that nin(v4) got decreased from 4 to 2. We now need to select which inputs to keep
         # However, there is absolutely no need at all to select anything from v2 and before as they have not changed.
-        Δoutputs(v2, v -> 1:nout_org(v))
+        Δoutputs(Output(), v2, v -> 1:nout_org(v))
 
         @test in_inds(op(v4))[] == out_inds(op(v1)) == out_inds(op(v2)) == out_inds(op(v3)) == [1, 2]
 
@@ -390,7 +390,7 @@
 
         remove!(v3, RemoveStrategy())
 
-        Δoutputs(v2, v -> 1:nout_org(v))
+        Δoutputs(Output(), v2, v -> 1:nout_org(v))
 
         @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3,-1,-1]]
         @test out_inds(op(v4)) == 1:9
@@ -432,7 +432,7 @@
         g = CompGraph(inpt, v4)
         @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
 
-        remove!(v3, RemoveStrategy(SelectOutputs(valuefun= v -> 1:nout_org(v))))
+        remove!(v3, RemoveStrategy(SelectOutputs(select=SelectDirection(), valuefun = v -> 1:nout_org(v))))
 
         @test out_inds(op(v2)) == [1,2,3,-1,-1]
         @test in_inds(op(v4))[] == [1,2,3,4,5]

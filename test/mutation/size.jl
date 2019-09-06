@@ -71,6 +71,7 @@
             @test outputs.(inputs(io)) == [[io]]
             @test outputs.(inputs(tv)) == [[tv]]
             @test outputs(iv) == [tv]
+            @test neighbours(Both(), tv) == [iv, io]
 
             Δnout(iv, 3)
             @test [nout(iv)] == nin(tv) == [nout(tv)] == nin(io) == [5]
@@ -104,6 +105,8 @@
             @test outputs.(inputs(tv)) == [[tv], [tv]]
             @test outputs(iv1) == [tv]
             @test outputs(iv2) == [tv]
+            @test neighbours(Both(), tv) == [iv1, iv2, io1]
+
 
             @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == [5]
 
@@ -1007,7 +1010,7 @@
             fv_out = JuMP.@variable(data.model, integer=true)
             JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
 
-            ins = inputs(data.vertex)
+            ins = filter(vin -> vin in keys(data.noutdict), inputs(data.vertex))
             fv_in = JuMP.@variable(data.model, [1:length(ins)], integer=true)
             JuMP.@constraint(data.model, [i=1:length(ins)], c.constraint * fv_in[i] ==  nout(ins[i]) - data.noutdict[ins[i]])
         end
@@ -1351,7 +1354,7 @@
             @test NaiveNASlib.compressed_string([-1, 5:9...,-ones(Int, 6)...,23,25,99,100,102,23:32...,34]) ==  "[-1, 5,…, 9, -1×6, 23, 25, 99, 100, 102, 23,…, 32, 34]"
             @test NaiveNASlib.compressed_string([1,2,4:13..., 10:20...,-1]) == "[1, 2, 4,…, 13, 10,…, 20, -1]"
         end
-        
+
         set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
         set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
 
