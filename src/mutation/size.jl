@@ -967,7 +967,7 @@ function all_in_Δsize_graph(v::AbstractVertex, d::Direction, visited=AbstractVe
 end
 function all_in_Δsize_graph(v::AbstractVertex, d::Both, visited=AbstractVertex[])
     all_in_Δsize_graph(v, Input(), visited)
-    all_in_Δsize_graph(v, Output(), visited)
+    foreach(vout -> all_in_Δsize_graph(vout, Input(), visited), outputs(v))
     return visited
 end
 

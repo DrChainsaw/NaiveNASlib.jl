@@ -19,6 +19,39 @@
         end
     end
 
+    @testset "SelectDirection" begin
+
+        mutable struct TestProbe <: AbstractSelectionStrategy
+            vs
+            function TestProbe(v)
+                tp = new(nothing)
+                Δoutputs(SelectDirection(tp), v, v -> error("Shall not be called!"))
+                return tp
+            end
+        end
+        NaiveNASlib.Δoutputs(s::TestProbe, vs::AbstractVector{<:AbstractVertex}, vfun::Function) = s.vs = Set(vs)
+
+        v1 = av(iv(3), 5, "v1")
+        v2 = av(v1, 4, "v2")
+        v3 = av(v2, 3, "v3")
+
+        tp = TestProbe(v2)
+        @test tp.vs == nothing
+
+        Δnin(v2, -1)
+        tp = TestProbe(v2)
+        @test tp.vs == Set([v2, v1])
+
+        Δnout(v2, 1)
+        tp = TestProbe(v2)
+        @test tp.vs == Set([v1, v2, v3])
+
+        Δnin(v2, 1)
+        tp = TestProbe(v2)
+        @test tp.vs == Set([v2, v3])
+
+    end
+
     @testset "Absorb 2 Absorb" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
