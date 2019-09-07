@@ -921,7 +921,7 @@ SizeDiGraph(v::AbstractVertex)= SizeDiGraph(flatten(v))
 
 Return a SizeDiGraph of all given vertices
 """
-function SizeDiGraph(vertices::AbstractArray{AbstractVertex,1})
+function SizeDiGraph(vertices::AbstractArray{<:AbstractVertex,1})
     g = MetaDiGraph(0,:size, 0)
     set_indexing_prop!(g, :vertex)
     add_vertices!(g, length(vertices))
@@ -959,16 +959,16 @@ end
 
 Return an array of vertices which will be affected if `v` changes size in direction `d`.
 """
-function all_in_Δsize_graph(v::AbstractVertex, d::Direction, visited=AbstractVertex[])
-    v in visited && return visited
-    push!(visited, v)
+function all_in_Δsize_graph(v::AbstractVertex, d::Direction, visited=[])
+    (v, d) in visited && return visited
+    push!(visited, (v, d))
     all_in_Δsize_graph(trait(v),d, v, visited)
-    return visited
+    return unique(map(e -> e[1], visited))
 end
-function all_in_Δsize_graph(v::AbstractVertex, d::Both, visited=AbstractVertex[])
+function all_in_Δsize_graph(v::AbstractVertex, d::Both, visited=[])
     all_in_Δsize_graph(v, Input(), visited)
     foreach(vout -> all_in_Δsize_graph(vout, Input(), visited), outputs(v))
-    return visited
+    return unique(map(e -> e[1], visited))
 end
 
 
@@ -1178,7 +1178,7 @@ Change size of `v` by `Δ` in direction `d`.
 
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
-function Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+function Δsize(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
         Δsize(nins, nouts, vertices)

@@ -155,14 +155,14 @@ function Δnout(s::OnlyFor, v, inds::AbstractVector{<:Integer})
 end
 
 
-function solve_outputs_selection(s::LogSelection, vertices::Vector{AbstractVertex}, valuefun::Function)
+function solve_outputs_selection(s::LogSelection, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     @logmsg s.level s.msgfun(vertices[1])
     return solve_outputs_selection(s.andthen, vertices, valuefun)
 end
 
-solve_outputs_selection(s::SelectionFail, vertices::Vector{AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
+solve_outputs_selection(s::SelectionFail, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
 
-function solve_outputs_selection(s::NoutRevert, vertices::Vector{AbstractVertex}, valuefun::Function)
+function solve_outputs_selection(s::NoutRevert, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     for v in vertices
         diff = nout_org(v) - nout(v)
         if diff != 0
@@ -175,7 +175,7 @@ end
 
 
 """
-    solve_outputs_selection(s::AbstractSelectionStrategy, vertices::Vector{AbstractVertex}, valuefun::Function)
+    solve_outputs_selection(s::AbstractSelectionStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
 
 Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input indices and `noutdict[vi]` are new output indices for each vertex `vi` in `vertices`.
 
@@ -183,7 +183,7 @@ The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ 
 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
-function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Vector{AbstractVertex}, valuefun::Function)
+function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     model = selectmodel(s, vertices, values)
 
     # The binary variables `outselectvars` tells us which existing output indices to select
