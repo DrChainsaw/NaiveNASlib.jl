@@ -103,7 +103,7 @@ If provided, `Direction d` will narrow down the set of vertices to evaluate so t
 Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
 function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
     nin_change = nin_org(v) != nin(v)
-    nout_change = nout(v) != nout(v)
+    nout_change = nout_org(v) != nout(v)
     if nout_change && nin_change
         Δoutputs(s.strategy, Both(), v, valuefun)
     elseif nout_change

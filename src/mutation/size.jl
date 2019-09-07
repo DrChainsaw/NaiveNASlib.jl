@@ -893,7 +893,7 @@ end
 ## Generic helper methods end
 
 """
-    SizeDiGraph(g::CompGraph)
+    SizeDiGraph(cg::CompGraph)
 
 Return `cg` as a `MetaDiGraph g`.
 
