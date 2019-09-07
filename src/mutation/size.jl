@@ -977,7 +977,7 @@ neighbours(::Output, v) = outputs(v)
 neighbours(::Both, v) = vcat(inputs(v), outputs(v))
 
 all_in_Δsize_graph(t::DecoratingTrait, d, v, visited) = all_in_Δsize_graph(base(t), d, v, visited)
-function all_in_Δsize_graph(::Immutable, ::Input, v, visited) end
+function all_in_Δsize_graph(::Immutable, ::Direction, v, visited) end
 all_in_Δsize_graph(::SizeAbsorb, d, v, visited) = foreach(vn -> all_in_Δsize_graph(vn, opposite(d), visited), neighbours(d, v))
 function all_in_Δsize_graph(::SizeTransparent, d, v, visited)
     foreach(vin -> all_in_Δsize_graph(vin, Output(), visited), inputs(v))
@@ -1015,7 +1015,7 @@ struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
     LogΔSizeExec(level::Logging.LogLevel, msg::String)
     LogΔSizeExec(level::Logging.LogLevel, msg::String, andthen::AbstractJuMPΔSizeStrategy)
 
-Throws an `ErrorException` with message `msg`.
+Logs `msg` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen`.
 """
 struct LogΔSizeExec <: AbstractJuMPΔSizeStrategy
     level::LogLevel

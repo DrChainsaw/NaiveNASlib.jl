@@ -229,6 +229,7 @@ function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTra
     sizeconstraint!(s, t, v, data)
     inoutconstraint!(s, t, v, data)
 end
+
 nselect_out(v) = min(nout(v), nout_org(v))
 function sizeconstraint!(::OutSelect{Exact}, t, v, data)
     @constraint(data.model, sum(data.outselectvars[v]) == nselect_out(v))
