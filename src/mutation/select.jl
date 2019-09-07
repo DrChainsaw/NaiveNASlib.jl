@@ -131,8 +131,8 @@ Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` re
 function Δoutputs(ins::Dict, outs::Dict, vs::AbstractVector{<:AbstractVertex})
 
     for vi in vs
-        Δnin_no_prop(vi, ins[vi]...)
-        Δnout_no_prop(vi, outs[vi])
+        Δnin(OnlyFor(), vi, ins[vi]...)
+        Δnout(OnlyFor(), vi, outs[vi])
     end
 
     for vi in vs
@@ -141,17 +141,17 @@ function Δoutputs(ins::Dict, outs::Dict, vs::AbstractVector{<:AbstractVertex})
     end
 end
 
-function Δnin_no_prop(v) end
-function Δnin_no_prop(v, inds::Missing) end
-function Δnin_no_prop(v, inds::AbstractVector{<:Integer}...)
+function Δnin(::OnlyFor, v) end
+function Δnin(::OnlyFor, v, inds::Missing) end
+function Δnin(s::OnlyFor, v, inds::AbstractVector{<:Integer}...)
     any(inds .!= [1:insize for insize in nin(v)]) || return
-    Δnin_no_prop(trait(v), v, inds)
+    Δnin(s, trait(v), v, inds)
 end
 
-function Δnout_no_prop(v, inds::Missing) end
-function Δnout_no_prop(v, inds::AbstractVector{<:Integer})
+function Δnout(::OnlyFor, v, inds::Missing) end
+function Δnout(s::OnlyFor, v, inds::AbstractVector{<:Integer})
     inds == 1:nout(v) && return
-    Δnout_no_prop(trait(v), v, inds)
+    Δnout(s, trait(v), v, inds)
 end
 
 

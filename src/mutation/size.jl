@@ -985,6 +985,13 @@ function all_in_Δsize_graph(::SizeTransparent, d, v, visited)
 end
 
 """
+    OnlyFor <: AbstractΔSizeStrategy
+
+Change size only for the provided vertex.
+"""
+struct OnlyFor <: AbstractΔSizeStrategy end
+
+"""
     AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
 
 Abstract type for strategies to change or align the sizes of vertices using JuMP.
@@ -1189,8 +1196,8 @@ function Δsize(nins::Dict, nouts::AbstractVector{<:Integer}, vertices::Abstract
 
     for (i, vi) in enumerate(vertices)
         ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
-        Δnin_no_prop(vi, ninΔs...)
-        Δnout_no_prop(vi, Δnouts[i])
+        Δnin(OnlyFor(), vi, ninΔs...)
+        Δnout(OnlyFor(), vi, Δnouts[i])
     end
 
     for (i, vi) in enumerate(vertices)
@@ -1200,28 +1207,28 @@ function Δsize(nins::Dict, nouts::AbstractVector{<:Integer}, vertices::Abstract
     end
 end
 
-function Δnin_no_prop(v, Δs::Maybe{<:Integer}...)
+function Δnin(s::OnlyFor, v, Δs::Maybe{<:Integer}...)
     any(skipmissing(Δs) .!= 0) || return
-    Δnin_no_prop(trait(v), v, Δs)
+    Δnin(s, trait(v), v, Δs)
 end
-Δnin_no_prop(t::DecoratingTrait, v, Δs) = Δnin_no_prop(base(t), v, Δs)
-function Δnin_no_prop(t::SizeChangeLogger, v, Δs)
+Δnin(s::AbstractΔSizeStrategy, t::DecoratingTrait, v, Δs) = Δnin(s, base(t), v, Δs)
+function Δnin(s::AbstractΔSizeStrategy, t::SizeChangeLogger, v, Δs)
 
     @logmsg t.level "Change nin of $(infostr(t, v)) by $(join(compressed_string.(Δs), ", "))"
-    Δnin_no_prop(base(t), v, Δs)
+    Δnin(s, base(t), v, Δs)
 end
-Δnin_no_prop(::MutationSizeTrait, v, Δs) = Δnin(op(v), Δs...)
+Δnin(::OnlyFor, ::MutationSizeTrait, v, Δs) = Δnin(op(v), Δs...)
 
-function Δnout_no_prop(v, Δ::Integer)
+function Δnout(s::OnlyFor, v, Δ::Integer)
     Δ == 0 && return
-    Δnout_no_prop(trait(v), v, Δ)
+    Δnout(s, trait(v), v, Δ)
 end
-Δnout_no_prop(t::DecoratingTrait, v, Δ) = Δnout_no_prop(base(t), v, Δ)
-function Δnout_no_prop(t::SizeChangeLogger, v, Δ)
+Δnout(s::AbstractΔSizeStrategy, t::DecoratingTrait, v, Δ) = Δnout(s, base(t), v, Δ)
+function Δnout(s::AbstractΔSizeStrategy, t::SizeChangeLogger, v, Δ)
     @logmsg t.level "Change nout of $(infostr(t, v)) by $(compressed_string(Δ))"
-    Δnout_no_prop(base(t), v, Δ)
+    Δnout(s, base(t), v, Δ)
 end
-Δnout_no_prop(::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
+Δnout(::OnlyFor, ::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
 
 compressed_string(x) = string(x)
 struct RangeState
