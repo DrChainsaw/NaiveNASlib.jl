@@ -236,6 +236,11 @@ function sizeconstraint!(::OutSelect{Exact}, t, v, data)
     sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
 end
 
+function sizeconstraint!(::OutSelect{Relaxed}, t, v, data)
+    @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
+    sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
+end
+
 function sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data)
     # Handle insertions
     # The constraint that either there are no new outputs or the total number of outputs must be equal to the length of outinsertvars is a somewhat unfortunate result of the approach chosen to solve the problem.
