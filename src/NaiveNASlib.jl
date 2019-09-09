@@ -38,7 +38,7 @@ export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSiz
 # Size util
 export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output, Both, all_in_graph, all_in_Δsize_graph, Δsize, newsizes, neighbours
 
-export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, Exact, Relaxed
+export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
 
 #Selection util
 export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, SelectDirection, Δoutputs, solve_outputs_selection

@@ -1110,7 +1110,7 @@ struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
     vstrat::AbstractJuMPΔSizeStrategy
     fallback::AbstractJuMPΔSizeStrategy
 end
-AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError()) = AlignNinToNout(vstrat, fallback)
+AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
 AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
 fallback(s::AlignNinToNout) = s.fallback
 
