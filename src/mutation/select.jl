@@ -53,6 +53,21 @@ end
 SelectDirection() = SelectDirection(OutSelectExact())
 
 """
+    ApplyAfter <: AbstractSelectionStrategy
+    ApplyAfter()
+    ApplyAfter(s::AbstractSelectionStrategy)
+    ApplyAfter(apply::Function, s::AbstractSelectionStrategy)
+
+Invokes `apply(v)` for each `AbstractVertex v` which was changed as a result of `AbstractSelectionStrategy s`.
+"""
+struct ApplyAfter <: AbstractSelectionStrategy
+    apply::Function
+    strategy::AbstractSelectionStrategy
+end
+ApplyAfter() = ApplyAfter(OutSelectExact())
+ApplyAfter(s::AbstractSelectionStrategy) = ApplyAfter(apply_mutation, s)
+
+"""
     AbstractJuMPSelectionStrategy
 
 Base type for how to select the exact inputs/outputs indices from a vertex given a size change using JuMP to handle the constraints.
@@ -115,6 +130,12 @@ function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
 
 Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), d, v, valuefun)
 Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_Δsize_graph(v, d), valuefun)
+
+function Δoutputs(s::ApplyAfter, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
+    Δoutputs(s.strategy, vs, valuefun)
+    # This is not 100% safe in all cases, as a strategy can chose to not do anything even in this case (although it probably should)
+    foreach(s.apply, filter(v -> nout(v) != nout_org(v) || nin(v) != nin_org(v), vs))
+end
 
 function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)

@@ -52,6 +52,20 @@
 
     end
 
+    @testset "ApplyAfter" begin
+        v1 = av(iv(3), 5, "v1")
+        v2 = av(v1, 4, "v2")
+        v3 = av(v2, 3, "v3")
+
+        res = []
+        apply(v) = push!(res, v)
+
+        Δnout(v2, -1)
+        Δoutputs(ApplyAfter(apply, OutSelectExact()), v2, v -> 1:nout_org(v))
+
+        @test res == [v2, v3]
+    end
+
     @testset "Absorb 2 Absorb" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
