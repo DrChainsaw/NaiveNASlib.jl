@@ -90,7 +90,7 @@ nin_org(v::InputSizeVertex) = []
 nin_org(v::AbstractVertex) = nin_org(trait(v), v)
 nin_org(t::DecoratingTrait, v) = nin_org(base(t), v)
 nin_org(::MutationSizeTrait, v::MutationVertex) = nin_org(op(v))
-nin_org(::Immutable, v) = nout(v)
+nin_org(::Immutable, v) = nin(v)
 
 
 """
