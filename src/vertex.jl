@@ -124,7 +124,7 @@ function show_less(io::IO, v::CompVertex)
     print(io, ")")
 end
 
-function show(io::IO, v::CompVertex)
+function Base.show(io::IO, v::CompVertex)
     show_less(io, v)
     print(io, ", inputs=")
     show(io, inputs(v))
@@ -140,6 +140,7 @@ name(v::InputVertex) = v.name
 
 abstract type InfoStr end
 Base.Broadcast.broadcastable(i::InfoStr) = Ref(i)
+Base.show(io::IO, istr::T) where T<:InfoStr = print(io, T)
 
 struct RawInfoStr <: InfoStr end
 struct NameInfoStr <: InfoStr end

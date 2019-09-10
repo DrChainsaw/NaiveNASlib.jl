@@ -22,14 +22,16 @@ Default strategies should however be selected based on case so that things alway
 abstract type AbstractAlignSizeStrategy end
 
 """
-    NoSizeChange
+    NoSizeChange <: AbstractAlignSizeStrategy
+    NoSizeChange()
 
 Don't do any size change.
 """
 struct NoSizeChange <: AbstractAlignSizeStrategy end
 
 """
-    ChangeNinOfOutputs
+    ChangeNinOfOutputs <: AbstractAlignSizeStrategy
+    ChangeNinOfOutputs(Δoutsize)
 
 Just sets `nin` of each output to the provided value. Sometimes you just know the answer...
 """
@@ -38,14 +40,17 @@ struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
 end
 
 """
-    FailAlignSizeError
+    FailAlignSizeError <: AbstractAlignSizeStrategy
+    FailAlignSizeError()
 
 Throws an error.
 """
 struct FailAlignSizeError <: AbstractAlignSizeStrategy end
 
 """
-    FailAlignSizeWarn
+    FailAlignSizeWarn <: AbstractAlignSizeStrategy
+    FailAlignSizeWarn()
+    FailAlignSizeWarn(;andthen, msgfun)
 
 Logs warning and then proceeds with the next action.
 """
@@ -56,7 +61,8 @@ end
 FailAlignSizeWarn(;andthen=FailAlignSizeRevert(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
 
 """
-    FailAlignSizeRevert
+    FailAlignSizeRevert <: AbstractAlignSizeStrategy
+    FailAlignSizeRevert()
 
 Reverts new/removed edges (if any).
 
@@ -69,7 +75,9 @@ Same if `vout` has inputs `[v1,v2]` and `create_edge!(v1,vout)` is called.
 struct FailAlignSizeRevert <: AbstractAlignSizeStrategy end
 
 """
-    AlignSizeBoth
+    AlignSizeBoth <: AbstractAlignSizeStrategy
+    AlignSizeBoth()
+    AlignSizeBoth(fallback)
 
 Align sizes by changing both input and output considering any Δfactors.
 Fallback to another strategy (default `FailAlignSizeError`) if size change is not possible.
@@ -80,7 +88,9 @@ end
 AlignSizeBoth() = AlignSizeBoth(FailAlignSizeError())
 
 """
-    DecreaseBigger
+    DecreaseBigger <: AbstractAlignSizeStrategy
+    DecreaseBigger()
+    DecreaseBigger(fallback)
 
 Try to align size by decreasing in the direction (in/out) which has the bigger size.
 Fallback to another strategy (default `AlignSizeBoth`) if size change is not possible.
@@ -91,7 +101,9 @@ end
 DecreaseBigger() = DecreaseBigger(AlignSizeBoth())
 
 """
-    IncreaseSmaller
+    IncreaseSmaller <: AbstractAlignSizeStrategy
+    IncreaseSmaller()
+    IncreaseSmaller(fallback)
 
 Try to align size by increasing in the direction (in/out) which has the smaller size.
 Fallback to another strategy (default `DecreaseBigger`) if size change is not possible.
@@ -102,7 +114,38 @@ end
 IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
 
 """
-    CheckNoSizeCycle
+    SelectOutputs <: AbstractAlignSizeStrategy
+    SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v)))
+
+First align size using `align`, then select outputs (through `Δoutputs`) using `select` and `valuefun` if size alignment is successful.
+
+Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
+"""
+struct SelectOutputs <: AbstractAlignSizeStrategy
+    selectstrategy::AbstractSelectionStrategy
+    alignstrategy::AbstractAlignSizeStrategy
+    valuefun::Function
+end
+SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v))) = SelectOutputs(select, align, valuefun)
+
+"""
+    ApplyMutation <: AbstractAlignSizeStrategy
+    ApplyMutation()
+    ApplyMutation(strategy::AbstractAlignSizeStrategy)
+
+First align size using `strategy`, then invoke `apply_mutation` if size alignment is successful.
+
+Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
+"""
+struct ApplyMutation <: AbstractAlignSizeStrategy
+    strategy::AbstractAlignSizeStrategy
+end
+ApplyMutation() = ApplyMutation(SelectOutputs())
+
+"""
+    CheckNoSizeCycle <: AbstractAlignSizeStrategy
+    CheckNoSizeCycle()
+    CheckNoSizeCycle(;ifok, ifnok)
 
 Check if a size change in one direction causes a change in the other direction and execute strategy `ifnok` (default `FailAlignSizeWarn`) if this is the case.
 Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
@@ -119,7 +162,9 @@ CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,
 
 
 """
-    CheckAligned
+    CheckAligned <:AbstractAlignSizeStrategy
+    CheckAligned()
+    CheckAligned(ifnot)
 
 Check if sizes are already aligned before making a change and return "go ahead" (`true`) if this is the case.
 If not, proceed to execute another strategy (default `CheckNoSizeCycle`).
@@ -131,7 +176,9 @@ CheckAligned() = CheckAligned(CheckNoSizeCycle())
 
 
 """
-    AdjustToCurrentSize
+    AdjustToCurrentSize <: AbstractAlignSizeStrategy
+    AdjustToCurrentSize()
+    AdjustToCurrentSize(fallback)
 
 Adjust `nin` of all `outputs` and/or `nout` of all `inputs` to the current input/output size so that `sum(nin.(inputs(v))) == nout(v)` and so that `all(nin.(outputs(v)) .== nout(v))`.
 
@@ -143,7 +190,28 @@ end
 AdjustToCurrentSize() = AdjustToCurrentSize(FailAlignSizeError())
 
 """
+    PostAlignJuMP <: AbstractAlignSizeStrategy
+    PostAlignJuMP()
+    PostAlignJuMP(s::AbstractAlignSizeStrategy)
+    PostAlignJuMP(s::AbstractAlignSizeStrategy, fallback)
+
+Align sizes using a `AbstractJuMPΔSizeStrategy`.
+
+This is a post-align strategy, i.e it will be applied after a structural change has been made.
+"""
+struct PostAlignJuMP <: AbstractAlignSizeStrategy
+    sizestrat::AbstractJuMPΔSizeStrategy
+    fallback
+end
+PostAlignJuMP() = PostAlignJuMP(DefaultJuMPΔSizeStrategy())
+PostAlignJuMP(s::AbstractJuMPΔSizeStrategy) = PostAlignJuMP(s, FailAlignSizeError())
+
+"""
     RemoveStrategy
+    RemoveStrategy()
+    RemoveStrategy(rs::AbstractConnectStrategy)
+    RemoveStrategy(as::AbstractAlignSizeStrategy)
+    RemoveStrategy(rs::AbstractConnectStrategy, as::AbstractAlignSizeStrategy)
 
 Strategy for removal of a vertex.
 
@@ -252,6 +320,22 @@ function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     return true
 end
 
+function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
+    if prealignsizes(s.strategy, vin, vout, will_rm)
+        apply_mutation.(all_in_graph(vin))
+        return true
+    end
+    return false
+end
+
+function prealignsizes(s::SelectOutputs, vin, vout, will_rm)
+    if prealignsizes(s.alignstrategy, vin, vout, will_rm)
+        Δoutputs(s.selectstrategy, vin, s.valuefun)
+        return nout(vin) == tot_nin(vout)
+    end
+    return false
+end
+
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, will_rm)
     Δinsize = nout(vin) - tot_nin(vout)
     Δoutsize = -Δinsize
@@ -313,12 +397,24 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout)
      postalignsizes(s.andthen, vin, vout)
  end
  function postalignsizes(s::FailAlignSizeRevert, vin, vout)
-     # TODO: Will fail (silently) in case vin is input to vout many times! CBA to iix that edge case now...
+     # TODO: Will fail (silently) in case vin is input to vout many times! CBA to fix that edge case now...
      vin ∈ inputs(vout) && return remove_edge!(vin, vout, strategy=NoSizeChange())
      vin ∉ inputs(vout) && return create_edge!(vin, vout, strategy=NoSizeChange())
  end
 
 # Ok, this one actually does something...
+function postalignsizes(s::PostAlignJuMP, vin, vout)
+    vertices = all_in_graph(vin)
+    if vin ∉ inputs(vout)
+        deleteat!(vertices, vertices .== vin)
+    end
+    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), vertices)
+    if !success
+        return postalignsizes(s.fallback, vin, vout, t)
+    end
+    Δsize(nins, nouts, vertices)
+end
+
 function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
 
     # At this point we expect to have nout(vout) to be the correct value while nin of the output edges of vout needs to be adjusted. Problem is that there might be Δfactors (I'm really starting to hate them now) or immutable vertices which prevents us from just changing the input size of the output edges to nout(vout) - nin(voo[i]) where voo[i] is output #i of vout.

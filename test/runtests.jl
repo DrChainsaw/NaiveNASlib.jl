@@ -1,35 +1,35 @@
 using NaiveNASlib
 using Test
+import JuMP
 
 include("testutil.jl")
 
 @testset "NaiveNASlib.jl" begin
 
-    @info "Testing computation"
+        @info "Testing computation"
 
-    include("vertex.jl")
-    include("compgraph.jl")
+        include("vertex.jl")
+        include("compgraph.jl")
 
-    @info "Testing mutation"
+        @info "Testing mutation"
 
-    include("mutation/op.jl")
-    include("mutation/vertex.jl")
+        include("mutation/op.jl")
+        include("mutation/vertex.jl")
 
-    @info "Testing size mutation"
+        @info "Testing size mutation"
 
-    include("mutation/size.jl")
+        include("mutation/size.jl")
 
-    @info "Testing index mutation"
-    
-    include("mutation/apply.jl")
-    include("mutation/select.jl")
+        @info "Testing index mutation"
 
-    @info "Testing structural mutation"
+        include("mutation/apply.jl")
+        include("mutation/select.jl")
 
-    include("mutation/structure.jl")
+        @info "Testing structural mutation"
 
-    @info "Testing sugar"
+        include("mutation/structure.jl")
 
-    include("mutation/sugar.jl")
+        @info "Testing sugar"
 
+        include("mutation/sugar.jl")
 end

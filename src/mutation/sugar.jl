@@ -142,7 +142,7 @@ julia> v([1], [2, 3], [4, 5, 6])
  6
 ```
 """
-conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity, outwrap=identity) = vertex(outwrap((x...) -> cat(x..., dims=dims)), nout(v) + sum(nout.(vs)), traitdecoration(SizeStack()), v, vs..., mutation=mutation)
+conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity, outwrap=identity) = vertex(outwrap((x...) -> cat(x..., dims=dims)), sum(nout.((v, vs...))), traitdecoration(SizeStack()), v, vs..., mutation=mutation)
 
 
 """

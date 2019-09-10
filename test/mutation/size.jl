@@ -71,6 +71,7 @@
             @test outputs.(inputs(io)) == [[io]]
             @test outputs.(inputs(tv)) == [[tv]]
             @test outputs(iv) == [tv]
+            @test neighbours(Both(), tv) == [iv, io]
 
             Δnout(iv, 3)
             @test [nout(iv)] == nin(tv) == [nout(tv)] == nin(io) == [5]
@@ -104,6 +105,8 @@
             @test outputs.(inputs(tv)) == [[tv], [tv]]
             @test outputs(iv1) == [tv]
             @test outputs(iv2) == [tv]
+            @test neighbours(Both(), tv) == [iv1, iv2, io1]
+
 
             @test [nout(iv1) + nout(iv2)] == [sum(nin(tv))] == [nout(tv)] == nin(io1) == [5]
 
@@ -509,7 +512,6 @@
     end
 
     @testset "Size Mutation possibilities" begin
-
         # Helpers
         struct SizeConstraint constraint; end
         NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
@@ -806,11 +808,10 @@
     end
 
     @testset "SizeChangeLogger" begin
-        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
 
-        av(in, size ;name = "av") = AbsorbVertex(CompVertex(identity, in), IoSize(nout(in), size), traitfun(name))
-        sv(in...; name="sv") = StackingVertex(CompVertex(hcat, in...), traitfun(name))
-        iv(in...; name="iv") = InvariantVertex(CompVertex(hcat, in...), traitfun(name))
+        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+        av(in, size ;name = "av") = absorbvertex(identity, size, in, traitdecoration=traitfun(name))
+
 
         @testset "Log size change" begin
                 v1 = inpt(3, "v1")
@@ -853,4 +854,531 @@
         @test_throws ArgumentError Δnin(v5, 1, 1,s=NaiveNASlib.VisitState{Int}(v5, 1))
     end
 
+    @testset "Mutate tricky structures JuMP" begin
+
+        set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
+
+        ## Helper functions
+        rb(start, residual,name="add") = traitconf(tf(name)) >> start + residual
+        iv(in; name="iv") = invariantvertex(identity, in, traitdecoration=tf(name))
+        concd1(paths...;name="conc") = conc(paths..., dims=1, traitdecoration=tf(name))
+        mm(nin, nout) = x -> x * reshape(collect(1:nin*nout), nin, nout)
+        av(in, outsize, name="comp") = absorbvertex(mm(nout(in), outsize), outsize, in, traitdecoration = tf(name))
+        function stack(start, nouts...; bname = "stack")
+            # Can be done on one line with mapfoldl, but it is not pretty...
+            next = start
+            for i in 1:length(nouts)
+                next = av(next, nouts[i], "$(bname)_$i")
+            end
+            return next
+        end
+
+        @testset "Residual fork block" begin
+            start = av(inputvertex("in", 3), 9, "start")
+            p1 = stack(start, 3,4, bname = "p1")
+            p2 = stack(start, 4,5, bname = "p2")
+            resout = rb(start, concd1(p1, p2))
+            out = av(resout, 9, "out")
+
+            @test nout(resout) == 9
+
+            # Propagates to out, start outputs of start and also to p1 as objective is minimized by increasing p1 by 1
+            Δnout(p2, -2)
+            @test nout(p2) == 3
+            @test nin(out) == [nout(start)] == [8]
+            @test nout(p2) + nout(p1) == 8
+            #outputs(start) = first vertex in p1, p2 and resout (which has two inputs)
+            @test foldl(vcat, nin.(outputs(start))) == [8, 8, 8, 8]
+
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == [10]
+            @test foldl(vcat, nin.(outputs(start))) == [10, 10, 10, 10]
+        end
+
+        @testset "Half transparent residual fork block" begin
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 4, "split")
+            p1 = iv(split, name="p1") #Just an identity vertex
+            p2 = stack(split, 3,2,4, bname="p2")
+            resout = rb(start, concd1(p1, p2))
+            out = av(resout, 3, "out")
+
+            @test nout(resout) == 8
+
+            # Propagates to input of first vertex of p2, input of out and start
+            # via p1 and resout as well as to input of split
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+            @test foldl(vcat, nin.(outputs(split))) == [3, 3]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +1)
+            @test nin(out) == [nout(start)] == nin(split) == [9]
+        end
+
+        @testset "Transparent fork block" begin
+            start = av(inputvertex("in", 3), 4, "start")
+            p1 = iv(start, name="p1")
+            p2 = iv(start, name="p2")
+            joined = concd1(p1, p2, name="join")
+            out = av(joined, 3, "out")
+
+            @test nout(joined) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(start, -1)
+            @test nin(out) == [2nout(start)] == [6]
+
+            # Should basically undo the previous mutation
+            @test minΔninfactor(out) == 2
+            Δnin(out, +2)
+            @test nin(out) == [2nout(start)] == [8]
+        end
+
+        @testset "Transparent residual fork block" begin
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 4, "split")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            resout = rb(start, concd1(p1, p2, name="join"))
+            out = av(resout, 3, "out")
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+
+            @test minΔninfactor(out) == 2
+            Δnout(start, -2)
+            @test nin(out) == [nout(start)] == [6]
+            @test nout(split) == 3
+        end
+
+        @testset "Transparent residual fork block with single absorbing path" begin
+            start = av(inputvertex("in", 3), 8, "start")
+            split = av(start, 3, "split")
+            p1 = iv(split, name="p1")
+            p2 = iv(split, name="p2")
+            p3 = av(split, 2, "p3")
+            resout = rb(start, concd1(p1, p2, p3, name="join"), "add")
+            out = av(resout, 3, "out")
+
+            @test nout(resout) == 8
+
+            # Evil action: This will propagate to both p1 and p2 which are in
+            # turn both input to the conc before resout. Simple dfs will
+            # fail as one will hit the conc through p1 before having
+            # resolved the path through p2.
+            Δnout(split, -1)
+            @test nin(out) == [nout(start)] == nin(split) == [6]
+
+            # Should basically undo the previous mutation
+            Δnin(out, +2)
+            @test nin(out) == [nout(start)] == nin(split) == [8]
+
+            @test minΔninfactor(out) == 2
+            Δnout(start, -2)
+            @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)] == [6]
+            @test nout(split) == 2
+            @test nout(p3) == 2
+        end
+        set_defaultΔNoutStrategy(ΔNoutLegacy())
+        set_defaultΔNinStrategy(ΔNinLegacy())
+    end
+
+
+    @testset "Size Mutation possibilities using JuMP" begin
+        set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
+        # Helpers
+        struct SizeConstraint constraint; end
+        NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
+        NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+        function NaiveNASlib.compconstraint!(s, c::SizeConstraint, data)
+            fv_out = JuMP.@variable(data.model, integer=true)
+            JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
+
+            ins = filter(vin -> vin in keys(data.noutdict), inputs(data.vertex))
+            fv_in = JuMP.@variable(data.model, [1:length(ins)], integer=true)
+            JuMP.@constraint(data.model, [i=1:length(ins)], c.constraint * fv_in[i] ==  nout(ins[i]) - data.noutdict[ins[i]])
+        end
+        av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize), size, in..., traitdecoration=tf(name))
+        sv(in...; name="sv") = conc(in..., dims=1, traitdecoration = tf(name))
+        iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
+
+        @testset "SizeStack multi inputs" begin
+            v1 = av(6,3, inpt(3), name="v1")
+            v2 = av(7,2, inpt(3), name="v2")
+            v3 = av(8,2, inpt(3), name="v3")
+
+            sv1 = sv(v1, v2, name="sv1")
+            sv2 = sv(v3, v2, v1, v2, name="sv2")
+            @test minΔnoutfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == 12
+
+            # Expect only v1 to change as size change is not compatible with v2
+            Δnout(sv1, -3)
+            @test nin(sv1) == [nout(v1), nout(v2)] == [3, 7]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [8, 7, 3, 7]
+            @test nout(sv1) == sum(nin(sv1))
+            @test nout(sv2) == sum(nin(sv2))
+
+            # v1 can't change as it is too small already
+            Δnout(sv2, -6)
+            @test nin(sv1) == [nout(v1), nout(v2)] == [3, 5]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [6, 5, 3, 5]
+            @test nout(sv1) == sum(nin(sv1))
+            @test nout(sv2) == sum(nin(sv2))
+
+
+            # Evil action! Must have understanding that change will propagate to sv1 from
+            # both v1 and v2
+            Δnout(sv2, +9)
+            @test nin(sv1) == [nout(v1), nout(v2)] == [6, 7]
+            @test nin(sv2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [8, 7, 6, 7]
+            @test nout(sv1) == sum(nin(sv1))
+            @test nout(sv2) == sum(nin(sv2))
+
+        end
+
+        @testset "Stacked SizeStacks" begin
+            v1 = av(100,1, inpt(3), name="v1")
+            v2 = av(100,2, inpt(3), name="v2")
+            v3 = av(100,3, inpt(3), name="v3")
+            v4 = av(100,5, inpt(3), name="v4")
+
+            sv1  = sv(v2, v3, name="sv1")
+            sv2 = sv(sv1, v1, name="sv2")
+            sv3 = sv(sv2, v4, v2, name="sv3")
+            @test minΔnoutfactor(sv1) == minΔninfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == minΔninfactor(sv2)== 6
+            @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60 # v2 is input twice through sc2->sv1
+
+            Δnout(sv3, -60)
+            @test nin(sv1) == nout.(inputs(sv1)) == [86, 91]
+            @test nin(sv2) == nout.(inputs(sv2)) == [177, 87]
+            @test nin(sv3) == nout.(inputs(sv3)) == [264, 90, 86]
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 264
+            @test nout(sv3) == nout(sv2) + nout(v4) + nout(v2) == 440
+
+            v5 = av(10, 3, sv3, name="v5")
+            @test minΔnoutfactor(sv1) == minΔninfactor(sv1) == 6
+            @test minΔnoutfactor(sv2) == minΔninfactor(sv2)== 6
+            @test minΔnoutfactor(sv3) == minΔninfactor(sv3) == 60
+
+            Δnout(v1, 3)
+            @test nin(sv1) == nout.(inputs(sv1)) == [86, 91]
+            @test nin(sv2) == nout.(inputs(sv2)) == [177, 90]
+            @test nin(sv3) == nout.(inputs(sv3)) == [267, 90, 86]
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 267
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [443]
+
+            # Evil action! Must have understanding that the change in v2 will propagate
+            # to sv3 input 1 through sv1 and sv2
+            Δnout(v2, -12)
+            @test nin(sv1) == nout.(inputs(sv1)) == [74, 103]
+            @test nin(sv2) == nout.(inputs(sv2)) == [177, 90]
+            @test nin(sv3) == nout.(inputs(sv3)) == [267, 90, 74]
+            @test nout(sv1) == nout(v2) + nout(v3) == 177
+            @test nout(sv2) == nout(sv1) + nout(v1) == 267
+            @test [nout(sv3)] == [(nout(sv2) + nout(v4) + nout(v2))] == nin(v5) == [431]
+        end
+
+        @testset "SizeStack large Δ" begin
+            v1 = av(100,2, inpt(3), name="v1")
+            v2 = av(100,3, inpt(3), name="v1")
+            vs = [av(100,1, inpt(3), name="v$i") for i in 1:10]
+
+            sv1  = sv(v1, v2, vs..., name="sv1")
+
+            # This would take forever to brute force...
+            Δnout(sv1, -600)
+            @test nout(sv1) == sum(nin(sv1)) == sum(nout.([v1, v2, vs...])) == 600
+            @test nin(sv1) == nout.([v1, v2, vs...])
+        end
+
+        @testset "SizeInvariant multi input" begin
+            v1 = av(10,1, inpt(3), name="v1")
+
+            iv1 = iv(v1, name="iv1")
+            iv2 = iv(iv1, v1, name="iv2")
+
+            Δnout(iv2, -2)
+
+            @test nout(iv2) == nout(iv1) == nout(v1) == 8
+            @test nin(iv2) == [nout(iv1), nout(v1)] == [8, 8]
+            @test nin(iv1) == [nout(iv1)] == [8]
+        end
+
+        @testset "SizeInvariant multi SizeStack input" begin
+            v1 = av(7,1, inpt(3), name="v1")
+            v2 = av(13,1, inpt(3), name="v2")
+
+            sv1 = sv(v1, v2, name="sv1")
+            sv2 = sv(v1, v2, name="sv2")
+
+            iv1 = iv(sv1, sv2, name="iv1")
+            iv2 = iv(sv1, sv2, name="iv2")
+            iv3 = iv(iv1, iv2, name="iv3")
+
+            Δnout(iv3, -4)
+
+            @test nout(iv3) == nout(iv2) == nout(iv1) == nout(sv2) == nout(sv1) == nout(v2) + nout(v1) == 16
+            @test nin(iv3) == nin(iv2) == nin(iv3) == [nout(sv1), nout(sv2)] == [16, 16]
+            @test nin(sv2) == nin(sv1) == [nout(v1), nout(v2)] == [6, 10]
+        end
+
+        @testset "Stacked SizeInvariant" begin
+            v1 = av(100,1, inpt(3), name="v1")
+            v2 = av(100,2, inpt(3), name="v2")
+            v3 = av(100,3, inpt(3), name="v3")
+            v4 = av(100,5, inpt(3), name="v4")
+
+            iv1 = iv(v2, v3, name="iv1")
+            iv2 = iv(iv1, v1, name="iv2")
+            iv3 = iv(iv2, v4, v2, name="iv3")
+
+            # Everything touches everything in this setup
+            @test minΔnoutfactor(iv1) == minΔninfactor(iv1) == 1*2*3*5
+            @test minΔnoutfactor(iv2) == minΔninfactor(iv2) == 1*2*3*5
+            @test minΔnoutfactor(iv3) == minΔninfactor(iv3) == 1*2*3*5
+
+            Δnout(iv3, -30)
+            @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
+            @test nout(iv1) == nout(iv2) == nout(iv3) == 70
+
+            v5 = av(10, 3, iv3, name="v5")
+
+            Δnout(v1, 60)
+            @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 130
+            @test [nout(iv1)] == [nout(iv2)] == [nout(iv3)] == nin(v5) == [130]
+
+            # Evil action! Must have understanding that the change in v2 will propagate
+            # to iv3 input 1 through iv1 and iv2 and hold off updating it through input 3
+            Δnout(v2, -30)
+            @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 100
+            @test [nout(iv1)] == [nout(iv2)] == [nout(iv3)] == nin(v5) == [100]
+        end
+
+        @testset "Stacked input to SizeInvariant" begin
+            v0 = inpt(3, "in")
+            v1 = av(20, 2, v0, name="v1")
+            v2 = av(30, 3, v0, name="v2")
+            v3 = sv(v1,v2,v1, name="v3")
+            v4 = av(70, 5, v0, name="v4")
+            v5 = iv(v4,v3, name="v5")
+            v6 = av(10, 7, v5, name="v6")
+
+            # Evilness: Invariant vertex must change all its inputs and therefore it must take their minΔnoutfactors into account when computing minΔninfactor.
+            @test minΔnoutfactor(v4) == 2*2*3*5*7
+
+            Δnout(v5, 2*2*3*5*7)
+
+            @test nout(v5) == nout(v4) == nout(v3) == 490
+            @test nin(v5) == [nout(v4), nout(v3)] == [490, 490]
+            @test nin(v3) == [nout(v1), nout(v2), nout(v1)] == [140, 210, 140]
+        end
+
+        @testset "Invariant input to SizeInvariant" begin
+            v0 = inpt(3, "in")
+            v1 = av(20, 2, v0, name="v1")
+            v2 = av(20, 3, v0, name="v2")
+            v3 = iv(v1,v2, name="v3")
+            v4 = av(20, 5, v0, name="v4")
+            v5 = iv(v4,v3, name="v5")
+            v6 = av(10, 7, v5, name="v6")
+
+            # Evilness: Infinite recursion without memoization
+            @test minΔnoutfactor(v4) == 2*3*5*7
+
+            Δnout(v5, 2*3*5*7)
+
+            @test nout(v5) == nout(v4) == nout(v3) == 230
+            @test nin(v5) == [nout(v4), nout(v3)] == nin(v3) == [nout(v1), nout(v2)] == [230, 230]
+        end
+
+        @testset "SizeStack duplicate through SizeInvariant" begin
+            v0 = inpt(5, "in")
+            v1 = av(2, 2, v0, name="v1")
+            v2 = iv(v1, name="v2")
+            v3 = iv(v1, name="v3")
+            v4 = sv(v2,v3, name="v4")
+            v5 = iv(v4, name="v5")
+            v6 = sv(v5, v2, name="v6")
+
+            @test minΔnoutfactor(v6) == 3*2
+            Δnout(v6, 12)
+
+            @test nout(v6) == sum(nin(v6)) == 18
+            @test nout(v5) == nin(v5)[] == 12
+            @test nout(v4) == sum(nin(v4)) == 12
+            @test nout(v1) == 6
+        end
+
+        @testset "SizeInvariant zig-zag" begin
+                v0 = inpt(5, "in")
+                v1 = av(2, 2, v0, name="v1")
+                v2 = av(3, 3, v0, name="v2")
+                v3 = sv(v1,v2, name="v3")
+                function zigzag(vin1, sc, vin2=v0;name="zig")
+                    vnew = av(nout(vin1), sc, vin2, name=name*"_new")
+                    vout = iv(vnew, name=name*"_ivB")
+                    vcon = iv(vout, vin1, name=name*"_ivA")
+                    return vout
+                end
+                v4 = zigzag(v3, 5, name="z1")
+                v5 = zigzag(v4, 7, name="z2")
+                v6 = av(11, 11, v5, name="v6")
+
+                expectedΔf = 2*3*5*7*11
+                @test minΔnoutfactor(v1) == expectedΔf / 3 # 3 is size constraint for v2
+                @test minΔnoutfactor(v2) == expectedΔf / 2 # 2 is size constraint for v1
+                @test minΔnoutfactor(v3) == expectedΔf
+
+                Δnout(v2, expectedΔf)
+                @test nout(v3) == nout(v4) == nout(v5) == expectedΔf + 2+3
+                @test nin(v4) == nout.(inputs(v4)) == [expectedΔf + 2+3]
+                @test nin(v5) == nout.(inputs(v5)) == [expectedΔf + 2+3]
+        end
+
+        @testset "SizeStack duplicate SizeInvariant mini-zig-zag" begin
+            v0 = inpt(5, "in")
+            v1 = av(2, 2, v0, name="v1")
+            v2 = av(2, 3, v0, name="v2")
+            v3 = iv(v1, name="v3")
+            v4 = iv(v3, v2, name="v4")
+            v5 = av(3, 5, v3, name="v5")
+            v6 = sv(v4,v4, name="v6")
+            v7 = iv(v6, v6, name="v7")
+            v8 = av(4, 7, v7, name="v8")
+
+            expectedΔf = 2*2*3*5*7
+            @test minΔnoutfactor(v6) == expectedΔf
+
+            Δnout(v6, expectedΔf)
+            @test nin(v8) == [nout(v7)] == [nout(v6)] == [4+expectedΔf]
+
+            @test nin(v6) == [2 + expectedΔf ÷ 2, 2 + expectedΔf ÷ 2]
+            @test nout(v1) == nout(v2) == 2 + expectedΔf ÷ 2
+            @test nin(v5) == [2 + expectedΔf ÷ 2]
+        end
+
+        @testset "Deep SizeStack" begin
+            v0 = inpt(3, "in")
+            v1 = av(8, 1, v0, name="v1")
+            v2 = av(4, 1, v0, name="v2")
+            v3 = sv(v1,v2, name= "v3")
+            pa1 = iv(v3, name="pa1")
+            pb1 = iv(v3, name="pb1")
+            pc1 = iv(v3, name="pc1")
+            pd1 = av(5, 1, v3, name="pd1")
+            pa1pa1 = iv(pa1, name="pa1pa1")
+            pa1pb1 = iv(pa1, name="pa1pb1")
+            pa2 = sv(pa1pa1, pa1pb1, name = "pa2")
+            v4 = sv(pa2, pb1, pc1, pd1, name = "v4")
+
+            @test minΔnoutfactor(v4) == 4
+
+            Δnout(v4, 8)
+
+            @test nout(v4) == 61
+            @test nin(v4) == nout.(inputs(v4)) == [28, 14, 14, 5]
+            @test nin(pa2) == nout.(inputs(pa2)) == [14, 14]
+            @test nin(pa1pa1) == nin(pa1pb1) == [14]
+            @test nin(pa1) == nin(pb1) == nin(pc1) == [nout(v3)] == [14]
+            @test nin(v3) == [10, 4]
+        end
+
+        @testset "Fail invalid size change" begin
+            v0 = inpt(3)
+            v1 = av(3,3, v0, name="v1")
+            v2 = av(5,2, v1, name="v2")
+            import NaiveNASlib:Exact, Relaxed
+
+            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 2, ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 3, ΔSizeFailError("")), all_in_graph(v1))
+
+            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [2], ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [3], ΔSizeFailError("")), all_in_graph(v1))
+
+            @test newsizes(ΔNout{Exact}(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))[1] == false
+            @test newsizes(ΔNin{Exact}(v2, [2], ΔSizeFailNoOp()), all_in_graph(v2))[1] == false
+
+            using Logging
+            @test (@test_logs (:info, "Giving up") newsizes(ΔNout{Exact}(v1, 2, LogΔSizeExec(Logging.Info, "Giving up")), all_in_graph(v1)))[1] == false
+
+            @test_logs (:warn, r"Could not change nout of .* by 2! Relaxing constraints...") Δnout(v1, 2)
+            @test [nout(v1)] == nin(v2) == [9]
+
+            @test_logs (:warn, r"Could not change nin of .* by \[-2\]! Relaxing constraints...") Δnin(v2, -2)
+            @test [nout(v1)] == nin(v2) == [3]
+
+            v3 = sv(v1,v2, name="v3")
+
+            @test_logs (:warn, r"Could not change nin of .* by \[2, 6\]! Relaxing constraints...") Δnin(v3, 2, 6)
+            @test [nout(v1)] == nin(v2) == [9]
+            @test nin(v3) == [nout(v1), nout(v2)] == [9, 11]
+
+            @test_logs (:warn, r"Could not change nout of .* by -3! Relaxing constraints...") Δnout(v3, -3)
+            @test [nout(v1)] == nin(v2) == [9]
+            @test nin(v3) == [nout(v1), nout(v2)] == [9, 9]
+
+        end
+
+        set_defaultΔNoutStrategy(ΔNoutLegacy())
+        set_defaultΔNinStrategy(ΔNinLegacy())
+
+    end
+
+    @testset "SizeChangeLogger JuMP" begin
+
+        @testset "Compressed array string" begin
+            @test NaiveNASlib.compressed_string([1,2,3,4]) == "[1, 2, 3, 4]"
+            @test NaiveNASlib.compressed_string(1:23) == "[1,…, 23]"
+            @test NaiveNASlib.compressed_string([1,2,3,5,6,8,9,10:35...]) == "[1, 2, 3, 5, 6, 8,…, 35]"
+            @test NaiveNASlib.compressed_string(-ones(Int, 24)) == "[-1×24]"
+            @test NaiveNASlib.compressed_string([-1, 5:9...,-ones(Int, 6)...,23,25,99,100,102,23:32...,34]) ==  "[-1, 5,…, 9, -1×6, 23, 25, 99, 100, 102, 23,…, 32, 34]"
+            @test NaiveNASlib.compressed_string([1,2,4:13..., 10:20...,-1]) == "[1, 2, 4,…, 13, 10,…, 20, -1]"
+        end
+
+        set_defaultΔNoutStrategy(DefaultJuMPΔSizeStrategy())
+        set_defaultΔNinStrategy(DefaultJuMPΔSizeStrategy())
+
+        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
+        av(in, size ;name = "av") = absorbvertex(identity, size, in, traitdecoration=traitfun(name))
+
+        @testset "Log size change" begin
+                v1 = inpt(3, "v1")
+                v2 = av(v1, 10, name="v2")
+                v3 = av(v2, 4, name="v3")
+
+                @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
+
+                @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout(v2, -3)
+
+                v4 = av(v1, nout(v3), name="v4")
+                v5 = traitconf(traitfun("v5")) >> v3 + v4
+
+                @test_logs  (:info, "Change nin of v5 by 30, 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout(v5, 30)
+
+                @test_logs  (:info, "Change nin of v5 by [1, 2, 3, 4, -1×30], [1, 2, 3, 4, -1×30]") (:info, "Change nout of v5 by [1, 2, 3, 4, -1×30]") (:info, "Change nout of v3 by [1, 2, 3, 4, -1×30]") (:info, "Change nout of v4 by [1, 2, 3, 4, -1×30]") Δoutputs(v5, v -> 1:nout_org(v))
+        end
+
+        set_defaultΔNoutStrategy(ΔNoutLegacy())
+        set_defaultΔNinStrategy(ΔNinLegacy())
+    end
 end

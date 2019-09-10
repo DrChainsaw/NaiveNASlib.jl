@@ -13,8 +13,6 @@ import JuMP
 import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
 using Cbc
 
-
-
 #Interface
 export AbstractVertex, AbstractMutationVertex, MutationOp, MutationState
 
@@ -25,7 +23,7 @@ export InputVertex, CompVertex, inputs, outputs
 export infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr
 
 # Computation graph
-export CompGraph, output!,flatten, nv, vertices
+export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
 
 # Mutation operations
 #State
@@ -38,16 +36,18 @@ export base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, Invar
 export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation
 
 # Size util
-export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output
+export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output, Both, all_in_graph, all_in_Δsize_graph, Δsize, newsizes, neighbours
+
+export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
 
 #Selection util
-export AbstractSelectionStrategy, LogSelection, SelectionFail, NoutRevert, AbstractJuMPSelectionStrategy, NoutExact, NoutRelaxSize, NoutMainVar, validouts, select_outputs
+export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, Δoutputs, solve_outputs_selection
 
 # Connectivity mutation
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle
+export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, PostAlignJuMP, SelectOutputs, ApplyMutation
 
 # Connect strategies
 export AbstractConnectStrategy, ConnectAll, ConnectNone
@@ -70,7 +70,6 @@ include("mutation/select.jl")
 include("mutation/structure.jl")
 
 include("mutation/sugar.jl")
-
 
 
 end # module
