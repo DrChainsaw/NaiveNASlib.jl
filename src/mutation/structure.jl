@@ -316,8 +316,9 @@ function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
 end
 
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
-    Δnin.(outputs(vin), s.Δoutsize...)
-    return true
+    expected = nout(vin) + s.Δoutsize
+    Δsize(ΔNout{Exact}(vin, s.Δoutsize, ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
+    return nout(vin) == expected
 end
 
 function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
@@ -345,7 +346,7 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, wil
 
     insize_can_change = all( can_change.(Δinsize, minΔninfactor_if(will_rm(vout), vout)))
     if insize_can_change && proceedwith(s, Δinsize)
-        Δnin(vout, Δinsize)
+        Δnout(inputs(vout)[1], Δinsize)
         return true
     end
 
@@ -377,10 +378,8 @@ function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
     -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
 
     # Ok, lets make the change
-    # TODO: Add back?
-    s = VisitState{Int}(vout) # Just in case we happen to be inside a transparent vertex
-    Δnin(vout, Δs[2], s=s)
-    Δnout(vin, Δs[1], s=s)
+    Δnin(vout, Δs[2])
+    Δnout(vin, Δs[1])
     return true
 end
 
@@ -410,12 +409,14 @@ function postalignsizes(s::PostAlignJuMP, vin, vout)
     end
     success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), vertices)
     if !success
-        return postalignsizes(s.fallback, vin, vout, t)
+        return postalignsizes(s.fallback, vin, vout)
     end
     Δsize(nins, nouts, vertices)
 end
 
 function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
+    Δsize(AlignNinToNout(), all_in_graph(vin))
+    return
 
     # At this point we expect to have nout(vout) to be the correct value while nin of the output edges of vout needs to be adjusted. Problem is that there might be Δfactors (I'm really starting to hate them now) or immutable vertices which prevents us from just changing the input size of the output edges to nout(vout) - nin(voo[i]) where voo[i] is output #i of vout.
 
@@ -483,10 +484,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
         Δ = Δs[i-start+1]
         Δ == 0 && continue # To avoid having to support Δnout/Δnin with Δ = 0 for immutable vertices
 
-        s = VisitState{Int}(vins[i])
-        visited_in!.(s, outputs(vout))
-
-        Δnout(vins[i], Δ, s=s)
+        Δnout(AlignNinToNout(), vins[i], Δ)
     end
 
     for (i, voo) in enumerate(outputs(vout))
@@ -496,11 +494,7 @@ function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
         Δvec = Vector{Maybe{Int}}(missing, length(inputs(voo)))
         Δvec[inputs(voo) .== vout] .= Δ
 
-        # Dont touch the parts which already have the correct size
-        s = VisitState{Int}(voo, Δvec...)
-        visited_out!(s, vout)
-
-        Δnin(voo, Δvec..., s=s)
+        Δnin(AlignNinToNout(), voo, Δvec...)
     end
 
 end

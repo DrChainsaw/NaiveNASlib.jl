@@ -103,17 +103,21 @@ OutSelectRelaxed() = OutSelect{Relaxed}(LogSelectionFallback("Reverting...", Nou
 fallback(s::OutSelect) = s.fallback
 
 """
+    Δoutputs(g::CompGraph, valuefun::Function)
+    Δoutputs(s::AbstractSelectionStrategy, g::CompGraph, valuefun::Function)
     Δoutputs(v::AbstractVertex, valuefun::Function)
     Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function)
     Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function)
     Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function)
 
-Change outputs of `v` according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
+Change outputs of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
 
 Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output index `i` shall be preferred over `j` for vertex `vx`.
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
+Δoutputs(g::CompGraph, valuefun) = Δoutputs(OutSelectExact(), g, valuefun)
+Δoutputs(s::AbstractSelectionStrategy, g::CompGraph, valuefun) = Δoutputs(s, vertices(g), valuefun)
 Δoutputs(v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), v, valuefun)
 Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
 function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)

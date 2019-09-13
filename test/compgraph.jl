@@ -192,7 +192,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
             NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(l.W)
             parentgraph = copy(graph)
 
-            Δnin(out, 3)
+            Δnout(out, 3)
 
             # We didn't touch the input when mutating...
             @test [nout(invertex)] == nin(start) == [6]
@@ -285,8 +285,8 @@ import LightGraphs:adjacency_matrix,is_cyclic
                 remove_edge!(layer1, merged)
                 apply_mutation(graph)
 
-                @test nin(merged) == [5, 6]
-                @test graph(ones(Int, 1, 4)) == [44 44 44]
+                @test nin(merged) == [5, 3]
+                @test graph(ones(Int, 1, 4)) == [32 32 32]
             end
 
             @testset "Pruning example" begin
@@ -347,26 +347,20 @@ import LightGraphs:adjacency_matrix,is_cyclic
                   6  13 ;
                   7  14 ]
 
-               # Here is one reason why apply_mutation is needed:
-               # We want to mutate nin of v3, and we are not sure how this propagates to v1 and v2
-               # Lets just change the size first and then we see what happens
+               # A limitation in current implementation is that one must change the size before pruning
                 Δnin(v3, -3)
-                # Another reason is that it is possible to do several mutations without throwing away
+                # Doing this however makes it possible to do several mutations without throwing away
                 # more information than needed.
                 # For example, if we had first applied the previous mutation we would have thrown away
                 # weights for v2 which would then just be replaced by 0s when doing this:
-                Δnout(v2, 2)
+                Δnout(v2, 1)
 
-                # Lets see that that did...
-                @test nin(v3) == [6]
-                @test nout(v1) == 2
-                @test nout(v2) == 4
-
-                # Ok, for v1 we shall remove one output neuron while for v2 we shall add one
-                # Changes propagate to v3 so that the right inputs are chosen
-                Δnout(v1, [1, 3]) # Remove middle and last column
-                Δnout(v2, [1,2,3, -1]) # -1 means add a new column
-
+                # Now, we need a utility metric per neuron in order to determine which neurons to keep
+                # Give high utility to neurons 1 and 3 of v1, same for all others...
+                utility(v) = v == v1 ? [10, 1, 10, 1] : ones(nout_org(v))
+                # Then select the neurons.
+                Δoutputs(graph, utility)
+                # And apply it to the actual weights
                 apply_mutation(graph)
 
                 @test l1.W ==
@@ -374,19 +368,19 @@ import LightGraphs:adjacency_matrix,is_cyclic
                   2  8 ;
                   3  9 ]
 
+                # No change as we increased the size before pruning
                 @test l2.W ==
-                [ 1  5   9  0 ;
-                  2  6  10  0 ;
-                  3  7  11  0 ;
-                  4  8  12  0 ]
+                [ 1  5   9  ;
+                  2  6  10  ;
+                  3  7  11  ;
+                  4  8  12  ]
 
                 @test l3.W ==
                 [ 1   8 ;
                   3  10 ;
                   5  12 ;
                   6  13 ;
-                  7  14 ;
-                  0   0 ]
+                  7  14 ]
             end
         end
     end
