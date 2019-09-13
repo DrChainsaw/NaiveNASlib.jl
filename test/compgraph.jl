@@ -348,6 +348,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
                   7  14 ]
 
                # A limitation in current implementation is that one must change the size before pruning
+               # See https://github.com/DrChainsaw/NaiveNASlib.jl/issues/40
                 Δnin(v3, -3)
                 # Doing this however makes it possible to do several mutations without throwing away
                 # more information than needed.
