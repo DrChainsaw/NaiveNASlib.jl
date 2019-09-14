@@ -63,6 +63,7 @@ include("prettyprint.jl")
 
 include("mutation/op.jl")
 include("mutation/vertex.jl")
+include("mutation/graph.jl")
 include("mutation/jumpnorm.jl")
 include("mutation/size.jl")
 include("mutation/apply.jl")
