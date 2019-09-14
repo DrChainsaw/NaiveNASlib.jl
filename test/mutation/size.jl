@@ -261,6 +261,17 @@
             # Too many Δs!
             @test_throws AssertionError Δnin(v3, 1, 1)
         end
+
+        @testset "Fail mutate immutable" begin
+            v0 = inpt(3)
+            v1 = av(5, v0, "v1")
+
+            @test_throws ErrorException Δsize(ΔNout{Exact}(v0, 2, ΔSizeFailError("Success?!")), [v0, v1])
+            @test [nout(v0)] == nin(v1) == [3]
+
+            @test_throws ErrorException Δsize(ΔNin{Exact}(v1, [-2], ΔSizeFailError("Success?!")), [v1, v0])
+            @test [nout(v0)] == nin(v1) == [3]
+        end
     end
 
     @testset "Mutate tricky structures" begin

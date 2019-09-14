@@ -525,6 +525,7 @@ vertexconstraints!(t::DecoratingTrait, v, s, data) = vertexconstraints!(base(t),
 function vertexconstraints!(::Immutable, v, s, data)
     @constraint(data.model, data.noutdict[v] == nout(v))
     @constraint(data.model, getall(data.noutdict, inputs(v)) .== nin(v))
+    vertexconstraints!(s, v, data)
 end
 vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 
@@ -598,7 +599,7 @@ Extra info like the model and variables is provided in `data`.
 """
 ninconstraint!(s, v, data) = ninconstraint!(s, trait(v), v, data)
 ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, data)
-function ninconstraint!(s, ::SizeAbsorb, v, data) end
+function ninconstraint!(s, ::MutationTrait, v, data) end
 ninconstraint!(s, ::SizeStack, v, data) = @constraint(data.model, sum(getall(data.noutdict, inputs(v))) == data.noutdict[v])
 ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, getall(data.noutdict, unique(inputs(v))) .== data.noutdict[v])
 

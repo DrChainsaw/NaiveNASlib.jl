@@ -327,39 +327,51 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, wil
     Δinsize = nout(vin) - tot_nin(vout)
     Δoutsize = -Δinsize
 
-    can_change(Δ, factor::Integer) = Δ % factor == 0
-    can_change(Δ, ::Missing) = false
-
-    insize_can_change = all( can_change.(Δinsize, minΔninfactor_if(will_rm(vout), vout)))
-    if insize_can_change && proceedwith(s, Δinsize)
-        Δnout(inputs(vout)[1], Δinsize)
-        return true
-    end
-
-    outsize_can_change = all( can_change.(Δoutsize, minΔnoutfactor_if(will_rm(vin), vin)))
-    if outsize_can_change && proceedwith(s, Δoutsize)
-        Δnout(vin, Δoutsize)
-        return true
-    end
-
-    return prealignsizes(s.fallback, vin, vout, will_rm)
-end
-proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
-proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
-
-function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
-    vin_all = all_in_Δsize_graph(vin, Output())
-    vout_all = all_in_Δsize_graph(vout, Input())
-
-    verts = union(vin_all, vout_all)
-    strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vin)), AlignNinToNout(), ΔSizeFailNoOp())
-    success, nins, nouts = newsizes(strat, verts)
+    strat = proceedwith(s, Δinsize) ? Δninstrat(vout, Δinsize) : Δnoutstrat(vin, Δoutsize)
+    success = prealignsizes(strat, vin, vout)
 
     if !success
         return prealignsizes(s.fallback, vin, vout, will_rm)
     end
-    Δsize(nins, nouts, verts)
     return true
+end
+proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
+proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
+
+Δninstrat(v, Δ) = Δninstrat(trait(v), v, Δ)
+Δninstrat(t::DecoratingTrait, v, Δ) = Δninstrat(base(t), v, Δ)
+Δninstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
+Δninstrat(::MutationSizeTrait, v, Δ) = ΔNin{Exact}(v, [Δ], ΔSizeFailNoOp())
+Δninstrat(::SizeTransparent, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+
+Δnoutstrat(v, Δ) = Δnoutstrat(trait(v), v, Δ)
+Δnoutstrat(t::DecoratingTrait, v, Δ) = Δnoutstrat(base(t), v, Δ)
+Δnoutstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
+Δnoutstrat(::MutationSizeTrait, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+
+function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
+
+    strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vin)), AlignNinToNout(), ΔSizeFailNoOp())
+    success = prealignsizes(strat, vin, vout)
+
+    if !success
+        return prealignsizes(s.fallback, vin, vout, will_rm)
+    end
+    return true
+end
+
+function prealignsizes(s::AbstractΔSizeStrategy, vin, vout)
+    vin_all = all_in_Δsize_graph(vin, Output())
+    vout_all = all_in_Δsize_graph(vout, Input())
+
+    verts = union(vin_all, vout_all)
+    success, nins, nouts = newsizes(s, verts)
+
+    if success
+        Δsize(nins, nouts, verts)
+        return true
+    end
+    return false
 end
 
 # Boilerplate
@@ -380,15 +392,15 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout)
 
 # Ok, this one actually does something...
 function postalignsizes(s::PostAlignJuMP, vin, vout)
-    vertices = all_in_graph(vin)
-    if vin ∉ inputs(vout)
-        deleteat!(vertices, vertices .== vin)
-    end
-    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), vertices)
+    vin_all = all_in_Δsize_graph(vin, Output())
+    vout_all = all_in_Δsize_graph(vout, Input())
+
+    verts = union(vin_all, vout_all)
+    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), verts)
     if !success
         return postalignsizes(s.fallback, vin, vout)
     end
-    Δsize(nins, nouts, vertices)
+    Δsize(nins, nouts, verts)
 end
 
 
