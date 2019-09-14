@@ -261,15 +261,6 @@ function connect!(v, to, inds, items, ::ConnectNone)
     end
 end
 
-# I don't like if-statements anymore, ok?
-minΔninfactor_if(remove, v) = minΔninfactor_if(Val(remove), v)
-minΔninfactor_if(::Val{true}, v) = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
-minΔninfactor_if(::Val{false}, v) = minΔninfactor(v)
-
-minΔnoutfactor_if(remove, v) = minΔnoutfactor_if(Val(remove), v)
-minΔnoutfactor_if(::Val{true}, v) = lcmsafe(minΔninfactor_only_for.(outputs(v)))
-minΔnoutfactor_if(::Val{false}, v) = minΔnoutfactor(v)
-
 tot_nin(v) = tot_nin(trait(v), v)
 tot_nin(t::DecoratingTrait, v) = tot_nin(base(t), v)
 tot_nin(::MutationTrait, v) = nin(v)[]
