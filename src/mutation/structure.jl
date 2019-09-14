@@ -348,24 +348,17 @@ proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
 proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
 function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
+    vin_all = all_in_Δsize_graph(vin, Output())
+    vout_all = all_in_Δsize_graph(vout, Input())
 
-    Δninfactor = minΔninfactor_if(will_rm(vout), vout)
-    Δnoutfactor = minΔnoutfactor_if(will_rm(vin), vin)
+    verts = union(vin_all, vout_all)
+    strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vin)), AlignNinToNout(), ΔSizeFailNoOp())
+    success, nins, nouts = newsizes(strat, verts)
 
-    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout, will_rm)
-
-    sizes = [nout(vin), tot_nin(vout)]
-    select(f,k) = increase_until(Δs -> all(-Δs .< sizes) || any(Δs .> 0.2 .* sizes), f, k)
-
-    Δs = alignfor(nout(vin) , Δnoutfactor, [tot_nin(vout)], [Δninfactor], select)
-
-    # One last check if size change is possible
-    ismissing(Δs) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
-    -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
-
-    # Ok, lets make the change
-    Δnin(vout, Δs[2])
-    Δnout(vin, Δs[1])
+    if !success
+        return prealignsizes(s.fallback, vin, vout, will_rm)
+    end
+    Δsize(nins, nouts, verts)
     return true
 end
 

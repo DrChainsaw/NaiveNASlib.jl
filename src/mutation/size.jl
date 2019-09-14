@@ -140,6 +140,30 @@ AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Fa
 AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
 fallback(s::AlignNinToNout) = s.fallback
 
+"""
+    AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
+    AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=ΔSizeFailError())
+    AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer},vstrat=AlignNinToNout(), fallback=ΔSizeFailError())
+
+Same as [`AlignNinToNout`](@ref) with an additional constraint that `nin(s.vin)[s.ininds] == nout(s.vout)` where `s` is a `AlignNinToNoutVertices`.
+
+Useful in the context of removing vertices and/or edges.
+
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+"""
+struct AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
+    vin::AbstractVertex
+    vout::AbstractVertex
+    ininds::AbstractArray{<:Integer}
+    vstrat::AlignNinToNout
+    fallback::AbstractJuMPΔSizeStrategy
+end
+AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=failToAlign(vin, vout)) = AlignNinToNoutVertices(vin, vout, collect(inds), vstrat, fallback)
+AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, vstrat::AlignNinToNout, fallback::AbstractJuMPΔSizeStrategy=failToAlign(vin,vout)) = AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback)
+AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, innerstrat::AbstractJuMPΔSizeStrategy, fallback=failToAlign(vin, vout)) = AlignNinToNoutVertices(vin, vout, inds, AlignNinToNout(vstrat=innerstrat), fallback)
+fallback(s::AlignNinToNoutVertices) = s.fallback
+
+failToAlign(vin, vout) = ΔSizeFailError("Could not align nout of $vin to nin of $(vout)!!")
 
 #TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
 # all MutationVertex has state?
@@ -492,7 +516,7 @@ Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 """
 sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.with_optimizer(Cbc.Optimizer, loglevel=0))
 
-# Just a short for broadcasting on dicts
+# Just a shortcut for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
 
 # First we dispatch on trait in order to filter out immutable vertices
@@ -502,11 +526,13 @@ function vertexconstraints!(::Immutable, v, s, data)
     @constraint(data.model, data.noutdict[v] == nout(v))
     @constraint(data.model, getall(data.noutdict, inputs(v)) .== nin(v))
 end
+vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 
+# This must be applied to immutable vertices as well
 function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
     vertexconstraints!(v, s.vstrat, data)
     for vo in outputs(v)
-        ninvar = @variable(data.model, base_name = "$(name(vo))", integer=true)
+        ninvar = @variable(data.model, integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
 
         ninarr = get!(() -> Vector{JuMP.VariableRef}(undef, length(inputs(vo))), s.nindict, vo)
@@ -514,7 +540,15 @@ function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
     end
 end
 
-vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
+function vertexconstraints!(v::AbstractVertex, s::AlignNinToNoutVertices, data)
+    hasadded = s.vout in keys(s.vstrat.nindict)
+    vertexconstraints!(v, s.vstrat, data)
+
+    if !hasadded && s.vout in keys(s.vstrat.nindict)
+        @constraint(data.model, data.noutdict[s.vin] .== s.vstrat.nindict[s.vout][s.ininds])
+    end
+end
+
 
 """
     vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
@@ -638,6 +672,8 @@ function ninsAndNouts(s::AlignNinToNout, vs, noutvars)
     nins = Dict(key => round.(Int, JuMP.value.(value)) for (key, value) in s.nindict)
     return nins,nouts
 end
+
+ninsAndNouts(s::AlignNinToNoutVertices, vs, noutvars) = ninsAndNouts(s.vstrat, vs, noutvars)
 
 # TODO: Remove since only used for debugging. If only it wasn't so bloody cumbersome to just list the constraints in a JuMP model....
 nconstraints(model) = mapreduce(tt -> JuMP.num_constraints.(model,tt...), +,  filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model)), init=0)
