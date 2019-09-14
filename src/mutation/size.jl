@@ -1,29 +1,6 @@
 
 
 # Vertex traits w.r.t whether size changes propagates
-"""
-    SizeTransparent
-Base type for mutation traits which are transparent w.r.t size, i.e size changes propagate both forwards and backwards.
-"""
-abstract type SizeTransparent <: MutationSizeTrait end
-"""
-    SizeStack
-Transparent size trait type where inputs are stacked, i.e output size is the sum of all input sizes
-"""
-struct SizeStack <: SizeTransparent end
-"""
-    SizeInvariant
-Transparent size trait type where all input sizes must be equal to the output size, e.g. elementwise operations (including broadcasted).
-"""
-struct SizeInvariant <: SizeTransparent end
-"""
-    SizeAbsorb
-Size trait type for which size changes are absorbed, i.e they do not propagate forward.
-
-Note that size changes do propagate backward as changing the input size of a vertex requires that the output size of its input is also changed and vice versa.
-"""
-struct SizeAbsorb <: MutationSizeTrait end
-
 abstract type Direction end
 """
     Input
@@ -52,6 +29,146 @@ Return the opposite direction of `d`.
 opposite(::Input) = Output()
 opposite(::Output) = Input()
 opposite(b::Both) = b
+
+"""
+    AbstractΔSizeStrategy
+
+Abstract base type for strategies for how to change the size.
+
+Only used as a transition until JuMP approach has been fully verified.
+"""
+abstract type AbstractΔSizeStrategy end
+
+"""
+    OnlyFor <: AbstractΔSizeStrategy
+
+Change size only for the provided vertex.
+"""
+struct OnlyFor <: AbstractΔSizeStrategy end
+
+"""
+    AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
+
+Abstract type for strategies to change or align the sizes of vertices using JuMP.
+"""
+abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
+
+"""
+    ΔSizeFailError <: AbstractJuMPΔSizeStrategy
+    ΔSizeFailError(msg::String)
+
+Throws an `ErrorException` with message `msg`.
+"""
+struct ΔSizeFailError <: AbstractJuMPΔSizeStrategy
+    msg::String
+end
+
+"""
+    ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
+    ΔSizeFailNoOp()
+
+Does not perform any action.
+"""
+struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
+
+"""
+    LogΔSizeExec <: AbstractJuMPΔSizeStrategy
+    LogΔSizeExec(msg::String)
+    LogΔSizeExec(level::Logging.LogLevel, msg::String)
+    LogΔSizeExec(level::Logging.LogLevel, msg::String, andthen::AbstractJuMPΔSizeStrategy)
+
+Logs `msg` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen`.
+"""
+struct LogΔSizeExec <: AbstractJuMPΔSizeStrategy
+    level::LogLevel
+    msg::String
+    andthen::AbstractJuMPΔSizeStrategy
+end
+LogΔSizeExec(msg::String) = LogΔSizeExec(Logging.Info, msg)
+LogΔSizeExec(level::LogLevel, msg::String) = LogΔSizeExec(level, msg, ΔSizeFailNoOp())
+
+"""
+    DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
+
+Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
+"""
+struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
+
+struct Exact end
+struct Relaxed end
+
+"""
+    ΔNout{T} <: AbstractJuMPΔSizeStrategy
+    ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
+    ΔNoutExact(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNoutRelaxed(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
+
+Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
+
+If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`. If the operation fails, it will be retried with the `fallback` strategy (default `ΔNoutRelaxed`).
+
+If `T == Relaxed`, size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`. In addition, a constraint that `nout(vertex)` must change is also added.
+
+If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
+"""
+struct ΔNout{T} <: AbstractJuMPΔSizeStrategy
+    vertex::AbstractVertex
+    Δ::Integer
+    fallback::AbstractJuMPΔSizeStrategy
+end
+ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(v, Δ)))
+ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
+fallback(s::ΔNout) = s.fallback
+
+"""
+    ΔNin{T} <: AbstractJuMPΔSizeStrategy
+    ΔNin{T}(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
+    ΔNinRelaxed(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
+
+Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
+
+Use `missing` to indicate "no change required" as 0 will be interpreted as "must not change".
+
+If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
+
+If `T == Relaxed`, size change will be added as an objective to the model which means that `nin(vertex)` might not change by exactly `Δs`. In addition, a constraint that `nin(vertex)` must change is also added.
+
+If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
+"""
+struct ΔNin{T} <: AbstractJuMPΔSizeStrategy
+    vertices::Vector{<:AbstractVertex}
+    Δs::Vector{Int}
+    fallback::AbstractJuMPΔSizeStrategy
+    function ΔNin{T}(v, Δs, fallback) where T
+        @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
+        inds = .!ismissing.(Δs)
+        new(inputs(v)[inds], Δs[inds], fallback)
+    end
+end
+ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Exact}(v, Δs, LogΔSizeExec(Logging.Warn, "Could not change nin of $v by $(join(Δs, ", "))! Relaxing constraints...", ΔNinRelaxed(v, Δs)))
+ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNin{Exact}(v, [Δ])
+ΔNinRelaxed(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Relaxed}(v, Δs, ΔSizeFailError("Could not change nin of $vertex by $(join(Δs, ", "))!!"))
+ΔNinRelaxed(v::AbstractVertex, Δ::Integer) = ΔNin{Relaxed}(v, [Δ])
+fallback(s::ΔNin) = s.fallback
+
+
+"""
+    AlignNinToNout <: AbstractJuMPΔSizeStrategy
+    AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
+
+Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
+
+If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+"""
+struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
+    nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
+    vstrat::AbstractJuMPΔSizeStrategy
+    fallback::AbstractJuMPΔSizeStrategy
+end
+AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
+AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
+fallback(s::AlignNinToNout) = s.fallback
 
 
 #TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
@@ -240,56 +357,6 @@ findterminating(::SizeInvariant, v, d::Function, o::Function, visited) = vcat(co
 collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
 
 """
-    AbstractΔSizeStrategy
-
-Abstract base type for strategies for how to change the size.
-
-Only used as a transition until JuMP approach has been fully verified.
-"""
-abstract type AbstractΔSizeStrategy end
-
-
-sizeΔ(Δ::Integer) = Δ
-sizeΔ(Δ::AbstractArray) = length(Δ)
-function validate_Δnin(v::AbstractVertex, Δ, Δfun, validvisit = true)
-
-    # Yeah, this is checking more than one thing. Cba to have three different structs and methods for validation
-    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
-
-
-
-    if validvisit
-        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
-        Δninfactor = minΔninfactor_only_for(base(v))
-        any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
-    end
-
-    Δfun()
-
-    if validvisit
-        nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
-    end
-end
-
-function validate_Δnout(v::AbstractVertex, Δ, Δfun, validvisit=true)
-
-    if validvisit
-        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
-        Δnoutfactor = minΔnoutfactor_only_for(base(v))
-        sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
-    end
-
-    Δfun()
-
-    if validvisit
-        nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
-
-        nin_of_outputs == [nout(v)] || throw(ArgumentError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
-    end
-end
-
-
-"""
     ΔSizeGraph
 
 Represents the information on how a size change will propagate as a `MetaDiGraph`.
@@ -470,183 +537,6 @@ function all_in_Δsize_graph(::SizeTransparent, d, v, visited)
     foreach(vout -> all_in_Δsize_graph(vout, Input(), visited), outputs(v))
 end
 
-"""
-    OnlyFor <: AbstractΔSizeStrategy
-
-Change size only for the provided vertex.
-"""
-struct OnlyFor <: AbstractΔSizeStrategy end
-
-"""
-    AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
-
-Abstract type for strategies to change or align the sizes of vertices using JuMP.
-"""
-abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
-
-"""
-    ΔSizeFailError <: AbstractJuMPΔSizeStrategy
-    ΔSizeFailError(msg::String)
-
-Throws an `ErrorException` with message `msg`.
-"""
-struct ΔSizeFailError <: AbstractJuMPΔSizeStrategy
-    msg::String
-end
-
-"""
-    ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
-    ΔSizeFailNoOp()
-
-Does not perform any action.
-"""
-struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
-
-"""
-    LogΔSizeExec <: AbstractJuMPΔSizeStrategy
-    LogΔSizeExec(msg::String)
-    LogΔSizeExec(level::Logging.LogLevel, msg::String)
-    LogΔSizeExec(level::Logging.LogLevel, msg::String, andthen::AbstractJuMPΔSizeStrategy)
-
-Logs `msg` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen`.
-"""
-struct LogΔSizeExec <: AbstractJuMPΔSizeStrategy
-    level::LogLevel
-    msg::String
-    andthen::AbstractJuMPΔSizeStrategy
-end
-LogΔSizeExec(msg::String) = LogΔSizeExec(Logging.Info, msg)
-LogΔSizeExec(level::LogLevel, msg::String) = LogΔSizeExec(level, msg, ΔSizeFailNoOp())
-
-"""
-    DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
-
-Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
-"""
-struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
-
-struct Exact end
-struct Relaxed end
-
-"""
-    ΔNout{T} <: AbstractJuMPΔSizeStrategy
-    ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
-    ΔNoutExact(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
-    ΔNoutRelaxed(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
-
-Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
-
-If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`. If the operation fails, it will be retried with the `fallback` strategy (default `ΔNoutRelaxed`).
-
-If `T == Relaxed`, size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`. In addition, a constraint that `nout(vertex)` must change is also added.
-
-If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
-"""
-struct ΔNout{T} <: AbstractJuMPΔSizeStrategy
-    vertex::AbstractVertex
-    Δ::Integer
-    fallback::AbstractJuMPΔSizeStrategy
-end
-ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(v, Δ)))
-ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
-fallback(s::ΔNout) = s.fallback
-
-"""
-    ΔNin{T} <: AbstractJuMPΔSizeStrategy
-    ΔNin{T}(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
-    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
-    ΔNinRelaxed(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
-
-Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
-
-Use `missing` to indicate "no change required" as 0 will be interpreted as "must not change".
-
-If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
-
-If `T == Relaxed`, size change will be added as an objective to the model which means that `nin(vertex)` might not change by exactly `Δs`. In addition, a constraint that `nin(vertex)` must change is also added.
-
-If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
-"""
-struct ΔNin{T} <: AbstractJuMPΔSizeStrategy
-    vertices::Vector{<:AbstractVertex}
-    Δs::Vector{Int}
-    fallback::AbstractJuMPΔSizeStrategy
-    function ΔNin{T}(v, Δs, fallback) where T
-        @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
-        inds = .!ismissing.(Δs)
-        new(inputs(v)[inds], Δs[inds], fallback)
-    end
-end
-ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Exact}(v, Δs, LogΔSizeExec(Logging.Warn, "Could not change nin of $v by $(join(Δs, ", "))! Relaxing constraints...", ΔNinRelaxed(v, Δs)))
-ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNin{Exact}(v, [Δ])
-ΔNinRelaxed(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Relaxed}(v, Δs, ΔSizeFailError("Could not change nin of $vertex by $(join(Δs, ", "))!!"))
-ΔNinRelaxed(v::AbstractVertex, Δ::Integer) = ΔNin{Relaxed}(v, [Δ])
-fallback(s::ΔNin) = s.fallback
-
-
-"""
-    AlignNinToNout <: AbstractJuMPΔSizeStrategy
-    AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
-
-Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
-
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
-"""
-struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
-    nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
-    vstrat::AbstractJuMPΔSizeStrategy
-    fallback::AbstractJuMPΔSizeStrategy
-end
-AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
-AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
-fallback(s::AlignNinToNout) = s.fallback
-
-
-"""
-    JuMPNorm
-
-Abstract type for norms to a JuMP model.
-"""
-abstract type JuMPNorm end
-
-"""
-    L1NormLinear
-    L1NormLinear()
-
-Add a set of linear constraints to a model to map an expression to a variable which is the L1 norm of that expression.
-"""
-struct L1NormLinear <: JuMPNorm end
-"""
-    MaxNormLinear
-    MaxNormLinear()
-
-Add a set of linear constraints to a model to map an expression to a variable which is the max norm of that expression.
-"""
-struct MaxNormLinear <: JuMPNorm end
-
-"""
-    ScaleNorm{S<:Real,N} <: JuMPNorm
-    ScaleNorm(scale, n)
-
-Scales result from `n` with a factor `scale`.
-"""
-struct ScaleNorm{S<:Real,N<:JuMPNorm} <: JuMPNorm
-    scale::S
-    n::N
-end
-
-"""
-    SumNorm{N<:JuMPNorm} <: JuMPNorm
-
-Sum of `ns`.
-"""
-struct SumNorm{N<:JuMPNorm} <: JuMPNorm
-    ns::Vector{N}
-end
-SumNorm(ns::JuMPNorm...) = SumNorm(collect(ns))
-SumNorm(sns::Pair{<:Real, <:JuMPNorm}...) = SumNorm(ScaleNorm.(first.(sns), last.(sns))...)
-
-
 Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Output(), v, Δ)
 Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Input(), v, Δs...)
 
@@ -728,6 +618,46 @@ after_Δnout(t::SizeChangeValidation, v, Δ) = validate_Δnout(v, Δ, () -> afte
 function after_Δnout(t, v, Δ) end
 
 
+sizeΔ(Δ::Integer) = Δ
+sizeΔ(Δ::AbstractArray) = length(Δ)
+function validate_Δnin(v::AbstractVertex, Δ, Δfun, validvisit = true)
+
+    # Yeah, this is checking more than one thing. Cba to have three different structs and methods for validation
+    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
+
+
+
+    if validvisit
+        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
+        Δninfactor = minΔninfactor_only_for(base(v))
+        any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
+    end
+
+    Δfun()
+
+    if validvisit
+        nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
+    end
+end
+
+function validate_Δnout(v::AbstractVertex, Δ, Δfun, validvisit=true)
+
+    if validvisit
+        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
+        Δnoutfactor = minΔnoutfactor_only_for(base(v))
+        sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
+    end
+
+    Δfun()
+
+    if validvisit
+        nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
+
+        nin_of_outputs == [nout(v)] || throw(ArgumentError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
+    end
+end
+
+
 newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
 newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)
 function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
@@ -736,7 +666,7 @@ function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
 end
 
 """
-    newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+    newsizes(s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
 
 Return a vector of new outputs sizes for and a `Dict` of new input sizes for all provided `vertices` using the strategy `s`.
 
@@ -860,43 +790,6 @@ compconstraint!(s, v::AbstractVertex, data) = compconstraint!(s, base(v), data)
 compconstraint!(s, v::CompVertex, data) = compconstraint!(s, v.computation, data)
 function compconstraint!(s, v::InputVertex, data) end
 function compconstraint!(s, f, data) end
-
-"""
-    norm!(s::L1NormLinear, model, X)
-
-Add a set of linear constraints to a model to map `X` to an expression `X′` which is the L1 norm of `X`.
-
-Note that it only works for the objective function and only for minimization.
-"""
-function norm!(s::L1NormLinear, model, X, denom=1)
-    # Use trick from http://lpsolve.sourceforge.net/5.1/absolute.htm to make min abs(expression) linear
-    X′ = @variable(model, [1:length(X)])
-    @constraint(model,  X .<= X′ .* denom)
-    @constraint(model, -X .<= X′ .* denom)
-    return @expression(model, sum(X′))
-end
-
-"""
-    norm!(s::L1NormLinear, model, X)
-
-Add a set of linear constraints to a model to map `X` to a variable `X′` which is the max norm of `X`.
-
-Note that it only works for the objective function and only for minimization.
-"""
-function norm!(s::MaxNormLinear, model, X, denom=1)
-    # Use trick from https://math.stackexchange.com/questions/2589887/how-can-the-infinity-norm-minimization-problem-be-rewritten-as-a-linear-program to make min abs(expression) linear
-    X′ = @variable(model)
-    @constraint(model,  X .<= X′ .* denom)
-    @constraint(model, -X .<= X′ .* denom)
-    return X′
-end
-
-function norm!(s::ScaleNorm, model, X, denom=1)
-    X′ = norm!(s.n, model, X, denom)
-    return @expression(model, s.scale * X′)
-end
-
-norm!(s::SumNorm, model, X, denom=1) = mapfoldl(n -> norm!(n, model, X, denom), (X′,X″) -> @expression(model, X′+X″), s.ns, init=@expression(model, 0))
 
 
 """

@@ -68,6 +68,28 @@ Base type for mutation traits relevant to size
 abstract type MutationSizeTrait <: MutationTrait end
 
 """
+    SizeTransparent
+Base type for mutation traits which are transparent w.r.t size, i.e size changes propagate both forwards and backwards.
+"""
+abstract type SizeTransparent <: MutationSizeTrait end
+"""
+    SizeStack
+Transparent size trait type where inputs are stacked, i.e output size is the sum of all input sizes
+"""
+struct SizeStack <: SizeTransparent end
+"""
+    SizeInvariant
+Transparent size trait type where all input sizes must be equal to the output size, e.g. elementwise operations (including broadcasted).
+"""
+struct SizeInvariant <: SizeTransparent end
+"""
+    SizeAbsorb
+Size trait type for which size changes are absorbed, i.e they do not propagate forward.
+
+Note that size changes do propagate backward as changing the input size of a vertex requires that the output size of its input is also changed and vice versa.
+"""
+struct SizeAbsorb <: MutationSizeTrait end
+"""
     Immutable
 
 Trait for vertices which are immutable. Typically inputs and outputs as those are fixed to the surroundings (e.g a data set).
