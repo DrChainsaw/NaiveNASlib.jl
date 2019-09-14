@@ -59,6 +59,7 @@ export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc
 
 include("vertex.jl")
 include("compgraph.jl")
+include("prettyprint.jl")
 
 include("mutation/op.jl")
 include("mutation/vertex.jl")
