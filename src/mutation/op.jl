@@ -94,24 +94,6 @@ clone(op::NoOp) = op
 Δnout(s::NoOp, Δ) = Δ
 
 """
-    InvSize
-Invariant size, i.e nin == nout
-"""
-mutable struct InvSize <: MutationState
-    size::Integer
-end
-clone(s::InvSize) = InvSize(s.size)
-
-nin(s::InvSize) = [s.size]
-nout(s::InvSize) = s.size
-in_inds(s::InvSize) = [out_inds(s)]
-out_inds(s::InvSize) = 1:s.size
-function Δnin(s::InvSize, Δ::Integer...)
-    @assert length(Δ) == 1 "Must be single input! Got $Δ"
-    Δnout(s, Δ[1])
-end
-Δnout(s::InvSize, Δ::Integer) = s.size += Δ
-"""
     IoSize
 Size for input and output of a computation
 """
@@ -140,36 +122,6 @@ function Δnin(s::IoSize, Δ::Maybe{AbstractArray{<:Integer,1}}...)
     end
 end
 Δnout(s::IoSize, Δ::AbstractArray{<:Integer,1}) = s.nout = length(Δ)
-
-
-"""
-    InvIndices
-Invariant size, i.e nin == nout.
-"""
-mutable struct InvIndices <: MutationState
-    inds::AbstractArray{<:Integer,1}
-end
-InvIndices(size::Integer) = InvIndices(1:size)
-InvIndices(s::InvSize) = InvIndices(nin(s))
-clone(s::InvIndices) = InvIndices(copy(s.inds))
-
-nin(s::InvIndices) = [nout(s)]
-nout(s::InvIndices) = length(s.inds)
-
-in_inds(s::InvIndices) = [out_inds(s)]
-out_inds(s::InvIndices) = s.inds
-
-Δnin(s::InvIndices, Δ::Maybe{AbstractArray{<:Integer,1}}...) = Δnin(s::InvIndices, skipmissing(Δ)...)
-function Δnin(s::InvIndices, Δ::AbstractArray{<:Integer,1}...)
-    @assert length(Δ) == 1 "Must be single input! Got $Δ"
-    Δnout(s, Δ[1])
-end
-Δnout(s::InvIndices, Δ::AbstractArray{<:Integer,1}) = s.inds = copy(Δ)
-
-function reset!(s::InvIndices)
-    s.inds[1:end] = 1:length(s.inds)
-end
-
 
 """
     IoIndices

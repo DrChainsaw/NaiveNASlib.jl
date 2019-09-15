@@ -63,16 +63,12 @@ function ΔSizeGraph()
 end
 
 """
-    ΔninSizeGraph(v, mask::Bool...)
-    ΔninSizeGraph(v, mask=falses(length(inputs(v))))
+    ΔninSizeGraph(v)
 
 Return a `ΔSizeGraph` for the case when nin of `v` is changed, i.e when Δnin(v, Δ) is called.
-
-Optionally, provide a `mask` where `mask[i] == ismissing(Δ[i])`, i.e `nin(v)[i]` will not be changed.
 """
-ΔninSizeGraph(v, mask::Bool) = ΔninSizeGraph(v, BitArray([mask]))
-ΔninSizeGraph(v, mask::Bool...) = ΔninSizeGraph(v, BitArray(mask))
-ΔninSizeGraph(v, mask=falses(length(inputs(v)))) = ΔSizeGraph(Input(), v, mask)
+ΔninSizeGraph(v) = ΔSizeGraph(Input(), v)
+
 """
     ΔnoutSizeGraph(v)
 
@@ -80,7 +76,7 @@ Return a `ΔSizeGraph` for the case when nout of `v` is changed, i.e when Δnout
 """
 ΔnoutSizeGraph(v) = ΔSizeGraph(Output(), v)
 
-function ΔSizeGraph(d::Direction, v, mask=falses(length(inputs(v))))
+function ΔSizeGraph(d::Direction, v)
     g = ΔSizeGraph()
     set_prop!(g, :start, v => d)
     verts = all_in_Δsize_graph(trait(v), d, v, (g, v))

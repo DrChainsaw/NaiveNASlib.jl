@@ -70,20 +70,20 @@ import InteractiveUtils:subtypes
 
         @testset "NamedTrait" begin
 
-            v1 = InvariantVertex(CompVertex(identity, InputSizeVertex("input1", 3)),  t -> NamedTrait(t, "mv"))
+            v1 = MutationVertex(CompVertex(identity, InputSizeVertex("input1", 3)),  NoOp(), NamedTrait(SizeInvariant(), "mv"))
 
             @test showstr(show_less, v1) == "mv"
 
-            v2 = InvariantVertex(CompVertex(+, v1, InputSizeVertex("input2", 3)), t -> NamedTrait(t, "sv"))
+            v2 = MutationVertex(CompVertex(+, v1, InputSizeVertex("input2", 3)), NoOp(), NamedTrait(SizeInvariant(), "sv"))
 
             @test showstr(show, v2) == "MutationVertex(CompVertex(+), inputs=[mv, input2], outputs=[], NoOp(), NamedTrait(SizeInvariant(), \"sv\"))"
         end
 
         @testset "Info strings" begin
             v1 = InputSizeVertex("v1", 3)
-            v2 = AbsorbVertex(CompVertex(identity, v1), IoSize(nout(v1), 5), t -> NamedTrait(t, "v2"))
-            v3 = StackingVertex(CompVertex(identity, v1,v2), t -> NamedTrait(t, "v3"))
-            v4 = InvariantVertex(CompVertex(identity, v3), t -> NamedTrait(t, "v4"))
+            v2 = MutationVertex(CompVertex(identity, v1), IoSize(nout(v1), 5), NamedTrait(SizeAbsorb(), "v2"))
+            v3 = MutationVertex(CompVertex(identity, v1,v2), IoSize([3, 5], 8), NamedTrait(SizeStack(), "v3"))
+            v4 = MutationVertex(CompVertex(identity, v3), IoSize(nout(v3), nout(v3)), NamedTrait(SizeInvariant(), "v4"))
 
             @test infostr(NameInfoStr(), v1) == "v1"
             @test infostr(NameInfoStr(), v2) == "v2"
