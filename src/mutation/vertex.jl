@@ -146,14 +146,6 @@ struct MutationVertex <: AbstractVertex
 end
 MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVertex(OutputsVertex(b), s, t)
 
-AbsorbVertex(b::AbstractVertex, s::MutationState, f::Function=identity) = MutationVertex(b, s, f(SizeAbsorb()))
-
-StackingVertex(b::AbstractVertex, f::Function=identity) = StackingVertex(OutputsVertex(b), f)
-StackingVertex(b::Union{OutputsVertex, MutationVertex}, f::Function=identity) = MutationVertex(b, IoSize(nout.(inputs(b)), sum(nout.(inputs(b)))), f(SizeStack()))
-
-InvariantVertex(b::AbstractVertex, f::Function=identity) = InvariantVertex(b, NoOp(), f)
-InvariantVertex(b::AbstractVertex, op::MutationOp, f::Function=identity) = MutationVertex(OutputsVertex(b), op, f(SizeInvariant()))
-
 clone(v::MutationVertex, ins::AbstractVertex...; opfun=cloneop, traitfun=clonetrait) = MutationVertex(clone(base(v), ins...), opfun(v), traitfun(v))
 cloneop(v::MutationVertex) = clone(op(v))
 clonetrait(v::MutationVertex) = clone(trait(v))

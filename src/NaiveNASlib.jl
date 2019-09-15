@@ -29,7 +29,7 @@ export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
 export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org
 
 # Mutation vertex
-export base, InputSizeVertex, OutputsVertex, AbsorbVertex, StackingVertex, InvariantVertex, MutationVertex
+export base, InputSizeVertex, OutputsVertex, MutationVertex
 
 # Mutation traits
 export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation

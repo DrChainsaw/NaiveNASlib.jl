@@ -68,12 +68,13 @@ import LightGraphs:adjacency_matrix,is_cyclic
 
     @testset "Mutation graph copy" begin
         ins = InputSizeVertex.(InputVertex.(1:3), 1)
-        v1 = AbsorbVertex(CompVertex(+, ins[1], ins[2]), IoSize(1,1))
-        v2 = StackingVertex(CompVertex(vcat, v1, ins[3]))
-        v3 = StackingVertex(CompVertex(vcat, ins[1], v1))
-        v4 = AbsorbVertex(CompVertex(-, v3, v2), IoSize(1,1))
-        v5 = InvariantVertex(CompVertex(/, ins[1], v1))
-        graph = CompGraph(ins, [v4, v5])
+        v1 = ins[1] + ins[2]
+        v2 = conc(v1, ins[3], dims=1)
+        v3 = conc(ins[1], v1, dims=1)
+        v4 = v3 - v2
+        v5 = ins[1] / v1
+        v6 = absorbvertex(identity, 4, v5)
+        graph = CompGraph(ins, [v4, v6])
         #TODO outputs as [v5, v4] causes graphs to not be identical
         # This is due to v5 being a mostly independent branch
         # which is the completed before the v4 branch
@@ -98,7 +99,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
         function testop(v) end
         testop(v::MutationVertex) = testop(trait(v), v)
         function testop(::MutationTrait, v) end
-        testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoSize
+        testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoChange
         foreach(testop, mapreduce(flatten, vcat, graph.outputs))
 
         # But new graph shall use IoIndices
