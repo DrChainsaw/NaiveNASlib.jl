@@ -6,7 +6,6 @@ import InteractiveUtils:subtypes
 
     expectedtype(t::Type{<:MutationOp}) = Integer
     expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}
-    expectedtype(t::Type{InvIndices}) = AbstractArray{<:Integer,1}
 
     @testset "Method contracts" begin
         for subtype in implementations(MutationOp)
@@ -21,27 +20,6 @@ import InteractiveUtils:subtypes
             @test hasmethod_or_error(in_inds, (subtype,))
             @test hasmethod_or_error(out_inds, (subtype,))
         end
-    end
-
-    @testset "InvSize" begin
-        size = InvSize(3)
-        @test nin(size) == [3]
-        @test nout(size) == 3
-
-        Δnin(size, 2)
-        @test nin(size) == [5]
-        @test nout(size) == 5
-
-        Δnout(size, -3)
-        @test nin(size) == [2]
-        @test nout(size) == 2
-
-        @test in_inds(size) == [1:2]
-        @test out_inds(size) == 1:2
-
-        @test_throws AssertionError Δnin(size, 1,2)
-
-        @test issame(size, clone(size))
     end
 
     @testset "IoSize" begin
@@ -98,34 +76,6 @@ import InteractiveUtils:subtypes
 
         Δnin(inds, missing, [-1, 2, -1])
         @test in_inds(inds) == [[1, 2], [-1,2,-1]]
-
-        @test issame(inds, clone(inds))
-    end
-
-    @testset "InvIndices" begin
-        inds = InvIndices(5)
-
-        @test nin(inds) == [5]
-        @test nout(inds) == 5
-
-        Δnin(inds, [2,3,4])
-        @test nin(inds) == [3]
-        @test nout(inds) == 3
-        @test in_inds(inds) == [out_inds(inds)] == [[2,3,4]]
-
-        reset!(inds)
-        @test out_inds(inds) == [1,2,3]
-
-        Δnout(inds, [1,-1,2, 3])
-        @test nin(inds) == [4]
-        @test nout(inds) == 4
-        @test out_inds(inds) == [1,-1,2, 3]
-
-        reset!(inds)
-        @test out_inds(inds) == [1,2,3,4]
-
-        Δnin(inds, missing, [3,5,7])
-        @test out_inds(inds) == [3,5,7]
 
         @test issame(inds, clone(inds))
     end
