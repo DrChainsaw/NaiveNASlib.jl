@@ -187,14 +187,13 @@ end
 
 solve_outputs_selection(s::SelectionFail, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
 
-function solve_outputs_selection(s::NoutRevert, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function NaiveNASlib.solve_outputs_selection(s::NoutRevert, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     for v in vertices
-        diff = nout_org(v) - nout(v)
-        if diff != 0
-            Δnout(v, diff)
-        end
+        Δnout(NaiveNASlib.OnlyFor(), v, nout_org(v) - nout(v))
+        diff = nin_org(v) - nin(v)
+        Δnin(NaiveNASlib.OnlyFor(), v, diff...)
     end
-
+    
     return false, Dict(vertices .=> UnitRange.(1, nout.(vertices))), Dict(vertices .=> map(nins -> UnitRange.(1,nins), nin.(vertices)))
 end
 
