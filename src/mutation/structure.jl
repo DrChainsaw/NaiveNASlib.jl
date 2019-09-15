@@ -176,20 +176,6 @@ CheckAligned() = CheckAligned(CheckNoSizeCycle())
 
 
 """
-    AdjustToCurrentSize <: AbstractAlignSizeStrategy
-    AdjustToCurrentSize()
-    AdjustToCurrentSize(fallback)
-
-Adjust `nin` of all `outputs` and/or `nout` of all `inputs` to the current input/output size so that `sum(nin.(inputs(v))) == nout(v)` and so that `all(nin.(outputs(v)) .== nout(v))`.
-
-This is a post-align strategy, i.e it will be applied after a structural change has been made.
-"""
-struct AdjustToCurrentSize <: AbstractAlignSizeStrategy
-    fallback
-end
-AdjustToCurrentSize() = AdjustToCurrentSize(FailAlignSizeError())
-
-"""
     PostAlignJuMP <: AbstractAlignSizeStrategy
     PostAlignJuMP()
     PostAlignJuMP(s::AbstractAlignSizeStrategy)
@@ -275,15 +261,6 @@ function connect!(v, to, inds, items, ::ConnectNone)
     end
 end
 
-# I don't like if-statements anymore, ok?
-minΔninfactor_if(remove, v) = minΔninfactor_if(Val(remove), v)
-minΔninfactor_if(::Val{true}, v) = lcmsafe(minΔnoutfactor_only_for.(inputs(v)))
-minΔninfactor_if(::Val{false}, v) = minΔninfactor(v)
-
-minΔnoutfactor_if(remove, v) = minΔnoutfactor_if(Val(remove), v)
-minΔnoutfactor_if(::Val{true}, v) = lcmsafe(minΔninfactor_only_for.(outputs(v)))
-minΔnoutfactor_if(::Val{false}, v) = minΔnoutfactor(v)
-
 tot_nin(v) = tot_nin(trait(v), v)
 tot_nin(t::DecoratingTrait, v) = tot_nin(base(t), v)
 tot_nin(::MutationTrait, v) = nin(v)[]
@@ -316,8 +293,9 @@ function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
 end
 
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
-    Δnin.(outputs(vin), s.Δoutsize...)
-    return true
+    expected = nout(vin) + s.Δoutsize
+    Δsize(ΔNout{Exact}(vin, s.Δoutsize, ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
+    return nout(vin) == expected
 end
 
 function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
@@ -340,55 +318,56 @@ function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, wil
     Δinsize = nout(vin) - tot_nin(vout)
     Δoutsize = -Δinsize
 
-    can_change(Δ, factor::Integer) = Δ % factor == 0
-    can_change(Δ, ::Missing) = false
+    strat = proceedwith(s, Δinsize) ? Δninstrat(vout, Δinsize) : Δnoutstrat(vin, Δoutsize)
+    success = prealignsizes(strat, vin, vout)
 
-    insize_can_change = all( can_change.(Δinsize, minΔninfactor_if(will_rm(vout), vout)))
-    if insize_can_change && proceedwith(s, Δinsize)
-        Δnin(vout, Δinsize)
-        return true
+    if !success
+        return prealignsizes(s.fallback, vin, vout, will_rm)
     end
-
-    outsize_can_change = all( can_change.(Δoutsize, minΔnoutfactor_if(will_rm(vin), vin)))
-    if outsize_can_change && proceedwith(s, Δoutsize)
-        Δnout(vin, Δoutsize)
-        return true
-    end
-
-    return prealignsizes(s.fallback, vin, vout, will_rm)
+    return true
 end
 proceedwith(::DecreaseBigger, Δ::Integer) = Δ <= 0
 proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
+Δninstrat(v, Δ) = Δninstrat(trait(v), v, Δ)
+Δninstrat(t::DecoratingTrait, v, Δ) = Δninstrat(base(t), v, Δ)
+Δninstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
+Δninstrat(::MutationSizeTrait, v, Δ) = ΔNin{Exact}(v, [Δ], ΔSizeFailNoOp())
+Δninstrat(::SizeTransparent, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+
+Δnoutstrat(v, Δ) = Δnoutstrat(trait(v), v, Δ)
+Δnoutstrat(t::DecoratingTrait, v, Δ) = Δnoutstrat(base(t), v, Δ)
+Δnoutstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
+Δnoutstrat(::MutationSizeTrait, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+
 function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
-    Δninfactor = minΔninfactor_if(will_rm(vout), vout)
-    Δnoutfactor = minΔnoutfactor_if(will_rm(vin), vin)
+    strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vin)), AlignNinToNout(), ΔSizeFailNoOp())
+    success = prealignsizes(strat, vin, vout)
 
-    ismissing(Δninfactor) || ismissing(Δnoutfactor) && return prealignsizes(s.fallback, vin, vout, will_rm)
-
-    sizes = [nout(vin), tot_nin(vout)]
-    select(f,k) = increase_until(Δs -> all(-Δs .< sizes) || any(Δs .> 0.2 .* sizes), f, k)
-
-    Δs = alignfor(nout(vin) , Δnoutfactor, [tot_nin(vout)], [Δninfactor], select)
-
-    # One last check if size change is possible
-    ismissing(Δs) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
-    -Δs[1] > nout(vin) && -Δs[2] > tot_nin(vout) &&  return prealignsizes(s.fallback, vin, vout, will_rm)
-
-    # Ok, lets make the change
-    # TODO: Add back?
-    s = VisitState{Int}(vout) # Just in case we happen to be inside a transparent vertex
-    Δnin(vout, Δs[2], s=s)
-    Δnout(vin, Δs[1], s=s)
+    if !success
+        return prealignsizes(s.fallback, vin, vout, will_rm)
+    end
     return true
+end
+
+function prealignsizes(s::AbstractΔSizeStrategy, vin, vout)
+    vin_all = all_in_Δsize_graph(vin, Output())
+    vout_all = all_in_Δsize_graph(vout, Input())
+
+    verts = union(vin_all, vout_all)
+    success, nins, nouts = newsizes(s, verts)
+
+    if success
+        Δsize(nins, nouts, verts)
+        return true
+    end
+    return false
 end
 
 # Boilerplate
 postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
 function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
-postalignsizes(s::AdjustToCurrentSize, vin, vout) = postalignsizes(s, vin, vout, trait(vout))
-postalignsizes(s::AdjustToCurrentSize, vin, vout, t::DecoratingTrait) = postalignsizes(s, vin, vout, base(t))
 
 # Failure cases
 postalignsizes(::FailAlignSizeError, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
@@ -404,106 +383,17 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout)
 
 # Ok, this one actually does something...
 function postalignsizes(s::PostAlignJuMP, vin, vout)
-    vertices = all_in_graph(vin)
-    if vin ∉ inputs(vout)
-        deleteat!(vertices, vertices .== vin)
-    end
-    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), vertices)
+    vin_all = all_in_Δsize_graph(vin, Output())
+    vout_all = all_in_Δsize_graph(vout, Input())
+
+    verts = union(vin_all, vout_all)
+    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), verts)
     if !success
-        return postalignsizes(s.fallback, vin, vout, t)
+        return postalignsizes(s.fallback, vin, vout)
     end
-    Δsize(nins, nouts, vertices)
+    Δsize(nins, nouts, verts)
 end
 
-function postalignsizes(s::AdjustToCurrentSize, vin, vout, ::SizeStack)
-
-    # At this point we expect to have nout(vout) to be the correct value while nin of the output edges of vout needs to be adjusted. Problem is that there might be Δfactors (I'm really starting to hate them now) or immutable vertices which prevents us from just changing the input size of the output edges to nout(vout) - nin(voo[i]) where voo[i] is output #i of vout.
-
-    # The equations we want to solve are nout(vout) + Δnoutfactor * x = nin(voo[i]) +  Δninfactor[i] * y[i] for all i.
-    Δninfactors = minΔninfactor_only_for.(outputs(vout))
-    nins = zeros(Int, length(Δninfactors))
-    # Also annoying: We obviously can't use nout(vout) as it is the right size. Instead, we must look at each output(vout), voo[i] and find which input index j of voo[i] is vout and select nin(voo[i])[j]
-    let # Let block just to not have temp variable mask laying around...
-    # This does the same thing as the below in one line, but is incomprehensible: mapfoldl(vo -> (inputs(vo), nin(vo)),(a,b)-> vcat(a[2],b[2][b[1] .== vout]), outputs(vout))
-        mask = mapfoldl(inputs, vcat, outputs(vout)) .== vout
-        nins = mapfoldl(nin, vcat, outputs(vout))[mask]
-    end
-
-    # What this!? Well, we do want to change vin and vout only, but perhaps this is not possible for one reason or the other (e.g. vin is immutable).
-    # Therefore we will try to change each input to vout, starting with vin, until we find one which succeeds.
-
-    # Try vin first if it is one of the inputs to vout. No reason really apart from that it just "feels" more natural to change it over some other vertex which just happens to be input to vout
-    vins = sort(inputs(vout), by = voi -> voi == vin ? 0 : indexin([voi], inputs(vout))[])
-
-    function alignsize(cnt=1)
-        # Base case: We have tried all inputs and no possible solution was found
-        cnt > length(vins) && return missing
-
-        Δnoutfactors =minΔnoutfactor_only_for.(vins[cnt])
-
-        select(f,k) = increase_until(all_positive, f, k)
-        Δs = alignfor(nout(vout), Δnoutfactors, nins, Δninfactors, select)
-
-        return ismissing(Δs) ? alignsize(cnt+1) : (Δs, cnt, cnt)
-    end
-
-    # TODO: This function and the one above can probably be merged
-    # Obstacles:
-    #     increase_until only works when Δninfactors are missing and there is only one nout
-    #     Search order? First try all nins and then try combinations of them?
-    #       -Doesn't it do that already?
-    # Also: Why does solver sometimes fail when adding more inputs? Shouldn't it just set them to zero if they are not usable?
-    function alignsize_all_inputs(start=1, stop=min(2, length(vins)))
-        # Base case: We have tried all options we intend to try with and no possible solution was found
-        max(start, stop) > length(vins) && return missing
-        Δnoutfactors::Vector{Maybe{Int}} = minΔnoutfactor_only_for.(vins[start:stop])
-
-        function select(f, k, first=true)
-            Δs = f(k)
-            any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop])) && return f(k .- 1)
-            return Δs
-        end
-        Δs = alignfor(nout(vout), Δnoutfactors, nins, Δninfactors, select)
-
-        if ismissing(Δs)
-            return alignsize_all_inputs(start+1, max(1, stop-1))
-        elseif any(-Δs[1:stop-start+1] .>= nout.(vins[start:stop]))
-            return alignsize_all_inputs(start, stop+1)
-        end
-        return Δs, start, stop
-    end
-
-    res = any(ismissing.(Δninfactors)) ? alignsize_all_inputs() : alignsize()
-    ismissing(res) && return postalignsizes(s.fallback, vin, vout)
-
-    Δs, start, stop = res
-
-    for i in start:stop
-
-        Δ = Δs[i-start+1]
-        Δ == 0 && continue # To avoid having to support Δnout/Δnin with Δ = 0 for immutable vertices
-
-        s = VisitState{Int}(vins[i])
-        visited_in!.(s, outputs(vout))
-
-        Δnout(vins[i], Δ, s=s)
-    end
-
-    for (i, voo) in enumerate(outputs(vout))
-        Δ = Δs[i+stop-start+1]
-        Δ == 0 && continue
-
-        Δvec = Vector{Maybe{Int}}(missing, length(inputs(voo)))
-        Δvec[inputs(voo) .== vout] .= Δ
-
-        # Dont touch the parts which already have the correct size
-        s = VisitState{Int}(voo, Δvec...)
-        visited_out!(s, vout)
-
-        Δnin(voo, Δvec..., s=s)
-    end
-
-end
 
 function increase_until(cond, f, k_start)
     # This is pretty coarse and is far from guaranteed to make the solution better
@@ -755,7 +645,7 @@ end
 
 default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
 default_create_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
-default_create_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
+default_create_edge_strat(::SizeStack,v) = PostAlignJuMP()
 default_create_edge_strat(::SizeInvariant,v) = IncreaseSmaller()
 default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
@@ -801,7 +691,7 @@ end
 
 default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
 default_remove_edge_strat(t::DecoratingTrait,v) = default_remove_edge_strat(base(t),v)
-default_remove_edge_strat(::SizeStack,v) = AdjustToCurrentSize()
+default_remove_edge_strat(::SizeStack,v) = PostAlignJuMP()
 default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 

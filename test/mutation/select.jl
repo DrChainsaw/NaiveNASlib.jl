@@ -150,14 +150,14 @@
 
         Δnout(v4, 6)
 
-        @test nout(v1) == 9
-        @test nout(v2) == 4
+        @test nout(v1) == 7
+        @test nout(v2) == 5
 
         Δoutputs(Output(), v4, v->1:nout_org(v))
         apply_mutation(g)
 
-        @test nout(v1) == 9
-        @test nout(v2) == 4
+        @test nout(v1) == 7
+        @test nout(v2) == 5
 
         @test size(g(ones(1, 3))) == (1, nout(v4))
     end
@@ -247,29 +247,29 @@
         @test size(g(ones(1, 3))) == (1, nout(v7))
 
         @test minΔnoutfactor(v7) == 2
-        Δnout(v7, -4)
+        Δnout(v7, -6)
 
-        @test nout(v1) == 8
-        @test nout(v2) == 5
+        @test nout(v1) == 7
+        @test nout(v2) == 4
         @test nout(v3) == 8
-        @test nout(v4) == 3
+        @test nout(v4) == 4
 
         @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 8
         @test nout(v2) == 4
-        @test nout(v3) == 9
-        @test nout(v4) == 5
+        @test nout(v3) == 7
+        @test nout(v4) == 3
 
         @test size(g(ones(1, 3))) == (1, nout(v7))
 
-        Δnout(v7, 6)
+        Δnout(v7, 4)
 
         @test nout(v1) == 10
         @test nout(v2) == 5
-        @test nout(v3) == 12
-        @test nout(v4) == 7
+        @test nout(v3) == 8
+        @test nout(v4) == 3
 
         # Works on the first try this time around
         Δoutputs(Output(), v7, v->1:nout_org(v))
@@ -277,8 +277,8 @@
 
         @test nout(v1) == 10
         @test nout(v2) == 5
-        @test nout(v3) == 12
-        @test nout(v4) == 7
+        @test nout(v3) == 8
+        @test nout(v4) == 3
 
         @test size(g(ones(1, 3))) == (1, nout(v7))
     end
@@ -299,11 +299,11 @@
         @test size(g(ones(1, 3))) == (1, nout(v7))
 
         @test minΔnoutfactor(v7) == 1
-        Δnout(v7, 5)
+        Δnout(v7, 6)
 
         @test nout(v1) == 4
-        @test nout(v2) == 5
-        @test nout(v3) == 5
+        @test nout(v2) == 6
+        @test nout(v3) == 6
         @test nout(v4) == 8
 
         @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(Output(), v7, v -> 1:nout_org(v))
@@ -311,8 +311,8 @@
 
         # Sizes can't change when increasing, even if problem is relaxed :(
         @test nout(v1) == 4
-        @test nout(v2) == 5
-        @test nout(v3) == 5
+        @test nout(v2) == 6
+        @test nout(v3) == 6
         @test nout(v4) == 8
 
         @test size(g(ones(1, 3))) == (1, nout(v7))
@@ -347,35 +347,33 @@
         g = CompGraph(inpt, [v1, v9])
         @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
 
-        @test minΔnoutfactor(v1) == 2
+        Δnout(v2, -1)
 
-        Δnout(v2, -6)
-
-        @test nout(v6) == 3
-        @test nout(v7) == 9
-        @test nout(v0) == 4
+        @test nout(v6) == 4
+        @test nout(v7) == 13
+        @test nout(v0) == 9
 
         Δoutputs(v1, v -> 1:nout_org(v))
         apply_mutation(g)
 
-        @test nout(v6) == 3
-        @test nout(v7) == 9
-        @test nout(v0) == 4
+        @test nout(v6) == 4
+        @test nout(v7) == 13
+        @test nout(v0) == 9
 
         @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
 
-        Δnout(v2, 8)
+        Δnout(v2, 5)
 
-        @test nout(v6) == 5
-        @test nout(v7) == 15
-        @test nout(v0) == 12
+        @test nout(v6) == 4
+        @test nout(v7) == 16
+        @test nout(v0) == 14
 
-        Δoutputs(Output(), v1, v->1:nout_org(v))
+        @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->1:nout_org(v))
         apply_mutation(g)
 
-        @test nout(v6) == 5
-        @test nout(v7) == 15
-        @test nout(v0) == 12
+        @test nout(v6) == 4
+        @test nout(v7) == 16
+        @test nout(v0) == 14
 
         @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
     end

@@ -65,15 +65,10 @@ layer2 = layer(layer1, 5);
 Δnout(layer1, -2);
 
 @test [nout(layer1)] == nin(layer2) == [2]
-```
-As can be seen above, the consequence of changing the output size of `layer1` was that the input size of `layer2` also was changed.
 
-Besides the very simple graph, this mutation was trivial because both layers are of the type `SizeAbsorb`, meaning that a change in number of inputs/outputs does not propagate further in the graph.
-
-Lets do a non-trivial example:
-```julia
+### Third example ###
 # When multiplying with a scalar, the output size is the same as the input size.
-# This vertex type is said to be size invariant (in lack of better words).
+# This vertex type is said to be SizeInvariant (in lack of better words).
 scalarmult(v, f::Integer) = invariantvertex(x -> x .* f, v)
 
 invertex = inputvertex("input", 6);
@@ -109,7 +104,7 @@ NaiveNASlib.mutate_outputs(l::SimpleLayer, newOutSize) = l.W = ones(Int, size(l.
 NaiveNASlib.clone(l::SimpleLayer) = SimpleLayer(l.W)
 parentgraph = copy(graph)
 
-Δnin(out, 3)
+Δnout(out, 3)
 
 # We didn't touch the input when mutating...
 @test [nout(invertex)] == nin(start) == [6]
@@ -155,101 +150,96 @@ Prune (and insert) neurons:
 ```julia
 # Some mockup 'batteries' for this example
 
-# First, how to select or add rows or columns to a matrix
-# Negative values in selected indicate rows/cols insertion at that index
-function select_params(W, selected, dim)
-    Wsize = collect(size(W))
-    indskeep = repeat(Any[Colon()], 2)
-    newmap = repeat(Any[Colon()], 2)
+    # First, how to select or add rows or columns to a matrix
+    # Negative values in selected indicate rows/cols insertion at that index
+    function select_params(W, selected, dim)
+        Wsize = collect(size(W))
+        indskeep = repeat(Any[Colon()], 2)
+        newmap = repeat(Any[Colon()], 2)
 
-    # The selected indices
-    indskeep[dim] = filter(ind -> ind > 0, selected)
-    # Where they are 'placed', others will be zero
-    newmap[dim] = selected .> 0
-    Wsize[dim] = length(newmap[dim])
+        # The selected indices
+        indskeep[dim] = filter(ind -> ind > 0, selected)
+        # Where they are 'placed', others will be zero
+        newmap[dim] = selected .> 0
+        Wsize[dim] = length(newmap[dim])
 
-    newmat = zeros(Int64, Wsize...)
-    newmat[newmap...] = W[indskeep...]
-    return newmat
-end
+        newmat = zeros(Int64, Wsize...)
+        newmat[newmap...] = W[indskeep...]
+        return newmat
+    end
 
-NaiveNASlib.mutate_inputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 1)
-NaiveNASlib.mutate_outputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 2)
+    NaiveNASlib.mutate_inputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 1)
+    NaiveNASlib.mutate_outputs(l::SimpleLayer, selected::Vector{<:Integer}) = l.W = select_params(l.W, selected, 2)
 
-# Return layer just so we can easily look at it
-function prunablelayer(in, outsize)
-    l = SimpleLayer(reshape(1: nout(in) * outsize, nout(in), :))
-    return absorbvertex(l, outsize, in), l
-end
+    # Return layer just so we can easiliy look at it
+    function prunablelayer(in, outsize)
+        l = SimpleLayer(reshape(1: nout(in) * outsize, nout(in), :))
+        return absorbvertex(l, outsize, in), l
+    end
 
-# Ok, now lets get down to business!
-invertices = inputvertex.(["in1", "in2"], [3,4])
-v1, l1 = prunablelayer(invertices[1], 4)
-v2, l2 = prunablelayer(invertices[2], 3)
-merged = conc(v1, v2, dims=2)
-v3, l3 = prunablelayer(merged, 2)
-graph = CompGraph(invertices, v3)
+    # Ok, now lets get down to business!
+    invertices = inputvertex.(["in1", "in2"], [3,4])
+    v1, l1 = prunablelayer(invertices[1], 4)
+    v2, l2 = prunablelayer(invertices[2], 3)
+    merged = conc(v1, v2, dims=2)
+    v3, l3 = prunablelayer(merged, 2)
+    graph = CompGraph(invertices, v3)
 
-@test l1.W ==
-[ 1  4  7  10 ;
-  2  5  8  11 ;
-  3  6  9  12 ]
+    @test l1.W ==
+    [ 1  4  7  10 ;
+      2  5  8  11 ;
+      3  6  9  12 ]
 
-@test l2.W ==
-[ 1  5   9 ;
-  2  6  10 ;
-  3  7  11 ;
-  4  8  12 ]
+    @test l2.W ==
+    [ 1  5   9 ;
+      2  6  10 ;
+      3  7  11 ;
+      4  8  12 ]
 
-@test l3.W ==
-[ 1   8 ;
-  2   9 ;
-  3  10 ;
-  4  11 ;
-  5  12 ;
-  6  13 ;
-  7  14 ]
+    @test l3.W ==
+    [ 1   8 ;
+      2   9 ;
+      3  10 ;
+      4  11 ;
+      5  12 ;
+      6  13 ;
+      7  14 ]
 
-# Here is one reason why apply_mutation is needed:
-# We want to mutate nin of v3, and we are not sure how this propagates to v1 and v2
-# Lets just change the size first and then we see what happens
-Δnin(v3, -3)
-# Another reason is that it is possible to do several mutations without throwing away
-# more information than needed.
-# For example, if we had first applied the previous mutation we would have thrown away
-# weights for v2 which would then just be replaced by 0s when doing this:
-Δnout(v2, 2)
+   # A limitation in current implementation is that one must change the size before pruning
+   # See https://github.com/DrChainsaw/NaiveNASlib.jl/issues/40
+    Δnin(v3, -3)
+    # Doing this however makes it possible to do several mutations without throwing away
+    # more information than needed.
+    # For example, if we had first applied the previous mutation we would have thrown away
+    # weights for v2 which would then just be replaced by 0s when doing this:
+    Δnout(v2, 1)
 
-# Lets see that that did...
-@test nin(v3) == [6]
-@test nout(v1) == 2
-@test nout(v2) == 4
+    # Now, we need a utility metric per neuron in order to determine which neurons to keep
+    # Give high utility to neurons 1 and 3 of v1, same for all others...
+    utility(v) = v == v1 ? [10, 1, 10, 1] : ones(nout_org(v))
+    # Then select the neurons.
+    Δoutputs(graph, utility)
+    # And apply it to the actual weights
+    apply_mutation(graph)
 
-# Ok, for v1 we shall remove two output neurons while for v2 we shall add one.
-# Changes will propagate to v3 so that the right inputs are chosen
-Δnout(v1, [1, 3]) # Keep columns 1 and 3
-Δnout(v2, [1,2,3, -1]) # -1 means add a new column
+    @test l1.W ==
+    [ 1  7 ;
+      2  8 ;
+      3  9 ]
 
-apply_mutation(graph)
+    # No change as we increased the size before pruning
+    @test l2.W ==
+    [ 1  5   9  ;
+      2  6  10  ;
+      3  7  11  ;
+      4  8  12  ]
 
-@test l1.W ==
-[ 1  7 ;
-  2  8 ;
-  3  9 ]
-
-@test l2.W ==
-[ 1  5   9  0 ;
-  2  6  10  0 ;
-  3  7  11  0 ;
-  4  8  12  0 ]
-
-@test l3.W ==
-[ 1   8 ;
-  3  10 ;
-  5  12 ;
-  6  13 ;
-  7  14 ;
-  0   0 ]
+    @test l3.W ==
+    [ 1   8 ;
+      3  10 ;
+      5  12 ;
+      6  13 ;
+      7  14 ]
 ```
 
 Add a vertex to a graph:
@@ -327,8 +317,8 @@ graph = CompGraph(invertex, out)
 remove_edge!(layer1, merged)
 apply_mutation(graph)
 
-@test nin(merged) == [5, 6]
-@test graph(ones(Int, 1, 4)) == [44 44 44]
+@test nin(merged) == [5, 3]
+@test graph(ones(Int, 1, 4)) == [32 32 32]
 ```
 
 ## Contributing

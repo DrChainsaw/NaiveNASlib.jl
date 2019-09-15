@@ -8,7 +8,6 @@ using AbstractAlgebra
 using LinearAlgebra
 using Logging
 
-# For solving pesky entangled neuron select problems. To be moved to NaiveNASlib if things work out
 import JuMP
 import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
 using Cbc
@@ -38,7 +37,7 @@ export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSiz
 # Size util
 export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output, Both, all_in_graph, all_in_Δsize_graph, Δsize, newsizes, neighbours
 
-export ΔNoutLegacy, ΔNinLegacy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
+export AbstractΔSizeStrategy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
 
 #Selection util
 export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, Δoutputs, solve_outputs_selection
@@ -60,9 +59,12 @@ export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc
 
 include("vertex.jl")
 include("compgraph.jl")
+include("prettyprint.jl")
 
 include("mutation/op.jl")
 include("mutation/vertex.jl")
+include("mutation/graph.jl")
+include("mutation/jumpnorm.jl")
 include("mutation/size.jl")
 include("mutation/apply.jl")
 include("mutation/select.jl")
