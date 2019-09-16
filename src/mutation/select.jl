@@ -193,7 +193,7 @@ function NaiveNASlib.solve_outputs_selection(s::NoutRevert, vertices::AbstractVe
         diff = nin_org(v) - nin(v)
         Δnin(NaiveNASlib.OnlyFor(), v, diff...)
     end
-    
+
     return false, Dict(vertices .=> UnitRange.(1, nout.(vertices))), Dict(vertices .=> map(nins -> UnitRange.(1,nins), nin.(vertices)))
 end
 
@@ -257,18 +257,24 @@ function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTra
     inoutconstraint!(s, t, v, data)
 end
 
-nselect_out(v) = min(nout(v), nout_org(v))
+
 function sizeconstraint!(::OutSelect{Exact}, t, v, data)
-    @constraint(data.model, sum(data.outselectvars[v]) == nselect_out(v))
-    sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
+    nselect = min(nout(v), nout_org(v))
+    ninsert = max(0, nout(v) - nselect)
+    @constraint(data.model, sum(data.outselectvars[v]) == nselect)
+    @constraint(data.model, sum(data.outinsertvars[v]) == ninsert)
+end
+
+function sizeconstraint!(::OutSelect{Exact}, t::SizeStack, v, data)
+    nselect = sum(min.(nin_org(v), nin(v)))
+    ninsert = sum(max.(0, nin(v) - nin_org(v)))
+    @constraint(data.model, sum(data.outselectvars[v]) == nselect)
+    @constraint(data.model, sum(data.outinsertvars[v]) == ninsert)
 end
 
 function sizeconstraint!(::OutSelect{Relaxed}, t, v, data)
     @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
-    sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
-end
 
-function sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data)
     # Handle insertions
     # The constraint that either there are no new outputs or the total number of outputs must be equal to the length of outinsertvars is a somewhat unfortunate result of the approach chosen to solve the problem.
     # If not enforced, we will end up in situations where some indices shall neither be selected nor have insertions. For example, the result might say "keep indices 1,2,3 and insert a new output at index 10".
@@ -276,6 +282,7 @@ function sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data)
     # Maybe this https://cs.stackexchange.com/questions/12102/express-boolean-logic-operations-in-zero-one-integer-linear-programming-ilp in combination with this https://math.stackexchange.com/questions/2022967/how-to-model-a-constraint-of-consecutiveness-in-0-1-programming?rq=1
     outsel = data.outselectvars[v]
     outins = data.outinsertvars[v]
+    model = data.model
     if length(outins) > length(outsel)
         @constraint(data.model, sum(outins) == length(outins) - sum(outsel))
     elseif length(outins) > 0
