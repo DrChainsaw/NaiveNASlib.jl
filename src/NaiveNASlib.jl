@@ -3,9 +3,6 @@ module NaiveNASlib
 using LightGraphs, MetaGraphs
 using DataStructures
 using Statistics
-# For solving diophantine equations which pop up here and there when mutating size under constraints
-using AbstractAlgebra
-using LinearAlgebra
 using Logging
 
 import JuMP
