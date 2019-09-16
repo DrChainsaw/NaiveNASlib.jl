@@ -318,6 +318,32 @@
         @test size(g(ones(1, 3))) == (1, nout(v7))
     end
 
+    @testset "SizeStack increase decrease" begin
+        inpt = iv(3)
+        v1 = av(inpt, 3, "v1")
+        v2 = av(inpt, 10, "v2")
+        v3 = cc(v1,v2, name="v3")
+        v4 = av(v3, 4, "v4")
+
+        g = CompGraph(inpt, v3)
+        @test size(g(ones(1, 3))) == (1, nout(v3))
+
+        Δnout(v3, -5)
+        Δnout(v1, 3)
+
+        @test nin(v3) == [nout(v1), nout(v2)] == [5, 6]
+        @test nout(v3) == sum(nin(v3)) == 11
+
+        Δoutputs(Output(), v3, v -> 1:nout_org(v))
+
+        @test in_inds(op(v3)) == [out_inds(op(v1)), out_inds(op(v2))] == [[1,2,3,-1,-1],[5,6,7,8,9,10]]
+        @test [out_inds(op(v3))] == in_inds(op(v4)) == [[1,2,3,-1,-1,8,9,10,11,12,13]]
+
+        apply_mutation(g)
+        @test size(g(ones(1, 3))) == (1, nout(v3))
+
+    end
+
     @testset "Constrained by remote subtree" begin
         inpt = iv(3)
         v0 = av(inpt, 10, "v0")

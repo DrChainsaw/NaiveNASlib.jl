@@ -328,6 +328,8 @@ import LightGraphs:adjacency_matrix,is_cyclic
                 v3, l3 = prunablelayer(merged, 2)
                 graph = CompGraph(invertices, v3)
 
+                # These weights are of course complete nonsense from a neural network perspective.
+                # They are just to make it easier to spot what has changed after pruning below.
                 @test l1.W ==
                 [ 1  4  7  10 ;
                   2  5  8  11 ;
@@ -351,13 +353,24 @@ import LightGraphs:adjacency_matrix,is_cyclic
                # A limitation in current implementation is that one must change the size before pruning
                # See https://github.com/DrChainsaw/NaiveNASlib.jl/issues/40
                 Δnin(v3, -3)
+
+                # What did that do?
+                @test nout(v1) == 2
+                @test nout(v2) == 2
+
                 # Doing this however makes it possible to do several mutations without throwing away
                 # more information than needed.
                 # For example, if we had first applied the previous mutation we would have thrown away
                 # weights for v2 which would then just be replaced by 0s when doing this:
-                Δnout(v2, 1)
+                Δnout(v2, 2)
 
-                # Now, we need a utility metric per neuron in order to determine which neurons to keep
+                # What did that do?
+                @test nout(v1) == 2
+                @test nout(v2) == 4
+                @test nin(v3) == [6]
+                # Net result is that v1 shall decrease output size by 1 and v2 shall increase its output size by 1
+
+                # Now, we need a utility/value metric per neuron in order to determine which neurons to keep
                 # Give high utility to neurons 1 and 3 of v1, same for all others...
                 utility(v) = v == v1 ? [10, 1, 10, 1] : ones(nout_org(v))
                 # Then select the neurons.
@@ -370,19 +383,20 @@ import LightGraphs:adjacency_matrix,is_cyclic
                   2  8 ;
                   3  9 ]
 
-                # No change as we increased the size before pruning
+                # Note how column 3 was not replaced by zeros: We increased the target size before pruning
                 @test l2.W ==
-                [ 1  5   9  ;
-                  2  6  10  ;
-                  3  7  11  ;
-                  4  8  12  ]
+                [ 1  5   9  0;
+                  2  6  10  0;
+                  3  7  11  0;
+                  4  8  12  0]
 
                 @test l3.W ==
                 [ 1   8 ;
                   3  10 ;
                   5  12 ;
                   6  13 ;
-                  7  14 ]
+                  7  14 ;
+                  0   0]
             end
         end
     end
