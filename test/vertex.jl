@@ -4,12 +4,11 @@ using Test
 
 @testset "Basic vertex tests" begin
 
-    @testset "Method contracts" begin
-        for subtype in implementations(AbstractVertex)
-            @test hasmethod_or_error(inputs, (subtype,))
-            @test hasmethod_or_error(clone, (subtype, Vararg{AbstractVertex}))
-        end
+    @testset "Method contracts $subtype" for subtype in implementations(AbstractVertex)
+        @test hasmethod(inputs, (subtype,))
+        @test hasmethod(clone, (subtype, Vararg{AbstractVertex}))
     end
+
 
     @testset "InputVertex tests" begin
         iv1 = InputVertex(1)
