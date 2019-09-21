@@ -7,19 +7,17 @@ import InteractiveUtils:subtypes
     expectedtype(t::Type{<:MutationOp}) = Integer
     expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}
 
-    @testset "Method contracts" begin
-        for subtype in implementations(MutationOp)
-            @test hasmethod_or_error(Δnin, (subtype,expectedtype(subtype)))
-            @test hasmethod_or_error(Δnout, (subtype, expectedtype(subtype)))
-            @test hasmethod_or_error(clone, (subtype,))
-        end
+    @testset "Method contracts $subtype" for subtype in implementations(MutationOp)
+        @test hasmethod(Δnin, (subtype,expectedtype(subtype)))
+        @test hasmethod(Δnout, (subtype, expectedtype(subtype)))
+        @test hasmethod(clone, (subtype,))
+    end
 
-        for subtype in implementations(MutationState)
-            @test hasmethod_or_error(nin, (subtype,))
-            @test hasmethod_or_error(nout, (subtype,))
-            @test hasmethod_or_error(in_inds, (subtype,))
-            @test hasmethod_or_error(out_inds, (subtype,))
-        end
+    @testset "Method contracts $subtype" for subtype in implementations(MutationState)
+        @test hasmethod(nin, (subtype,))
+        @test hasmethod(nout, (subtype,))
+        @test hasmethod(in_inds, (subtype,))
+        @test hasmethod(out_inds, (subtype,))
     end
 
     @testset "IoSize" begin
