@@ -156,12 +156,11 @@ julia> vertices(graph)
 LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
 
 """
-    copy(g::CompGraph, opfun=cloneop)
+    Base.copy(g::CompGraph, clonefun=clone)
 
-Copies the given graph into a new instance with identical structure.
+Copies the given `CompGraph g` into a new instance with identical structure.
 
-Argument opfun may be used to alter what type is used for certain
-members, e.g. the mutationOp and mutationState of AbstractMutationVertices.
+Argument `clonefun` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
 
 # Examples
 ```julia-repl
@@ -178,7 +177,7 @@ CompGraph([InputVertex(1), InputVertex(2)], [CompVertex(+)])
 julia> gcopy == graph
 false
 """
-function Base.copy(g::CompGraph, opfun=cloneop)
+function Base.copy(g::CompGraph, clonefun=clone)
     # Can't just have each vertex copy its inputs as a graph with multiple outputs
     # might end up with multiple copies of the same vertex
 
@@ -189,22 +188,22 @@ function Base.copy(g::CompGraph, opfun=cloneop)
     # We could initialize it with inputs, but CompGraph does not require that inputs
     # are of type InputVertex
     memo = Dict{AbstractVertex, AbstractVertex}()
-    foreach(ov -> copy!(memo, ov, opfun), g.outputs)
+    foreach(ov -> copy!(memo, ov, clonefun), g.outputs)
     return CompGraph(
     map(iv -> memo[iv], g.inputs),
     map(ov -> memo[ov], g.outputs)
     )
 end
+clone(x;clonefun=nothing) = deepcopy(x)
 
 """
-    copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, opfun=cloneop)
+    copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, clonefun=clone)
 
 Recursively copy the input parents of v, ensuring that each vertex gets exactly one copy.
 
 Results will be stored in the provided dict as a mapping between original and copy.
 
-Argument opfun may be used to alter what type is used for certain
-members, e.g. the mutationOp and mutationState of AbstractMutationVertices.
+Argument `clonefun` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
 
 # Examples
 ```julia-repl
@@ -219,10 +218,10 @@ Dict{AbstractVertex,AbstractVertex} with 3 entries:
   InputVertex(1)                                  => InputVertex(1)
   CompVertex(+, [InputVertex(1), InputVertex(2)]) => CompVertex(+, [InputVertex(1), InputVertex(2)])
 """
-function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, opfun=cloneop)
+function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, clonefun=clone)
     return get!(memo, v) do
         # Recurse until inputs(v) is empty
-        ins = map(iv -> copy!(memo, iv, opfun), inputs(v))
-        clone(v, ins...; opfun=opfun)
+        ins = map(iv -> copy!(memo, iv, clonefun), inputs(v))
+        clonefun(v, ins...; clonefun=clonefun)
     end
 end

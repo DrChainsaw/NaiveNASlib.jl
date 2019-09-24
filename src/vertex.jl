@@ -43,9 +43,6 @@ julia> outputs(iv)
 """
 function outputs end
 
-clone(v::AbstractVertex, ins::AbstractVertex...; opfun) = clone(v, ins...)
-
-
 """
     InputVertex
 
@@ -66,7 +63,7 @@ InputVertex("input")
 struct InputVertex <: AbstractVertex
     name
 end
-clone(v::InputVertex, ins::AbstractVertex...) = isempty(ins) ? InputVertex(v.name) : error("Input vertex got inputs: $(ins)!")
+clone(v::InputVertex, ins::AbstractVertex...;clonefun=clone) = isempty(ins) ? InputVertex(clonefun(v.name,clonefun=clonefun)) : error("Input vertex got inputs: $(ins)!")
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 
@@ -94,11 +91,9 @@ struct CompVertex <: AbstractVertex
     inputs::AbstractVector{AbstractVertex}
 end
 CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
-clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone(v.computation), ins...)
+clone(v::CompVertex, ins::AbstractVertex...;clonefun=clone) = CompVertex(clonefun(v.computation, clonefun=clonefun), ins...)
 inputs(v::CompVertex)::AbstractVector{AbstractVertex} = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
-
-clone(c::Function) = deepcopy(c)
 
 ## Stuff for displaying information about vertices
 

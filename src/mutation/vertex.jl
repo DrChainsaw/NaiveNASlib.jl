@@ -17,7 +17,7 @@ struct OutputsVertex <: AbstractVertex
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
-clone(v::OutputsVertex, ins::AbstractVertex...) = OutputsVertex(clone(base(v), ins...))
+clone(v::OutputsVertex, ins::AbstractVertex...;clonefun=clone) = OutputsVertex(clonefun(base(v), ins...,clonefun=clonefun))
 
 base(v::OutputsVertex) = v.base
 (v::OutputsVertex)(x...) = base(v)(x...)
@@ -44,7 +44,7 @@ struct InputSizeVertex <: AbstractVertex
 end
 InputSizeVertex(name, size::Integer) = InputSizeVertex(InputVertex(name), size)
 InputSizeVertex(b::AbstractVertex, size::Integer) = InputSizeVertex(OutputsVertex(b), size)
-clone(v::InputSizeVertex, ins::AbstractVertex...) = InputSizeVertex(clone(base(v), ins...), v.size)
+clone(v::InputSizeVertex, ins::AbstractVertex...;clonefun=clone) = InputSizeVertex(clonefun(base(v), ins...,clonefun=clonefun), clonefun(v.size,clonefun=clonefun))
 
 base(v::InputSizeVertex)::AbstractVertex = v.base
 (v::InputSizeVertex)(x...) = base(v)(x...)
@@ -59,7 +59,7 @@ Base type for traits relevant when mutating.
 """
 abstract type MutationTrait end
 # For convenience as 99% of all traits are immutable. Don't forget to implement for stateful traits or else there will be pain!
-clone(t::MutationTrait) = t
+clone(t::MutationTrait, clonefun=nothing) = t
 
 """
     MutationSizeTrait
@@ -146,9 +146,10 @@ struct MutationVertex <: AbstractVertex
 end
 MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVertex(OutputsVertex(b), s, t)
 
-clone(v::MutationVertex, ins::AbstractVertex...; opfun=cloneop, traitfun=clonetrait) = MutationVertex(clone(base(v), ins...), opfun(v), traitfun(v))
-cloneop(v::MutationVertex) = clone(op(v))
-clonetrait(v::MutationVertex) = clone(trait(v))
+clone(v::MutationVertex, ins::AbstractVertex...; clonefun=clone) = MutationVertex(
+clonefun(base(v), ins...,clonefun=clonefun),
+clonefun(v.op, clonefun=clonefun),
+clonefun(v.trait, clonefun=clonefun))
 
 base(v::MutationVertex) = v.base
 op(v::MutationVertex) = v.op

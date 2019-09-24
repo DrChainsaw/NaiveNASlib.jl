@@ -87,7 +87,8 @@ import LightGraphs:adjacency_matrix,is_cyclic
         @test issame(graph, gcopy)
         @test graph(3,4,10) == gcopy(3,4,10)
 
-        newop(v::MutationVertex) = newop(trait(v), v)
+        newop(x...; clonefun=clone) = clone(x...; clonefun=clonefun)
+        newop(v::MutationVertex, ins...; clonefun=clone) = MutationVertex(clonefun(v.base, ins..., clonefun=clonefun), newop(trait(v), v), clonefun(v.trait, clonefun=clonefun))
         newop(::MutationTrait, v::MutationVertex) = clone(op(v))
         newop(::SizeAbsorb, v::MutationVertex) = IoIndices(nin(v), nout(v))
         graph_inds = copy(graph, newop)
