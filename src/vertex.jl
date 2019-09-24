@@ -136,6 +136,7 @@ name(v::InputVertex) = v.name
 abstract type InfoStr end
 Base.Broadcast.broadcastable(i::InfoStr) = Ref(i)
 Base.show(io::IO, istr::T) where T<:InfoStr = print(io, T)
+clone(i::InfoStr, clonefun=clone) = i
 
 struct RawInfoStr <: InfoStr end
 struct NameInfoStr <: InfoStr end

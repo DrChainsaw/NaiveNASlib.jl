@@ -97,6 +97,11 @@ Trait for vertices which are immutable. Typically inputs and outputs as those ar
 struct Immutable <: MutationTrait end
 trait(v::AbstractVertex) = Immutable()
 
+"""
+    DecoratingTrait <: MutationTrait
+
+Avbstract trait which wraps another trait. The wrapped trait of a `DecoratingTrait t` is accessible through `base(t)`.
+"""
 abstract type DecoratingTrait <: MutationTrait end
 
 struct NamedTrait <: DecoratingTrait
@@ -104,6 +109,7 @@ struct NamedTrait <: DecoratingTrait
     name
 end
 base(t::NamedTrait) = t.base
+clone(t::NamedTrait; clonefun=clone) = NamedTrait(clonefun(base(t), clonefun=clonefun), clonefun(t.name, clonefun=clonefun))
 
 struct SizeChangeLogger <: DecoratingTrait
     level::LogLevel
@@ -114,11 +120,13 @@ SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
 SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Logging.Info, infostr, base)
 base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
+clone(t::SizeChangeLogger; clonefun=clone) = SizeChangeLogger(clonefun(t.level, clonefun=clonefun), clonefun(t.infostr,clonefun=clonefun), clonefun(base(t), clonefun=clonefun))
 
 struct SizeChangeValidation <: DecoratingTrait
     base::MutationTrait
 end
 base(t::SizeChangeValidation) = t.base
+clone(t::SizeChangeValidation; clonefun=clone) = SizeChangeValidation(clonefun(base(t), clonefun=clonefun))
 
 """
     MutationVertex
