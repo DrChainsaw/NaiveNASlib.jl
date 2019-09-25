@@ -156,11 +156,11 @@ julia> vertices(graph)
 LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
 
 """
-    Base.copy(g::CompGraph, clonefun=clone)
+    Base.copy(g::CompGraph, cf=clone)
 
 Copies the given `CompGraph g` into a new instance with identical structure.
 
-Argument `clonefun` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
+Argument `cf` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
 
 # Examples
 ```julia-repl
@@ -177,7 +177,7 @@ CompGraph([InputVertex(1), InputVertex(2)], [CompVertex(+)])
 julia> gcopy == graph
 false
 """
-function Base.copy(g::CompGraph, clonefun=clone)
+function Base.copy(g::CompGraph, cf=clone)
     # Can't just have each vertex copy its inputs as a graph with multiple outputs
     # might end up with multiple copies of the same vertex
 
@@ -188,22 +188,22 @@ function Base.copy(g::CompGraph, clonefun=clone)
     # We could initialize it with inputs, but CompGraph does not require that inputs
     # are of type InputVertex
     memo = Dict{AbstractVertex, AbstractVertex}()
-    foreach(ov -> copy!(memo, ov, clonefun), g.outputs)
+    foreach(ov -> copy!(memo, ov, cf), g.outputs)
     return CompGraph(
     map(iv -> memo[iv], g.inputs),
     map(ov -> memo[ov], g.outputs)
     )
 end
-clone(x;clonefun=nothing) = deepcopy(x)
+clone(x;cf=nothing) = deepcopy(x)
 
 """
-    copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, clonefun=clone)
+    copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, cf=clone)
 
 Recursively copy the input parents of v, ensuring that each vertex gets exactly one copy.
 
 Results will be stored in the provided dict as a mapping between original and copy.
 
-Argument `clonefun` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
+Argument `cf` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
 
 # Examples
 ```julia-repl
@@ -218,10 +218,10 @@ Dict{AbstractVertex,AbstractVertex} with 3 entries:
   InputVertex(1)                                  => InputVertex(1)
   CompVertex(+, [InputVertex(1), InputVertex(2)]) => CompVertex(+, [InputVertex(1), InputVertex(2)])
 """
-function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, clonefun=clone)
+function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, cf=clone)
     return get!(memo, v) do
         # Recurse until inputs(v) is empty
-        ins = map(iv -> copy!(memo, iv, clonefun), inputs(v))
-        clonefun(v, ins...; clonefun=clonefun)
+        ins = map(iv -> copy!(memo, iv, cf), inputs(v))
+        cf(v, ins...; cf=cf)
     end
 end

@@ -81,8 +81,8 @@ import LightGraphs:adjacency_matrix,is_cyclic
         @test issame(graph, gcopy)
         @test graph(3,4,10) == gcopy(3,4,10)
 
-        newop(x...; clonefun=clone) = clone(x...; clonefun=clonefun)
-        newop(v::MutationVertex, ins...; clonefun=clone) = MutationVertex(clonefun(v.base, ins..., clonefun=clonefun), newop(trait(v), v), clonefun(v.trait, clonefun=clonefun))
+        newop(x...; cf=clone) = clone(x...; cf=cf)
+        newop(v::MutationVertex, ins...; cf=clone) = MutationVertex(cf(v.base, ins..., cf=cf), newop(trait(v), v), cf(v.trait, cf=cf))
         newop(::MutationTrait, v::MutationVertex) = clone(op(v))
         newop(::SizeAbsorb, v::MutationVertex) = IoIndices(nin(v), nout(v))
         graph_inds = copy(graph, newop)
@@ -112,8 +112,8 @@ import LightGraphs:adjacency_matrix,is_cyclic
         v2 = conc(inver, v1, dims=1)
         graph = CompGraph(inver, v2)
 
-        addtrait(x...;clonefun) = clone(x...;clonefun=clonefun)
-        addtrait(t::MutationTrait; clonefun=clonefun) = MockTrait(clone(t, clonefun=clone))
+        addtrait(x...;cf) = clone(x...;cf=cf)
+        addtrait(t::MutationTrait; cf=cf) = MockTrait(clone(t, cf=clone))
 
         graphnew = copy(graph, addtrait)
 
@@ -129,8 +129,8 @@ import LightGraphs:adjacency_matrix,is_cyclic
         v2 = conc(v0, v1, dims=1, traitdecoration = t -> NamedTrait(t, "v2"))
         graph = CompGraph(v0, v2)
 
-        rename(x...;clonefun) = clone(x...;clonefun=clonefun)
-        rename(s::String; clonefun) = s * "new"
+        rename(x...;cf) = clone(x...;cf=cf)
+        rename(s::String; cf) = s * "new"
 
         graphnew = copy(graph, rename)
 

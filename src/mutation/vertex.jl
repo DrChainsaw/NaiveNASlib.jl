@@ -17,7 +17,7 @@ struct OutputsVertex <: AbstractVertex
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
-clone(v::OutputsVertex, ins::AbstractVertex...;clonefun=clone) = OutputsVertex(clonefun(base(v), ins...,clonefun=clonefun))
+clone(v::OutputsVertex, ins::AbstractVertex...;cf=clone) = OutputsVertex(cf(base(v), ins...,cf=cf))
 
 base(v::OutputsVertex) = v.base
 (v::OutputsVertex)(x...) = base(v)(x...)
@@ -44,7 +44,7 @@ struct InputSizeVertex <: AbstractVertex
 end
 InputSizeVertex(name, size::Integer) = InputSizeVertex(InputVertex(name), size)
 InputSizeVertex(b::AbstractVertex, size::Integer) = InputSizeVertex(OutputsVertex(b), size)
-clone(v::InputSizeVertex, ins::AbstractVertex...;clonefun=clone) = InputSizeVertex(clonefun(base(v), ins...,clonefun=clonefun), clonefun(v.size,clonefun=clonefun))
+clone(v::InputSizeVertex, ins::AbstractVertex...;cf=clone) = InputSizeVertex(cf(base(v), ins...,cf=cf), cf(v.size,cf=cf))
 
 base(v::InputSizeVertex)::AbstractVertex = v.base
 (v::InputSizeVertex)(x...) = base(v)(x...)
@@ -59,7 +59,7 @@ Base type for traits relevant when mutating.
 """
 abstract type MutationTrait end
 # For convenience as 99% of all traits are immutable. Don't forget to implement for stateful traits or else there will be pain!
-clone(t::MutationTrait, clonefun=nothing) = t
+clone(t::MutationTrait, cf=nothing) = t
 
 """
     MutationSizeTrait
@@ -109,7 +109,7 @@ struct NamedTrait <: DecoratingTrait
     name
 end
 base(t::NamedTrait) = t.base
-clone(t::NamedTrait; clonefun=clone) = NamedTrait(clonefun(base(t), clonefun=clonefun), clonefun(t.name, clonefun=clonefun))
+clone(t::NamedTrait; cf=clone) = NamedTrait(cf(base(t), cf=cf), cf(t.name, cf=cf))
 
 struct SizeChangeLogger <: DecoratingTrait
     level::LogLevel
@@ -120,13 +120,13 @@ SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
 SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Logging.Info, infostr, base)
 base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
-clone(t::SizeChangeLogger; clonefun=clone) = SizeChangeLogger(clonefun(t.level, clonefun=clonefun), clonefun(t.infostr,clonefun=clonefun), clonefun(base(t), clonefun=clonefun))
+clone(t::SizeChangeLogger; cf=clone) = SizeChangeLogger(cf(t.level, cf=cf), cf(t.infostr,cf=cf), cf(base(t), cf=cf))
 
 struct SizeChangeValidation <: DecoratingTrait
     base::MutationTrait
 end
 base(t::SizeChangeValidation) = t.base
-clone(t::SizeChangeValidation; clonefun=clone) = SizeChangeValidation(clonefun(base(t), clonefun=clonefun))
+clone(t::SizeChangeValidation; cf=clone) = SizeChangeValidation(cf(base(t), cf=cf))
 
 """
     MutationVertex
@@ -154,10 +154,10 @@ struct MutationVertex <: AbstractVertex
 end
 MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVertex(OutputsVertex(b), s, t)
 
-clone(v::MutationVertex, ins::AbstractVertex...; clonefun=clone) = MutationVertex(
-clonefun(base(v), ins...,clonefun=clonefun),
-clonefun(v.op, clonefun=clonefun),
-clonefun(v.trait, clonefun=clonefun))
+clone(v::MutationVertex, ins::AbstractVertex...; cf=clone) = MutationVertex(
+cf(base(v), ins...,cf=cf),
+cf(v.op, cf=cf),
+cf(v.trait, cf=cf))
 
 base(v::MutationVertex) = v.base
 op(v::MutationVertex) = v.op
