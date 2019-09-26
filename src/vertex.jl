@@ -43,9 +43,6 @@ julia> outputs(iv)
 """
 function outputs end
 
-clone(v::AbstractVertex, ins::AbstractVertex...; opfun) = clone(v, ins...)
-
-
 """
     InputVertex
 
@@ -66,7 +63,7 @@ InputVertex("input")
 struct InputVertex <: AbstractVertex
     name
 end
-clone(v::InputVertex, ins::AbstractVertex...) = isempty(ins) ? InputVertex(v.name) : error("Input vertex got inputs: $(ins)!")
+clone(v::InputVertex, ins::AbstractVertex...;cf=clone) = isempty(ins) ? InputVertex(cf(v.name,cf=cf)) : error("Input vertex got inputs: $(ins)!")
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 
@@ -94,11 +91,9 @@ struct CompVertex <: AbstractVertex
     inputs::AbstractVector{AbstractVertex}
 end
 CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
-clone(v::CompVertex, ins::AbstractVertex...) = CompVertex(clone(v.computation), ins...)
+clone(v::CompVertex, ins::AbstractVertex...;cf=clone) = CompVertex(cf(v.computation, cf=cf), ins...)
 inputs(v::CompVertex)::AbstractVector{AbstractVertex} = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
-
-clone(c::Function) = deepcopy(c)
 
 ## Stuff for displaying information about vertices
 
@@ -141,6 +136,7 @@ name(v::InputVertex) = v.name
 abstract type InfoStr end
 Base.Broadcast.broadcastable(i::InfoStr) = Ref(i)
 Base.show(io::IO, istr::T) where T<:InfoStr = print(io, T)
+clone(i::InfoStr, cf=clone) = i
 
 struct RawInfoStr <: InfoStr end
 struct NameInfoStr <: InfoStr end

@@ -75,19 +75,14 @@ import LightGraphs:adjacency_matrix,is_cyclic
         v5 = ins[1] / v1
         v6 = absorbvertex(identity, 4, v5)
         graph = CompGraph(ins, [v4, v6])
-        #TODO outputs as [v5, v4] causes graphs to not be identical
-        # This is due to v5 being a mostly independent branch
-        # which is the completed before the v4 branch
-        # I think this does not matter in practice (as the branches
-        #  are independent), but in this test case we are testing
-        # for identity
 
         gcopy = copy(graph)
 
         @test issame(graph, gcopy)
         @test graph(3,4,10) == gcopy(3,4,10)
 
-        newop(v::MutationVertex) = newop(trait(v), v)
+        newop(x...; cf=clone) = clone(x...; cf=cf)
+        newop(v::MutationVertex, ins...; cf=clone) = MutationVertex(cf(v.base, ins..., cf=cf), newop(trait(v), v), cf(v.trait, cf=cf))
         newop(::MutationTrait, v::MutationVertex) = clone(op(v))
         newop(::SizeAbsorb, v::MutationVertex) = IoIndices(nin(v), nout(v))
         graph_inds = copy(graph, newop)
@@ -105,6 +100,41 @@ import LightGraphs:adjacency_matrix,is_cyclic
         # But new graph shall use IoIndices
         testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoIndices
         foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
+    end
+
+    @testset "Graph add trait" begin
+        struct MockTrait <: DecoratingTrait
+            t::MutationTrait
+        end
+
+        inver = inputvertex("in", 3)
+        v1 = absorbvertex(+, 5, inver)
+        v2 = conc(inver, v1, dims=1)
+        graph = CompGraph(inver, v2)
+
+        addtrait(x...;cf) = clone(x...;cf=cf)
+        addtrait(t::MutationTrait; cf=cf) = MockTrait(clone(t, cf=clone))
+
+        graphnew = copy(graph, addtrait)
+
+        function testvert(::InputSizeVertex) end
+        testvert(v) = @test v.trait isa MockTrait
+
+        foreach(testvert, vertices(graphnew))
+    end
+
+    @testset "Graph rename" begin
+        v0 = inputvertex("in", 3)
+        v1 = absorbvertex(+, 5, v0, traitdecoration = t -> NamedTrait(t, "v1"))
+        v2 = conc(v0, v1, dims=1, traitdecoration = t -> NamedTrait(t, "v2"))
+        graph = CompGraph(v0, v2)
+
+        rename(x...;cf) = clone(x...;cf=cf)
+        rename(s::String; cf) = s * "new"
+
+        graphnew = copy(graph, rename)
+
+        @test name.(vertices(graphnew)) == ["innew", "v1new", "v2new"]
     end
 
     @testset "Topological sort" begin

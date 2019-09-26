@@ -762,5 +762,16 @@
 
                 @test_logs  (:info, "Change nin of v5 by [1, 2, 3, 4, -1×30], [1, 2, 3, 4, -1×30]") (:info, "Change nout of v5 by [1, 2, 3, 4, -1×30]") (:info, "Change nout of v3 by [1, 2, 3, 4, -1×30]") (:info, "Change nout of v4 by [1, 2, 3, 4, -1×30]") Δoutputs(v5, v -> 1:nout_org(v))
         end
+
+        @testset "Clone" begin
+            slg = SizeChangeLogger(NameInfoStr(), NamedTrait(SizeAbsorb(), "test"))
+
+            @test slg == clone(slg)
+
+            rename(x;cf=rename) = clone(x, cf=cf)
+            rename(x::String; cf) = "success"
+
+            @test name(rename(slg), nothing) == "success"
+        end
     end
 end
