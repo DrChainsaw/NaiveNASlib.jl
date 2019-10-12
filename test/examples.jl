@@ -344,7 +344,6 @@
             end
 
             @testset "Traits" begin
-
                 noname = layer(inputvertex("in", 2), 2)
                 @test name(noname) == "MutationVertex::SizeAbsorb"
 
@@ -355,16 +354,16 @@
                 # Speaking of logging...
                 layer1 = absorbvertex(SimpleLayer(2, 3), 3, inputvertex("in", 2), traitdecoration = t -> SizeChangeLogger(NamedTrait(t, "layer1")))
 
-                # Exactly that info is shown can be controlled as well
+                # What info is shown can be controlled by supplying an extra argument to SizeChangeLogger
                 nameonly = NameInfoStr()
                 layer2 = absorbvertex(SimpleLayer(nout(layer1), 4), 4, layer1, traitdecoration = t -> SizeChangeLogger(nameonly, NamedTrait(t, "layer2")))
 
                 @test_logs(
                 (:info, "Change nout of layer1, inputs=[in], outputs=[layer2], nin=[2], nout=[3], SizeAbsorb() by 1"),
-                (:info, "Change nin of layer2 by 1"),
+                (:info, "Change nin of layer2 by 1"), # Note: less verbose compared to layer1 due to NameInfoStr
                  Δnout(layer1, 1))
 
-                 # traitdecoration works exactly the same for conc and invariantvertex as well
+                 # traitdecoration works exactly the same for conc and invariantvertex as well, no need for an example
 
                  # Use the >> operator when creating SizeInvariant vertices using arithmetic operators:
                  add = "addvertex" >> inputvertex("in1", 1) + inputvertex("in2", 1)
@@ -417,9 +416,9 @@
 
                 # Ok, lets add names to layer1 and layer2 and change the name of invertex
 
-                # Keyword argument cf is the function to use for copying all fields of the input
+                # Lets first define the default: Fallback to "clone"
                 # clone is the existing function to copy things in this manner as I did not want to override Base.copy
-                copyfun(args...;cf) = clone(args...;cf=cf)
+                copyfun(args...;cf) = clone(args...;cf=cf) # Keyword argument cf is the function to use for copying all fields of the input
 
                 # Add a name to layer1 and layer2
                 function copyfun(v::MutationVertex,args...;cf)
@@ -430,13 +429,15 @@
                     clone(v, args...;cf=addname)
                 end
 
+                # Change name of invertex
                 # Here we can assume that invertex name is unique in the whole graph or else we would have had to use the above way
                 copyfun(s::String; cf) = s == name(invertex) ? "in changed" : s
 
+                # Now supply copyfun when copying the graph.
+                # I must admit that thinking about what this does makes me a bit dizzy...
                 namedgraph = copy(graph, copyfun)
 
                 @test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
-
             end
 
         end

@@ -485,7 +485,7 @@ layer2 = absorbvertex(SimpleLayer(nout(layer1), 4), 4, layer1, traitdecoration =
 
 ### Graph instrumentation and modification
 
-In many cases it is desirable to change things like traits of an existing graph. This can be achieved by supplying an extra argument when copying the graph. The extra argument is a function determines how each individual component of the graph shall be copied.
+In many cases it is desirable to change things like traits of an existing graph. This can be achieved by supplying an extra argument when copying the graph. The extra argument is a function which determines how each individual component of the graph shall be copied.
 
 Depending on what one wants to achieve, it can be more or less messy. Here is a pretty messy example:
 
@@ -501,7 +501,7 @@ graph = CompGraph(invertex, layer2)
 # Ok, lets add names to layer1 and layer2 and change the name of invertex
 
 # Lets first define the default: Fallback to "clone"
-# clone is the existing function to copy things in this manner as I did not want to override Base.copy
+# clone is the built-in function to copy things in this manner as I did not want to override Base.copy
 copyfun(args...;cf) = clone(args...;cf=cf) # Keyword argument cf is the function to use for copying all fields of the input
 
 # Add a name to layer1 and layer2
@@ -517,8 +517,8 @@ end
 # Here we can assume that invertex name is unique in the whole graph or else we would have had to use the above way
 copyfun(s::String; cf) = s == name(invertex) ? "in changed" : s
 
-# Now supply copyfun when copying the graph. 
-# I must admit that thinking about what this does makes me a bit dizzy, but I guess this is julias "types on the outside" system doing its job and I like it. 
+# Now supply copyfun when copying the graph.
+# I must admit that thinking about what this does makes me a bit dizzy...
 namedgraph = copy(graph, copyfun)
 
 @test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
