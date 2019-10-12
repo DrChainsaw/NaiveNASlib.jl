@@ -1,7 +1,6 @@
 module NaiveNASlib
 
 using LightGraphs, MetaGraphs
-using DataStructures
 using Statistics
 using Logging
 
