@@ -254,6 +254,7 @@ function vertexconstraints!(::Immutable, v, s::AbstractJuMPSelectionStrategy, da
 
 function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTrait, v, data)
     sizeconstraint!(s, t, v, data)
+    compconstraint!(s, v, (data..., vertex=v))
     inoutconstraint!(s, t, v, data)
 end
 
