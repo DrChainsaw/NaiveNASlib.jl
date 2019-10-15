@@ -547,4 +547,22 @@
 
         @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
     end
+
+    @testset "CompConstraint" begin
+
+        struct CompConstraint end
+        function NaiveNASlib.compconstraint!(::AbstractJuMPSelectionStrategy, ::CompConstraint, data)
+            var = data.outselectvars[data.vertex];
+            JuMP.@constraint(data.model, var[[1, 3]] .== 0)
+        end
+
+        inpt = iv(3)
+        v1 = absorbvertex(CompConstraint(), 4, inpt, traitdecoration = tf("v1"))
+        v2 = av(v1, 5, "v2")
+
+        Δnout(v1, 3)
+        @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->nout_org(v):-1:1)
+
+        @test out_inds(op(v1)) == in_inds(op(v2))[] == [2, 4, -1, -1, -1, -1, -1]
+    end
 end
