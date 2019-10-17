@@ -117,7 +117,7 @@ vertexproplist(g::MetaDiGraph, prop::Symbol) = map(p -> p[:vertex], props.([g], 
 
 function vertexind!(g::MetaDiGraph, v::AbstractVertex,)
     ind = indexin([v], vertexproplist(g, :vertex))[]
-    if isnothing(ind)
+    if nothing == ind
         add_vertex!(g, :vertex, v)
     end
     return g[v, :vertex]

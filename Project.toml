@@ -1,6 +1,6 @@
 name = "NaiveNASlib"
 uuid = "bd45eb3e-47ce-54bd-9eaf-e86c5f900853"
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 Cbc = "9961bab8-2fa3-5c5a-9d89-47fab24efd76"
@@ -15,6 +15,7 @@ Cbc = "0.6.3"
 JuMP = "0.19.2"
 LightGraphs = "1.2.0"
 MetaGraphs = "0.6.4"
+julia = "1"
 
 [extras]
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
