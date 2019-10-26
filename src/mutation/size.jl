@@ -532,7 +532,8 @@ vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 # This must be applied to immutable vertices as well
 function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
     vertexconstraints!(v, s.vstrat, data)
-    for vo in outputs(v)
+    # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
+    for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
         ninvar = @variable(data.model, integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
 

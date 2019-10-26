@@ -279,6 +279,32 @@
 
                 @test outputs(v0) == [v1, v2]
             end
+
+            @testset "Add with hidden SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                vh = av(v0, 5, name="vh")
+                v3 = sv(v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = sv(v4, vh, name="v5")
+                v6 = av(v2, 2, name="v6")
+
+
+                @test inputs(v3) == [v1]
+                create_edge!(v2, v3)
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
+
+                @test outputs(v2) == [v6, v3]
+                @test inputs(v6) == [v2]
+                @test nin(v6) == [nout(v2)] == [4]
+
+                @test outputs(vh) == [v5]
+                @test inputs(v5) == [v4, vh]
+                @test nin(v5) == [nout(v4), nout(vh)] == [3, 5]
+            end
         end
 
         @testset "With size constraints" begin
