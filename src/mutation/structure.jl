@@ -372,7 +372,7 @@ function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
 # Failure cases
 postalignsizes(::FailAlignSizeError, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
 function postalignsizes(s::FailAlignSizeWarn, vin, vout)
-     @warn "Could not align sizes of $(vin) and $(vout)!"
+     @warn s.msgfun(vin, vout)
      postalignsizes(s.andthen, vin, vout)
  end
  function postalignsizes(s::FailAlignSizeRevert, vin, vout)
