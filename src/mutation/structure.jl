@@ -160,6 +160,23 @@ struct CheckNoSizeCycle <: AbstractAlignSizeStrategy
 end
 CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,vout) -> "Can not remove vertex $(vin)! Size cycle detected!")) = CheckNoSizeCycle(ifok, ifnok)
 
+"""
+    CheckCreateEdgeNoSizeCycle <: AbstractAlignSizeStrategy
+    CheckCreateEdgeNoSizeCycle()
+    CheckCreateEdgeNoSizeCycle(;ifok, ifnok)
+
+Check if adding an edge creates the same type of size cycle that `CheckNoSizeCycle` checks for and execute `ifnok` (default `FailAlignSizeWarn`) if this is the case.
+Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
+
+If no such cycle is detected, then proceed to execute strategy `ifok` (default `IncreaseSmaller`).
+
+Will check both at `prealignsizes` (i.e before edge is added) and at `postalignsizes` (i.e after edge is added).
+"""
+struct CheckCreateEdgeNoSizeCycle <: AbstractAlignSizeStrategy
+    ifok
+    ifnok
+end
+CheckCreateEdgeNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,vout) -> "Can not add edge between $(vin) and $(vout)! Size cycle detected!")) = CheckCreateEdgeNoSizeCycle(ifok, ifnok)
 
 """
     CheckAligned <:AbstractAlignSizeStrategy
@@ -292,6 +309,15 @@ function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
     return prealignsizes(s.ifok, vin, vout, will_rm)
 end
 
+function prealignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, will_rm)
+    sg = ΔnoutSizeGraph(vin)
+    if vout in keys(sg.metaindex[:vertex])
+        add_edge!(sg, sg[vin, :vertex], sg[vout, :vertex])
+        is_cyclic(ΔnoutSizeGraph(vin)) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
+    end
+    return prealignsizes(s.ifok, vin, vout, will_rm)
+end
+
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     expected = nout(vin) + s.Δoutsize
     Δsize(ΔNout{Exact}(vin, s.Δoutsize, ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
@@ -381,6 +407,12 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout)
      vin ∉ inputs(vout) && return create_edge!(vin, vout, strategy=NoSizeChange())
  end
 
+ function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout)
+     sg = ΔnoutSizeGraph(vin)
+     is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout)
+     return postalignsizes(s.ifok, vin, vout)
+ end
+
 # Ok, this one actually does something...
 function postalignsizes(s::PostAlignJuMP, vin, vout)
     vin_all = all_in_Δsize_graph(vin, Output())
@@ -462,8 +494,8 @@ end
 
 default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
 default_create_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
-default_create_edge_strat(::SizeStack,v) = PostAlignJuMP()
-default_create_edge_strat(::SizeInvariant,v) = IncreaseSmaller()
+default_create_edge_strat(::SizeStack,v) = CheckCreateEdgeNoSizeCycle(ifok=PostAlignJuMP())
+default_create_edge_strat(::SizeInvariant,v) = CheckCreateEdgeNoSizeCycle(ifok=IncreaseSmaller())
 default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 
 function add_input!(::MutationOp, pos, size) end

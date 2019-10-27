@@ -320,6 +320,38 @@
                 @test inputs(v3) == [v1, vh, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(vh)] == [nout(v2)] == [4]
             end
+
+            @testset "Add with size cycle SizeInvariant" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1 = av(v3, 3, name="p1")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+
+                @test_logs (:warn, r"Can not add edge") create_edge!(p1, v5)
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+            end
+
+            @testset "Add with size cycle SizeStack" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                v4 = sv(v3, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+
+                @test_logs (:warn, r"Can not add edge") create_edge!(v3, v4)
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+            end
         end
 
         @testset "With size constraints" begin
