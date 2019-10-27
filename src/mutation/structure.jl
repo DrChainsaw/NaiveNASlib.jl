@@ -398,12 +398,19 @@ function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
 postalignsizes(::FailAlignSizeError, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
 function postalignsizes(s::FailAlignSizeWarn, vin, vout)
      @warn s.msgfun(vin, vout)
-     postalignsizes(s.andthen, vin, vout)
+     return postalignsizes(s.andthen, vin, vout)
  end
  function postalignsizes(s::FailAlignSizeRevert, vin, vout)
-     # TODO: Will fail (silently) in case vin is input to vout many times! CBA to fix that edge case now...
-     vin ∈ inputs(vout) && return remove_edge!(vin, vout, strategy=NoSizeChange())
-     vin ∉ inputs(vout) && return create_edge!(vin, vout, strategy=NoSizeChange())
+     n = sum(inputs(vout) .== vin)
+     # Can maybe be supported by comparing nin_org(vout) to nout_org(vin): If they match then vin was there before, else it shall be removed?
+     @assert n <= 1 "Case when vin is input to vout multiple times not implemented!"
+
+     if n == 1
+         remove_edge!(vin, vout, strategy=NoSizeChange())
+     else
+         create_edge!(vin, vout, strategy=NoSizeChange())
+     end
+     return false
  end
 
  function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout)
@@ -423,6 +430,7 @@ function postalignsizes(s::PostAlignJuMP, vin, vout)
         return postalignsizes(s.fallback, vin, vout)
     end
     Δsize(nins, nouts, verts)
+    return success
 end
 
 """

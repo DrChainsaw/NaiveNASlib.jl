@@ -342,13 +342,14 @@
                 v1 = av(inpt(3, "in"), 3, name="v1")
                 v2 = av(v1, 5, name="v2")
                 v3 = iv(v2, name="v3")
+                ve = iv(v1, name="ve")
                 v4 = sv(v3, name="v4")
                 v5 = "v5" >> v4 + v2
 
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
 
-                @test_logs (:warn, r"Can not add edge") create_edge!(v3, v4)
+                @test_logs (:warn, r"Can not add edge") create_edge!(ve, v4)
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
             end
