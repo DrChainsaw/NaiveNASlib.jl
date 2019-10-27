@@ -281,7 +281,7 @@ end
 tot_nin(v) = tot_nin(trait(v), v)
 tot_nin(t::DecoratingTrait, v) = tot_nin(base(t), v)
 tot_nin(::MutationTrait, v) = nin(v)[]
-tot_nin(::SizeInvariant, v) = unique(nin(v))[]
+tot_nin(::SizeInvariant, v) = length(unique(nin(v))) == 1 ? unique(nin(v))[] : nothing
 tot_nin(::SizeTransparent, v) = sum(nin(v))
 
 # Boilerplate
@@ -334,8 +334,7 @@ end
 
 function prealignsizes(s::SelectOutputs, vin, vout, will_rm)
     if prealignsizes(s.alignstrategy, vin, vout, will_rm)
-        Δoutputs(s.selectstrategy, vin, s.valuefun)
-        return nout(vin) == tot_nin(vout)
+        return Δoutputs(s.selectstrategy, vin, s.valuefun)
     end
     return false
 end

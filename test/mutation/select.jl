@@ -61,7 +61,7 @@
         apply(v) = push!(res, v)
 
         Δnout(v2, -1)
-        Δoutputs(ApplyAfter(apply, OutSelectExact()), v2, v -> 1:nout_org(v))
+        @test Δoutputs(ApplyAfter(apply, OutSelectExact()), v2, v -> 1:nout_org(v))
 
         @test res == [v2, v3]
     end
@@ -74,7 +74,7 @@
         g = CompGraph(inpt, v2)
 
         Δnout(v1, -2)
-        Δoutputs(v1, v -> 1:nout_org(v))
+        @test Δoutputs(v1, v -> 1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [3,4,5]
         apply_mutation(g)
@@ -82,7 +82,7 @@
         @test size(g(ones(1, 3))) == (1, nout(v2))
 
         Δnout(v1, 3)
-        Δoutputs(Output(), v1, v->1:nout_org(v))
+        @test Δoutputs(Output(), v1, v->1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,-1,-1,-1]
         apply_mutation(g)
@@ -98,7 +98,7 @@
         g = CompGraph(inpt, v2)
 
         Δnout(v1, -2)
-        Δoutputs(NoutRevert(), v1, v->1:nout_org(v))
+        @test !Δoutputs(NoutRevert(), v1, v->1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,4,5]
         apply_mutation(g)
@@ -107,7 +107,7 @@
 
         Δnout(v1, +3)
 
-        Δoutputs(NoutRevert(), v1, v-> 1:nout_org(v))
+        @test !Δoutputs(NoutRevert(), v1, v-> 1:nout_org(v))
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,4,5]
         apply_mutation(g)
@@ -140,7 +140,7 @@
         @test nout(v1) == 5
         @test nout(v2) == 3
 
-        Δoutputs(v4, v -> 1:nout_org(v))
+        @test Δoutputs(v4, v -> 1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 5
@@ -153,7 +153,7 @@
         @test nout(v1) == 7
         @test nout(v2) == 5
 
-        Δoutputs(Output(), v4, v->1:nout_org(v))
+        @test Δoutputs(Output(), v4, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 7
@@ -183,7 +183,7 @@
         @test nout(v2) == 2
         @test nout(v3) == 3
 
-        Δoutputs(v6, v->1:nout_org(v))
+        @test Δoutputs(v6, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 5
@@ -198,7 +198,7 @@
         @test nout(v2) == 4
         @test nout(v3) == 5
 
-        Δoutputs(Output(), v6, v->1:nout_org(v))
+        @test Δoutputs(Output(), v6, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 9
@@ -222,7 +222,7 @@
         @test nout(v2) == 5
 
         # "Tempt" optimizer to not select inputs from inpt
-        Δoutputs(OutSelect{NaiveNASlib.Relaxed}(SelectionFail()), v2, v -> v == v2 ? (-nout(inpt):nout_org(v1)-1) : 1:nout_org(v))
+        @test Δoutputs(OutSelect{NaiveNASlib.Relaxed}(SelectionFail()), v2, v -> v == v2 ? (-nout(inpt):nout_org(v1)-1) : 1:nout_org(v))
         apply_mutation(g)
 
         @test nin(v2) == [nout(inpt), nout(v1)] == [3, 2]
@@ -254,7 +254,7 @@
         @test nout(v3) == 8
         @test nout(v4) == 4
 
-        @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v->1:nout_org(v))
+        @test @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 8
@@ -272,7 +272,7 @@
         @test nout(v4) == 3
 
         # Works on the first try this time around
-        Δoutputs(Output(), v7, v->1:nout_org(v))
+        @test Δoutputs(Output(), v7, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v1) == 10
@@ -306,7 +306,7 @@
         @test nout(v3) == 6
         @test nout(v4) == 8
 
-        @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(Output(), v7, v -> 1:nout_org(v))
+        @test @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(Output(), v7, v -> 1:nout_org(v))
         apply_mutation(g)
 
         # Sizes can't change when increasing, even if problem is relaxed :(
@@ -334,7 +334,7 @@
         @test nin(v3) == [nout(v1), nout(v2)] == [5, 6]
         @test nout(v3) == sum(nin(v3)) == 11
 
-        Δoutputs(Output(), v3, v -> 1:nout_org(v))
+        @test Δoutputs(Output(), v3, v -> 1:nout_org(v))
 
         @test in_inds(op(v3)) == [out_inds(op(v1)), out_inds(op(v2))] == [[1,2,3,-1,-1],[5,6,7,8,9,10]]
         @test [out_inds(op(v3))] == in_inds(op(v4)) == [[1,2,3,-1,-1,8,9,10,11,12,13]]
@@ -379,7 +379,7 @@
         @test nout(v7) == 13
         @test nout(v0) == 9
 
-        Δoutputs(v1, v -> 1:nout_org(v))
+        @test Δoutputs(v1, v -> 1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v6) == 4
@@ -394,7 +394,7 @@
         @test nout(v7) == 16
         @test nout(v0) == 14
 
-        @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->1:nout_org(v))
+        @test @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->1:nout_org(v))
         apply_mutation(g)
 
         @test nout(v6) == 4
@@ -416,7 +416,7 @@
 
         remove!(v3, RemoveStrategy())
 
-        Δoutputs(v2, v -> 1:nout_org(v))
+        @test Δoutputs(v2, v -> 1:nout_org(v))
 
         @test in_inds(op(v4))[] == [1,2,-1,-1] # TODO: Should be [1,2,3,4]
         @test out_inds(op(v1)) == out_inds(op(v2)) == [1, 2, -1, -1]
@@ -440,7 +440,7 @@
 
         # What happened now is that nin(v4) got decreased from 4 to 2. We now need to select which inputs to keep
         # However, there is absolutely no need at all to select anything from v2 and before as they have not changed.
-        Δoutputs(Output(), v2, v -> 1:nout_org(v))
+        @test Δoutputs(Output(), v2, v -> 1:nout_org(v))
 
         @test in_inds(op(v4))[] == out_inds(op(v1)) == out_inds(op(v2)) == out_inds(op(v3)) == [1, 2]
 
@@ -461,7 +461,7 @@
 
         remove!(v3, RemoveStrategy())
 
-        Δoutputs(Output(), v2, v -> 1:nout_org(v))
+        @test Δoutputs(Output(), v2, v -> 1:nout_org(v))
 
         @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3,-1,-1]]
         @test out_inds(op(v4)) == 1:9
@@ -483,7 +483,7 @@
 
         remove!(v3, RemoveStrategy(DecreaseBigger()))
 
-        Δoutputs(v2, v -> 1:nout_org(v))
+        @test Δoutputs(v2, v -> 1:nout_org(v))
 
         @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3]]
         @test out_inds(op(v4)) == [1,2,3,4,7,8,9]
@@ -561,7 +561,7 @@
         v2 = av(v1, 5, "v2")
 
         Δnout(v1, 3)
-        @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->nout_org(v):-1:1)
+        @test @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->nout_org(v):-1:1)
 
         @test out_inds(op(v1)) == in_inds(op(v2))[] == [2, 4, -1, -1, -1, -1, -1]
     end
