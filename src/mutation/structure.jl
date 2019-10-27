@@ -342,7 +342,7 @@ proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 
 function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
-    strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vin)), AlignNinToNout(), ΔSizeFailNoOp())
+    strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vout)), AlignNinToNout(), ΔSizeFailNoOp())
     success = prealignsizes(strat, vin, vout)
 
     if !success

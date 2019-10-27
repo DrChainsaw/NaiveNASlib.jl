@@ -305,6 +305,21 @@
                 @test inputs(v5) == [v4, vh]
                 @test nin(v5) == [nout(v4), nout(vh)] == [3, 5]
             end
+
+            @testset "Add with hidden SizeInvariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 3, name="v2")
+                vh = av(v0, 5, name="vh")
+                v3 = iv(v1, vh, name = "v3")
+                v4 = av(v3, 3, name="v4")
+
+                @test inputs(v3) == [v1, vh]
+                create_edge!(v2, v3, strategy=AlignSizeBoth())
+
+                @test inputs(v3) == [v1, vh, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(vh)] == [nout(v2)] == [4]
+            end
         end
 
         @testset "With size constraints" begin
