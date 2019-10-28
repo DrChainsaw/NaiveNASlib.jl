@@ -353,6 +353,112 @@
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
             end
+
+            @testset "PostSelectOutputs SizeInvariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1, v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostSelectOutputs(align = DecreaseBigger(), valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
+                @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
+            end
+
+            @testset "PostSelectOutputs SizeInvariant post align" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
+                @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
+            end
+
+            @testset "PostSelectOutputs SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostSelectOutputs())
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test out_inds(op(v1)) == 1:3
+                @test out_inds(op(v2)) == 1:4
+                @test out_inds(op(v3)) == 1:5
+                @test out_inds(op(v4)) == [1:7;-ones(Int,5)]
+                @test in_inds(op(v5)) == [[1:7;-ones(Int,5)]]
+            end
+
+            @testset "PostSelectOutputs fail size align" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align = FailAlignSizeWarn()))
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [3,4]
+            end
+
+            @testset "PostSelectOutputs fail select" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align=IncreaseSmaller(), select=NoutRevert(), fallback=FailAlignSizeWarn()))
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [4,4]
+            end
+
+            @testset "PostApplyMutation SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostApplyMutation())
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nin_org(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [3+4+5]
+            end
+
+            @testset "PostApplyMutation failure" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                Δnout(v2, -1)
+                create_edge!(v3, v4, strategy=PostApplyMutation(FailAlignSizeRevert()))
+
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [3,3]
+                @test nin_org(v4) == nout_org.([v1, v2]) == [4,4]
+            end
         end
 
         @testset "With size constraints" begin

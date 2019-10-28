@@ -129,6 +129,23 @@ end
 SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v))) = SelectOutputs(select, align, valuefun)
 
 """
+    PostSelectOutputs <: AbstractAlignSizeStrategy
+    PostSelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v)))
+
+Post change alignment strategy which first aligns size using `align`, then select outputs (through `Δoutputs`) using `select` and `valuefun` if size alignment is successful. If `Δoutputs` is not successful, the `fallback` strategy will be invoked.
+
+Motivation is basically convenience when creating new edges between vertices.
+"""
+struct PostSelectOutputs <: AbstractAlignSizeStrategy
+    selectstrategy::AbstractSelectionStrategy
+    alignstrategy::AbstractAlignSizeStrategy
+    valuefun::Function
+    fallback::AbstractAlignSizeStrategy
+end
+PostSelectOutputs(;select=OutSelectExact(),align=PostAlignJuMP(), valuefun=v -> ones(nout_org(v)), fallback=FailAlignSizeRevert()) = PostSelectOutputs(select, align, valuefun, fallback)
+
+
+"""
     ApplyMutation <: AbstractAlignSizeStrategy
     ApplyMutation()
     ApplyMutation(strategy::AbstractAlignSizeStrategy)
@@ -141,6 +158,20 @@ struct ApplyMutation <: AbstractAlignSizeStrategy
     strategy::AbstractAlignSizeStrategy
 end
 ApplyMutation() = ApplyMutation(SelectOutputs())
+
+"""
+    PostApplyMutation <: AbstractAlignSizeStrategy
+    PostApplyMutation()
+    PostApplyMutation(strategy::AbstractAlignSizeStrategy)
+
+Post change alignment strategy which first aligns size using `strategy`, then invoke `apply_mutation` if size alignment is successful.
+
+Motivation is basically convenience when creating new edges between vertices.
+"""
+struct PostApplyMutation <: AbstractAlignSizeStrategy
+    strategy::AbstractAlignSizeStrategy
+end
+PostApplyMutation() = PostApplyMutation(PostSelectOutputs())
 
 """
     CheckNoSizeCycle <: AbstractAlignSizeStrategy
@@ -190,7 +221,6 @@ struct CheckAligned <:AbstractAlignSizeStrategy
     ifnot
 end
 CheckAligned() = CheckAligned(CheckNoSizeCycle())
-
 
 """
     PostAlignJuMP <: AbstractAlignSizeStrategy
@@ -332,12 +362,16 @@ function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
     return false
 end
 
+prealignsizes(s::PostApplyMutation, vin, vout, will_rm) = prealignsizes(s.strategy, vin, vout, will_rm)
+
 function prealignsizes(s::SelectOutputs, vin, vout, will_rm)
     if prealignsizes(s.alignstrategy, vin, vout, will_rm)
         return Δoutputs(s.selectstrategy, vin, s.valuefun)
     end
     return false
 end
+
+prealignsizes(s::PostSelectOutputs, vin, vout, will_rm) = prealignsizes(s.alignstrategy, vin, vout, will_rm)
 
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, will_rm)
     Δinsize = nout(vin) - tot_nin(vout)
@@ -397,27 +431,53 @@ postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) = true
 # Failure cases
 postalignsizes(::FailAlignSizeError, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
 function postalignsizes(s::FailAlignSizeWarn, vin, vout)
-     @warn s.msgfun(vin, vout)
-     return postalignsizes(s.andthen, vin, vout)
- end
- function postalignsizes(s::FailAlignSizeRevert, vin, vout)
-     n = sum(inputs(vout) .== vin)
-     # Can maybe be supported by comparing nin_org(vout) to nout_org(vin): If they match then vin was there before, else it shall be removed?
-     @assert n <= 1 "Case when vin is input to vout multiple times not implemented!"
+    @warn s.msgfun(vin, vout)
+    return postalignsizes(s.andthen, vin, vout)
+end
+function postalignsizes(s::FailAlignSizeRevert, vin, vout)
+    n = sum(inputs(vout) .== vin)
+    # Can maybe be supported by comparing nin_org(vout) to nout_org(vin): If they match then vin was there before, else it shall be removed?
+    @assert n <= 1 "Case when vin is input to vout multiple times not implemented!"
 
-     if n == 1
-         remove_edge!(vin, vout, strategy=NoSizeChange())
-     else
-         create_edge!(vin, vout, strategy=NoSizeChange())
-     end
-     return false
- end
+    if n == 1
+        remove_edge!(vin, vout, strategy=NoSizeChange())
+    else
+        create_edge!(vin, vout, strategy=NoSizeChange())
+    end
+    return false
+end
 
- function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout)
-     sg = ΔnoutSizeGraph(vin)
-     is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout)
-     return postalignsizes(s.ifok, vin, vout)
- end
+function postalignsizes(s::PostSelectOutputs, vin, vout)
+    if postalignsizes(s.alignstrategy, vin, vout)
+        vin_all = nout(vin) == nout_org(vin) ? AbstractVertex[] : all_in_Δsize_graph(vin, Output())
+        vout_all = nin(vout) == nin_org(vout) ? AbstractVertex[] : all_in_Δsize_graph(vout, Input())
+
+        verts = union(vin_all, vout_all)
+
+        isempty(verts) && return true
+        success = Δoutputs(s.selectstrategy, verts, s.valuefun)
+
+        if !success
+            return postalignsizes(s.fallback, vin, vout)
+        end
+        return success
+    end
+    return false
+end
+
+function postalignsizes(s::PostApplyMutation, vin, vout)
+    if postalignsizes(s.strategy, vin, vout)
+        apply_mutation.(all_in_graph(vin))
+        return true
+    end
+    return false
+end
+
+function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout)
+    sg = ΔnoutSizeGraph(vin)
+    is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout)
+    return postalignsizes(s.ifok, vin, vout)
+end
 
 # Ok, this one actually does something...
 function postalignsizes(s::PostAlignJuMP, vin, vout)
