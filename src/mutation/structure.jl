@@ -392,7 +392,7 @@ end
 
 # Boilerplate
 postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
-function postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) end
+postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) = true
 
 # Failure cases
 postalignsizes(::FailAlignSizeError, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
@@ -539,8 +539,8 @@ function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy
     deleteat!(inputs(to), in_inds)
     deleteat!(outputs(from), out_inds)
 
+    add_output!(op(to), trait(to), -nin(to)[in_inds])
     rem_input!(op(to), in_inds...)
-    add_output!(op(to), trait(to), -nout(from))
 
     postalignsizes(strategy, from, to)
 end
