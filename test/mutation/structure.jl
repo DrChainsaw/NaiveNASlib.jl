@@ -585,7 +585,7 @@
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), FailAlignSizeWarn()))
+                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -685,7 +685,7 @@
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), FailAlignSizeWarn()))
+                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -790,7 +790,7 @@
                     @test [nout(v3)] == nin(v4) == [19]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), FailAlignSizeWarn()))
+                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
 
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]

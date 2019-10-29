@@ -237,7 +237,8 @@ struct PostAlignJuMP <: AbstractAlignSizeStrategy
     fallback
 end
 PostAlignJuMP() = PostAlignJuMP(DefaultJuMPΔSizeStrategy())
-PostAlignJuMP(s::AbstractJuMPΔSizeStrategy) = PostAlignJuMP(s, FailAlignSizeError())
+PostAlignJuMP(s::AbstractJuMPΔSizeStrategy; fallback = FailAlignSizeError()) = PostAlignJuMP(AlignNinToNout(s, ΔSizeFailNoOp()), fallback)
+PostAlignJuMP(s::AlignNinToNout; fallback=FailAlignSizeError()) = PostAlignJuMP(s, fallback)
 
 """
     RemoveStrategy
@@ -485,7 +486,7 @@ function postalignsizes(s::PostAlignJuMP, vin, vout)
     vout_all = all_in_Δsize_graph(vout, Input())
 
     verts = union(vin_all, vout_all)
-    success, nins, nouts = newsizes(AlignNinToNout(s.sizestrat, ΔSizeFailNoOp()), verts)
+    success, nins, nouts = newsizes(s.sizestrat, verts)
     if !success
         return postalignsizes(s.fallback, vin, vout)
     end
