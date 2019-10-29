@@ -384,6 +384,21 @@
                 @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
             end
 
+            @testset "PostSelectOutputs SizeInvariant add to immutable" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 5, name="v2")
+                v3 = iv(v0,v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+
+                create_edge!(v2, v3, strategy=PostSelectOutputs(align= IncreaseSmaller(), valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v3) == [v0, v1, v2]
+                @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
+                @test in_inds(op(v3)) == out_inds.(op.([v1,v1,v2])) == [1:3, 1:3, 3:5]
+                @test in_inds(op(v4)) == [out_inds(op(v3))] == [1:3]
+            end
+
             @testset "PostSelectOutputs SizeStack" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 3, name="v1")
