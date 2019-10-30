@@ -426,69 +426,70 @@ function prealignsizes(s::AbstractΔSizeStrategy, vin, vout)
 end
 
 # Boilerplate
-postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v)
-postalignsizes(s::AbstractAlignSizeStrategy, vin, vout) = true
+postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v, missing)
+postalignsizes(s::AbstractAlignSizeStrategy, vin, vout, pos) = true
 
 # Failure cases
-postalignsizes(::FailAlignSizeError, vin, vout) = error("Could not align sizes of $(vin) and $(vout)!")
-function postalignsizes(s::FailAlignSizeWarn, vin, vout)
+postalignsizes(::FailAlignSizeError, vin, vout, pos) = error("Could not align sizes of $(vin) and $(vout)!")
+function postalignsizes(s::FailAlignSizeWarn, vin, vout, pos)
     @warn s.msgfun(vin, vout)
-    return postalignsizes(s.andthen, vin, vout)
+    return postalignsizes(s.andthen, vin, vout, pos)
 end
-function postalignsizes(s::FailAlignSizeRevert, vin, vout)
+function postalignsizes(s::FailAlignSizeRevert, vin, vout, pos)
     n = sum(inputs(vout) .== vin)
     # Can maybe be supported by comparing nin_org(vout) to nout_org(vin): If they match then vin was there before, else it shall be removed?
     @assert n <= 1 "Case when vin is input to vout multiple times not implemented!"
 
     if n == 1
         remove_edge!(vin, vout, strategy=NoSizeChange())
-    else
-        create_edge!(vin, vout, strategy=NoSizeChange())
+    else #if n == 0, but n > 1 not implemented
+        create_edge!(vin, vout, pos=pos, strategy=NoSizeChange())
+        reset_in!(op(vout)) # create_edge! sets nin_org to 0 for new edges
     end
     return false
 end
 
-function postalignsizes(s::PostSelectOutputs, vin, vout)
-    if postalignsizes(s.alignstrategy, vin, vout)
-        vin_all = nout(vin) == nout_org(vin) ? AbstractVertex[] : all_in_Δsize_graph(vin, Output())
-        vout_all = nin(vout) == nin_org(vout) ? AbstractVertex[] : all_in_Δsize_graph(vout, Input())
+function postalignsizes(s::PostSelectOutputs, vin, vout, pos)
+    if postalignsizes(s.alignstrategy, vin, vout, pos)
+        vin_all = all_in_Δsize_graph(vin, Output())
+        vout_all = all_in_Δsize_graph(vout, Input())
 
         verts = union(vin_all, vout_all)
-
         isempty(verts) && return true
+
         success = Δoutputs(s.selectstrategy, verts, s.valuefun)
 
         if !success
-            return postalignsizes(s.fallback, vin, vout)
+            return postalignsizes(s.fallback, vin, vout, pos)
         end
         return success
     end
     return false
 end
 
-function postalignsizes(s::PostApplyMutation, vin, vout)
-    if postalignsizes(s.strategy, vin, vout)
+function postalignsizes(s::PostApplyMutation, vin, vout, pos)
+    if postalignsizes(s.strategy, vin, vout, pos)
         apply_mutation.(all_in_graph(vin))
         return true
     end
     return false
 end
 
-function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout)
+function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, pos)
     sg = ΔnoutSizeGraph(vin)
-    is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout)
-    return postalignsizes(s.ifok, vin, vout)
+    is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout, pos)
+    return postalignsizes(s.ifok, vin, vout, pos)
 end
 
 # Ok, this one actually does something...
-function postalignsizes(s::PostAlignJuMP, vin, vout)
+function postalignsizes(s::PostAlignJuMP, vin, vout, pos)
     vin_all = all_in_Δsize_graph(vin, Output())
     vout_all = all_in_Δsize_graph(vout, Input())
 
     verts = union(vin_all, vout_all)
     success, nins, nouts = newsizes(s.sizestrat, verts)
     if !success
-        return postalignsizes(s.fallback, vin, vout)
+        return postalignsizes(s.fallback, vin, vout, pos)
     end
     Δsize(nins, nouts, verts)
     return success
@@ -555,9 +556,9 @@ function create_edge!(from::AbstractVertex, to::AbstractVertex; pos = length(inp
     insert!(inputs(to), pos, from)
 
     add_input!(op(to), pos, nout(from))
-    add_output!(op(to), trait(to), nout(from))
+    add_output!(op(to), trait(to))
 
-    postalignsizes(strategy, from, to)
+    postalignsizes(strategy, from, to, pos)
 end
 
 default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
@@ -575,11 +576,11 @@ function add_input!(s::IoChange, pos, size)
     insert!(s.inΔ, pos, size)
 end
 
-function add_output!(::MutationOp, t::MutationTrait, size) end
-add_output!(s::MutationOp, t::DecoratingTrait, size) = add_output!(s, base(t), size)
-add_output!(s::IoSize, ::SizeStack, size) = Δnout(s, size)
-add_output!(s::IoIndices, ::SizeStack, size) = Δnout(s, vcat(s.out, (length(s.out):length(s.out)+size)))
-add_output!(s::IoChange, t::SizeStack, size) = Δnout(s, size)
+function add_output!(::MutationOp, t::MutationTrait) end
+add_output!(s::MutationOp, t::DecoratingTrait) = add_output!(s, base(t))
+add_output!(s::IoSize, ::SizeStack) = Δnout(s, sum(nin(s)) - nout(s))
+add_output!(s::IoIndices, ::SizeStack) = Δnout(s, vcat(s.out, (length(s.out):length(s.out)+(sum(nin(s)) - nout(s)))))
+add_output!(s::IoChange, t::SizeStack) = Δnout(s, sum(nin(s)) - nout(s))
 
 
 """
@@ -595,15 +596,15 @@ function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy
 
     prealignsizes(strategy, from, to, v -> false) || return
 
-    in_inds = findall(vx -> vx == from, inputs(to))[nr]
-    out_inds =findall(vx -> vx == to, outputs(from))[nr]
-    deleteat!(inputs(to), in_inds)
-    deleteat!(outputs(from), out_inds)
+    in_ind  = findall(vx -> vx == from, inputs(to))[nr]
+    out_ind = findall(vx -> vx == to, outputs(from))[nr]
+    deleteat!(inputs(to), in_ind)
+    deleteat!(outputs(from), out_ind)
 
-    add_output!(op(to), trait(to), -nin(to)[in_inds])
-    rem_input!(op(to), in_inds...)
+    rem_input!(op(to), in_ind...)
+    add_output!(op(to), trait(to))
 
-    postalignsizes(strategy, from, to)
+    postalignsizes(strategy, from, to, in_ind)
 end
 
 default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
