@@ -13,7 +13,7 @@ Its only contribution to this world is some help with the sometimes annoyingly c
 ## Basic usage
 
 ```julia
-Pkg.add("https://github.com/DrChainsaw/NaiveNASlib.jl")
+]add NaiveNASlib
 ```
 
 Main supported operations:

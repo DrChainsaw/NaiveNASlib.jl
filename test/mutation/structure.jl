@@ -55,6 +55,24 @@
                 @test nin(v5) == [nout(v2)] == [4]
             end
 
+            @testset "Remove from stacking and increase" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, v2, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                remove_edge!(v2, v3, strategy=PostAlignJuMP(ΔNoutExact(v3, 2)))
+                @test inputs(v3) == [v1]
+                @test outputs(v1) == [v3]
+                @test nin(v4) == [nout(v3)] == nin(v3) == [nout(v1)] == [7]
+
+                @test inputs(v5) == [v2]
+                @test outputs(v2) == [v5]
+                @test nin(v5) == [nout(v2)] == [4]
+            end
+
             @testset "Remove duplicate from single output stacking" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")
@@ -150,6 +168,132 @@
                 @test inputs(v5) == [v2]
                 @test nin(v5) == [nout(v2)] == [4]
             end
+
+            @testset "Revert remove edge SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v0, v1, v2, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v0, v1, v2]
+                @test nin(v3) == nout.([v0, v1, v2]) == [3,5,4]
+                @test [nout(v3)] == nin(v4) == [3+5+4]
+                @test nin_org(v3) == nout_org.([v0, v1, v2]) == [3,5,4]
+                @test [nout_org(v3)] == nin_org(v4) == [3+5+4]
+
+                struct RevertPost <: AbstractAlignSizeStrategy end
+                NaiveNASlib.postalignsizes(::RevertPost, vin, vout, pos) = NaiveNASlib.postalignsizes(FailAlignSizeRevert(), vin, vout, pos)
+
+                remove_edge!(v1, v3, strategy=RevertPost())
+
+                @test inputs(v3) == [v0, v1, v2]
+                @test nin(v3) == nout.([v0, v1, v2]) == [3,5,4]
+                @test [nout(v3)] == nin(v4) == [3+5+4]
+                @test nin_org(v3) == nout_org.([v0, v1, v2]) == [3,5,4]
+                @test [nout_org(v3)] == nin_org(v4) == [3+5+4]
+            end
+
+            @testset "PostSelectOutputs SizeInvariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 4, name="v3")
+                v4 = iv(v1, v2, v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                remove_edge!(v3, v4, strategy=PostSelectOutputs(align = DecreaseBigger(), valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [4,4]
+                @test in_inds(op(v4)) == out_inds.(op.([v1,v2])) == [1:4, 1:4]
+            end
+
+            @testset "PostSelectOutputs SizeInvariant post align" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 4, name="v3")
+                v4 = iv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                remove_edge!(v3, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [4,4]
+                @test in_inds(op(v4)) == out_inds.(op.([v1,v2])) == [1:4, 1:4]
+            end
+
+            @testset "PostSelectOutputs SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                remove_edge!(v2, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v3]
+                @test nin(v4) == nout.([v1, v3]) == [3,5]
+                @test out_inds(op(v1)) == 1:3
+                @test out_inds(op(v2)) == 1:4
+                @test out_inds(op(v3)) == 1:5
+                # This would be better if it was [1:3;8:12] but remove_vertex removes the edge before PostSelectOutputs has a chance to see it :(
+                @test out_inds(op(v4)) == 1:8
+                @test in_inds(op(v5)) == [1:8]
+            end
+
+            @testset "PostSelectOutputs fail size align" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test_logs (:warn, r"Could not align size") remove_edge!(v1, v4, strategy=PostSelectOutputs(align = FailAlignSizeWarn()))
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test nin_org(v4) == nout_org.([v1, v2, v3]) == [3,4,5]
+                @test [nout(v4)] == nin(v5) == [3+4+5]
+                @test [nout_org(v4)] == nin_org(v5) == [3+4+5]
+            end
+
+            @testset "PostSelectOutputs fail select" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test_logs (:warn, r"Could not align size") remove_edge!(v2, v4, strategy=PostSelectOutputs(
+                align = PostAlignJuMP(), select = NoutRevert(), fallback=FailAlignSizeWarn()))
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test nin_org(v4) == nout_org.([v1, v2, v3]) == [3,4,5]
+                @test [nout(v4)] == nin(v5) == [3+4+5]
+                @test [nout_org(v4)] == nin_org(v5) == [3+4+5]
+            end
+
+            @testset "PostApplyMutation SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                remove_edge!(v1, v4, strategy=PostApplyMutation())
+
+                @test inputs(v4) == [v2, v3]
+                @test nin(v4) == nin_org(v4) == nout.([v2, v3]) == [4,5]
+                @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [4+5]
+            end
         end
 
         @testset "Edge addition" begin
@@ -191,6 +335,25 @@
                 @test outputs(v2) == [v5, v3]
                 @test inputs(v5) == [v2]
                 @test nin(v5) == [nout(v2)] == [4]
+            end
+
+            @testset "Add to single output stacking and increase" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v1]
+                create_edge!(v2, v3, strategy=PostAlignJuMP(ΔNoutExact(v2, 2)))
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [11]
+
+                @test outputs(v2) == [v5, v3]
+                @test inputs(v5) == [v2]
+                @test nin(v5) == [nout(v2)] == [6]
             end
 
             @testset "Add duplicate to single output stacking" begin
@@ -278,6 +441,201 @@
                 @test nin(v3) == [nout(v2)] == [nout(v1)] == [nout(v0)] == [3]
 
                 @test outputs(v0) == [v1, v2]
+            end
+
+            @testset "Add with hidden SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                vh = av(v0, 5, name="vh")
+                v3 = sv(v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = sv(v4, vh, name="v5")
+                v6 = av(v2, 2, name="v6")
+
+
+                @test inputs(v3) == [v1]
+                create_edge!(v2, v3)
+
+                @test inputs(v3) == [v1, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
+
+                @test outputs(v2) == [v6, v3]
+                @test inputs(v6) == [v2]
+                @test nin(v6) == [nout(v2)] == [4]
+
+                @test outputs(vh) == [v5]
+                @test inputs(v5) == [v4, vh]
+                @test nin(v5) == [nout(v4), nout(vh)] == [3, 5]
+            end
+
+            @testset "Add with hidden SizeInvariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 3, name="v2")
+                vh = av(v0, 5, name="vh")
+                v3 = iv(v1, vh, name = "v3")
+                v4 = av(v3, 3, name="v4")
+
+                @test inputs(v3) == [v1, vh]
+                create_edge!(v2, v3, strategy=AlignSizeBoth())
+
+                @test inputs(v3) == [v1, vh, v2]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(vh)] == [nout(v2)] == [4]
+            end
+
+            @testset "Add with size cycle SizeInvariant" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                p1 = av(v3, 3, name="p1")
+                p2 = av(v3, 2, name="p2")
+                v4 = sv(p1,p2, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+
+                @test_logs (:warn, r"Can not add edge") create_edge!(p1, v5)
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+            end
+
+            @testset "Add with size cycle SizeStack" begin
+                v1 = av(inpt(3, "in"), 3, name="v1")
+                v2 = av(v1, 5, name="v2")
+                v3 = iv(v2, name="v3")
+                ve = iv(v1, name="ve")
+                v4 = sv(v3, name="v4")
+                v5 = "v5" >> v4 + v2
+
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+
+                @test_logs (:warn, r"Can not add edge") create_edge!(ve, v4)
+                @test inputs(v5) == [v4, v2]
+                @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
+            end
+
+            @testset "PostSelectOutputs SizeInvariant" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1, v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostSelectOutputs(align = DecreaseBigger(), valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
+                @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
+            end
+
+            @testset "PostSelectOutputs SizeInvariant post align" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
+                @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
+            end
+
+            @testset "PostSelectOutputs SizeInvariant add to immutable" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 5, name="v2")
+                v3 = iv(v0,v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+
+                create_edge!(v2, v3, strategy=PostSelectOutputs(align= IncreaseSmaller(), valuefun = v -> 1:nout_org(v)))
+
+                @test inputs(v3) == [v0, v1, v2]
+                @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
+                @test in_inds(op(v3)) == out_inds.(op.([v1,v1,v2])) == [1:3, 1:3, 3:5]
+                @test in_inds(op(v4)) == [out_inds(op(v3))] == [1:3]
+            end
+
+            @testset "PostSelectOutputs SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostSelectOutputs())
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test out_inds(op(v1)) == 1:3
+                @test out_inds(op(v2)) == 1:4
+                @test out_inds(op(v3)) == 1:5
+                @test out_inds(op(v4)) == [1:7;-ones(Int,5)]
+                @test in_inds(op(v5)) == [[1:7;-ones(Int,5)]]
+            end
+
+            @testset "PostSelectOutputs fail size align" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align = FailAlignSizeWarn()))
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [3,4]
+            end
+
+            @testset "PostSelectOutputs fail select" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align=IncreaseSmaller(), select=NoutRevert(), fallback=FailAlignSizeWarn()))
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [4,4]
+            end
+
+            @testset "PostApplyMutation SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                create_edge!(v3, v4, strategy=PostApplyMutation())
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nin_org(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [3+4+5]
+            end
+
+            @testset "PostApplyMutation failure" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 4, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = iv(v1,v2, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                Δnout(v2, -1)
+                create_edge!(v3, v4, strategy=PostApplyMutation(FailAlignSizeRevert()))
+
+                @test inputs(v4) == [v1, v2]
+                @test nin(v4) == nout.([v1, v2]) == [3,3]
+                @test nin_org(v4) == nout_org.([v1, v2]) == [4,4]
             end
         end
 
@@ -405,7 +763,7 @@
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), FailAlignSizeWarn()))
+                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -505,7 +863,7 @@
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), FailAlignSizeWarn()))
+                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -610,7 +968,7 @@
                     @test [nout(v3)] == nin(v4) == [19]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), FailAlignSizeWarn()))
+                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
 
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
