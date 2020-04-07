@@ -1,8 +1,9 @@
-import NaiveNASlib
-import NaiveNASlib:reset_in!, reset_out!, reset!
-import InteractiveUtils:subtypes
 
 @testset "Vertex mutation operations" begin
+
+    import NaiveNASlib:reset_in!, reset_out!, reset!, IoIndices, MutationState
+    import InteractiveUtils:subtypes
+
 
     expectedtype(t::Type{<:MutationOp}) = Integer
     expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}

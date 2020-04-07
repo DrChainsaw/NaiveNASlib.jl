@@ -1,3 +1,5 @@
+import NaiveNASlib: MutationOp
+
 
 function implementations(T::Type)
     return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, subtypes(T), init=[])

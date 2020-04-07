@@ -139,14 +139,14 @@ Edge weights denoted by the symbol `:size` represents the size of the output sen
 Note that the order of the input edges to a vertex matters (in case there are more than one) and is not encoded in `g`.
 Instead, use `indexin(vi, inputs(v))` to find the index (or indices if input multiple times) of `vi` in `inputs(v)`.
 """
-SizeDiGraph(cg::CompGraph) = SizeDiGraph(mapfoldl(v -> flatten(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), cg.outputs))
+SizeDiGraph(cg::CompGraph) = SizeDiGraph(mapfoldl(v -> ancestors(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), cg.outputs))
 
 """
     SizeDiGraph(v::AbstractVertex)
 
 Return a SizeDiGraph of all parents of v
 """
-SizeDiGraph(v::AbstractVertex)= SizeDiGraph(flatten(v))
+SizeDiGraph(v::AbstractVertex)= SizeDiGraph(ancestors(v))
 
 """
     SizeDiGraph(vertices::AbstractArray{AbstractVertex,1})

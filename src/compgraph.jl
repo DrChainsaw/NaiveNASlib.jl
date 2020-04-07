@@ -77,14 +77,14 @@ end
 
 Return g as a SimpleDiGraph.
 """
-LightGraphs.SimpleDiGraph(g::CompGraph) = SimpleDiGraph(mapfoldl(v -> flatten(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), g.outputs))
+LightGraphs.SimpleDiGraph(g::CompGraph) = SimpleDiGraph(mapfoldl(v -> ancestors(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), g.outputs))
 
 """
     SimpleDiGraph(v::AbstractVertex)
 
 Return a SimpleDiGraph of all parents of v
 """
-LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(flatten(v))
+LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(ancestors(v))
 
 """
     SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
@@ -108,23 +108,23 @@ LightGraphs.nv(g::CompGraph) = nv(SimpleDiGraph(g))
 
 
 """
-    flatten(v::AbstractVertex)
+    ancestors(v::AbstractVertex)
 
-Return an array of all input parents of v
+Return an array of all input ancestors of v
 
 # Examples
 ```julia-repl
-julia> flatten(CompVertex(+, InputVertex.(1:2)...))
+julia> ancestors(CompVertex(+, InputVertex.(1:2)...))
 3-element Array{AbstractVertex,1}:
  InputVertex(1)
  InputVertex(2)
  CompVertex(+, [InputVertex(1), InputVertex(2)])
 """
-function flatten(v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
+function ancestors(v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
     v in vertices && return vertices
     if !(v in visited)
         push!(visited, v)
-        foreach(iv -> flatten(iv, vertices), inputs(v))
+        foreach(iv -> ancestors(iv, vertices), inputs(v))
     end
     push!(vertices, v)
     return vertices
@@ -153,7 +153,7 @@ julia> vertices(graph)
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```
 """
-LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
+LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(ancestors, vcat, g.outputs))
 
 """
     Base.copy(g::CompGraph, cf=clone)

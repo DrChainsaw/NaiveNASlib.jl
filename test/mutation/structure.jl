@@ -1,6 +1,8 @@
 
 @testset "Structure tests" begin
 
+    import NaiveNASlib: op
+
     #Helper functions
     nt(name) = t -> NamedTrait(t, name)
     tf(name) = t -> nt(name)(t)

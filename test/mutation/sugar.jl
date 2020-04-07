@@ -1,6 +1,8 @@
-import NaiveNASlib
 
 @testset "Sugar" begin
+
+    import NaiveNASlib: IoSize
+
 
     struct ScaleByTwo
         f

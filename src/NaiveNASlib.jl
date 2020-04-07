@@ -6,26 +6,26 @@ using Logging
 
 import JuMP
 import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
-using Cbc
+import Cbc
 
 #Interface
-export AbstractVertex, AbstractMutationVertex, MutationOp, MutationState
+export AbstractVertex, AbstractMutationVertex
 
 # Vertex
 export InputVertex, CompVertex, inputs, outputs
 
 # Information strings
-export infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr
+export infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr, MutationSizeTraitInfoStr
 
 # Computation graph
-export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
+export CompGraph, SizeDiGraph, output!, ancestors, nv, vertices
 
 # Mutation operations
 #State
-export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, op, in_inds, out_inds, nin_org, nout_org
+export nin, nout, Δnin, Δnout, clone, in_inds, out_inds, nin_org, nout_org
 
 # Mutation vertex
-export base, InputSizeVertex, OutputsVertex, MutationVertex
+export InputSizeVertex, MutationVertex
 
 # Mutation traits
 export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant, SizeChangeLogger, SizeChangeValidation
@@ -48,7 +48,7 @@ export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth
 export AbstractConnectStrategy, ConnectAll, ConnectNone
 
 # apply mutation
-export mutate_inputs, mutate_outputs, apply_mutation
+export apply_mutation
 
 #sugar
 export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc, VertexConf, traitconf, mutationconf, outwrapconf

@@ -1,7 +1,9 @@
-import NaiveNASlib:CompGraph, CompVertex, InputVertex, SimpleDiGraph
-import LightGraphs:adjacency_matrix,is_cyclic
 
 @testset "Computation graph tests" begin
+
+    import NaiveNASlib:CompGraph, CompVertex, InputVertex, SimpleDiGraph, op, IoIndices, IoChange
+    import LightGraphs:adjacency_matrix,is_cyclic
+
 
     @testset "Scalar computation graphs" begin
 
@@ -95,11 +97,11 @@ import LightGraphs:adjacency_matrix,is_cyclic
         testop(v::MutationVertex) = testop(trait(v), v)
         function testop(::MutationTrait, v) end
         testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoChange
-        foreach(testop, mapreduce(flatten, vcat, graph.outputs))
+        foreach(testop, mapreduce(ancestors, vcat, graph.outputs))
 
         # But new graph shall use IoIndices
         testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoIndices
-        foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
+        foreach(testop, mapreduce(ancestors, vcat, graph_inds.outputs))
     end
 
     @testset "Graph add trait" begin

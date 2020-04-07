@@ -1,8 +1,8 @@
-import NaiveNASlib
-import NaiveNASlib:OutputsVertex
-import InteractiveUtils:subtypes
 
 @testset "Mutation vertices" begin
+
+    import NaiveNASlib: InputVertex, InputSizeVertex, OutputsVertex, base, IoSize, NoOp
+    import InteractiveUtils: subtypes
 
     @testset "OutputsVertex" begin
         iv = OutputsVertex(InputVertex(1))
