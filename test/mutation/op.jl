@@ -1,7 +1,7 @@
 
 @testset "Vertex mutation operations" begin
 
-    import NaiveNASlib:reset_in!, reset_out!, reset!, IoIndices, MutationState
+    import NaiveNASlib:reset_in!, reset_out!, reset!, IoIndices, IoSize, MutationState
     import InteractiveUtils:subtypes
 
 
