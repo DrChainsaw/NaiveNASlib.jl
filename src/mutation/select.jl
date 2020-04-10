@@ -240,7 +240,7 @@ end
 
 accept(::AbstractJuMPSelectionStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
 
-selectmodel(::AbstractJuMPSelectionStrategy, v, values) = JuMP.Model(JuMP.with_optimizer(Cbc.Optimizer, loglevel=0))
+selectmodel(::AbstractJuMPSelectionStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
 
 # First dispatch on traits to sort out things like immutable vertices
 vertexconstraints!(v::AbstractVertex, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(trait(v), v, s, data)

@@ -514,7 +514,7 @@ end
 
 Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 """
-sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.with_optimizer(Cbc.Optimizer, loglevel=0))
+sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
 
 # Just a shortcut for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
