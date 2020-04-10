@@ -112,6 +112,8 @@ fallback(s::OutSelect) = s.fallback
 
 Change outputs of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
 
+Return true of operation was successful, false otherwise.
+
 Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output index `i` shall be preferred over `j` for vertex `vx`.
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
@@ -124,21 +126,23 @@ function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
     nin_change = nin_org(v) != nin(v)
     nout_change = nout_org(v) != nout(v)
     if nout_change && nin_change
-        Δoutputs(s.strategy, Both(), v, valuefun)
+        return Δoutputs(s.strategy, Both(), v, valuefun)
     elseif nout_change
-        Δoutputs(s.strategy, Output(), v, valuefun)
+        return Δoutputs(s.strategy, Output(), v, valuefun)
     elseif nin_change
-        Δoutputs(s.strategy, Input(), v, valuefun)
+        return Δoutputs(s.strategy, Input(), v, valuefun)
     end
+    return true
  end
 
 Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), d, v, valuefun)
 Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_Δsize_graph(v, d), valuefun)
 
 function Δoutputs(s::ApplyAfter, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
-    Δoutputs(s.strategy, vs, valuefun)
+    success = Δoutputs(s.strategy, vs, valuefun)
     # This is not 100% safe in all cases, as a strategy can chose to not do anything even in this case (although it probably should)
     foreach(s.apply, filter(v -> nout(v) != nout_org(v) || nin(v) != nin_org(v), vs))
+    return success
 end
 
 function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
@@ -146,6 +150,7 @@ function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVe
     if success
         Δoutputs(ins, outs, vs)
     end
+    return success
 end
 
 """
@@ -254,6 +259,7 @@ function vertexconstraints!(::Immutable, v, s::AbstractJuMPSelectionStrategy, da
 
 function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTrait, v, data)
     sizeconstraint!(s, t, v, data)
+    compconstraint!(s, v, (data..., vertex=v))
     inoutconstraint!(s, t, v, data)
 end
 

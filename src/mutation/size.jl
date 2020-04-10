@@ -532,7 +532,8 @@ vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 # This must be applied to immutable vertices as well
 function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
     vertexconstraints!(v, s.vstrat, data)
-    for vo in outputs(v)
+    # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
+    for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
         ninvar = @variable(data.model, integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
 
@@ -542,10 +543,18 @@ function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
 end
 
 function vertexconstraints!(v::AbstractVertex, s::AlignNinToNoutVertices, data)
-    hasadded = s.vout in keys(s.vstrat.nindict)
+    # Any s.ininds which are mapped to vertices which are not yet added in s.vstrat.nindict[s.vout] will cause undefined reference below
+    # There is a check to wait for them to be added, but if they are not in data.noutdict they will never be added, so we need to check for that too. Not 100% this can even happen, so I'm just waiting for this in itself to trigger a bug. Sigh...
+    neededinds = filter(i -> i != nothing, indexin(keys(data.noutdict), inputs(s.vout)))
+
+    condition() = s.vout in keys(s.vstrat.nindict) && all(i -> isassigned(s.vstrat.nindict[s.vout], i), neededinds)
+
+    # Just to make sure we only do this once without having to store hasadded as a field in AlignNinToNoutVertices:
+    #  - Check the condition before vertexconstraints! -> Only when condition changes from false to true do we add as we assume this is the first time the condition becomes fulfilled
+    hasadded = condition()
     vertexconstraints!(v, s.vstrat, data)
 
-    if !hasadded && s.vout in keys(s.vstrat.nindict)
+    if !hasadded && condition()
         @constraint(data.model, data.noutdict[s.vin] .== s.vstrat.nindict[s.vout][s.ininds])
     end
 end

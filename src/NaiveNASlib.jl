@@ -1,7 +1,6 @@
 module NaiveNASlib
 
 using LightGraphs, MetaGraphs
-using DataStructures
 using Statistics
 using Logging
 
@@ -34,7 +33,7 @@ export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSiz
 # Size util
 export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output, Both, all_in_graph, all_in_Δsize_graph, Δsize, newsizes, neighbours, fullgraph
 
-export AbstractΔSizeStrategy, AbstractJuMPSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
+export AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
 
 #Selection util
 export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, Δoutputs, solve_outputs_selection
@@ -43,7 +42,7 @@ export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionF
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, PostAlignJuMP, SelectOutputs, ApplyMutation
+export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlignJuMP, SelectOutputs, ApplyMutation, PostSelectOutputs, PostApplyMutation
 
 # Connect strategies
 export AbstractConnectStrategy, ConnectAll, ConnectNone

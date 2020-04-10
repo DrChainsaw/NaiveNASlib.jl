@@ -6,21 +6,19 @@
 
 NaiveNASlib is a library of functions for mutating computation graphs. It is designed with Neural Architecture Search (NAS) in mind, but can be used for any purpose where doing changes to a model architecture is desired.
 
-It is "batteries excluded" in the sense that it is independent of both neural network implementation and search policy implementation.
+It is "batteries excluded" in the sense that it is independent of both neural network implementation and search policy implementation. If you need batteries, check out https://github.com/DrChainsaw/NaiveNASflux.jl.
 
-Its only contribution to this world is some help with the sometimes annoyingly complex procedure of changing an existing neural network architecture into a new, similar yet different, neural network architecture.
+Its only contribution to this world is some help with the sometimes annoyingly complex procedure of changing an existing neural network into a new, similar yet different, neural network.
 
 ## Basic usage
 
 ```julia
-Pkg.add("https://github.com/DrChainsaw/NaiveNASlib.jl")
+]add NaiveNASlib
 ```
 
-The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what some older frameworks using less modern programming languages used to do. In its defense, the sole reason anyone would use this library to begin with is to not have to create computation graphs themselves.
-
-Main supported use cases:
+Main supported operations:
 * Change the input/output size of vertices
-* Parameter pruning (policy excluded)
+* Parameter pruning/insertion (policy excluded)
 * Add vertices to the graph
 * Remove vertices from the graph
 * Add edges to a vertex
@@ -28,20 +26,27 @@ Main supported use cases:
 
 For each of the above operations, NaiveNASlib makes the necessary changes to neighboring vertices to ensure that the computation graph is consistent w.r.t dimensions of the activations.
 
+The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what some older frameworks using less modern programming languages used to do. In its defense, the sole reason anyone would use this library to begin with is to not have to create computation graphs themselves.
+
 Just to get started, lets create a simple graph for the summation of two numbers:
 ```julia
-in1, in2 = InputVertex.(("in1", "in2"));
+using NaiveNASlib
+using Test
+in1 = inputvertex("in1", 1)
+in2 = inputvertex("in2", 1)
 
-computation = CompVertex(+, in1, in2);
+# Create a new vertex which computes the sum of in1 and in2
+computation = in1 + in2
+@test typeof(computation) == MutationVertex
 
+# CompGraph helps evaluating the whole graph as a function
 graph = CompGraph([in1, in2], computation);
 
-using Test
-
+# Evaluate the function represented by graph
 @test graph(2,3) == 5
 ```
 
-Now for a more to the point example. The vertex types used above does not contain any information needed to mutate the graph. This might be a sign of OOP damage, but to do so, we need to wrap them in a vertex type which supports mutation.
+Now for a more to the point example.
 
 ```julia
 # First we need something to mutate. Batteries excluded, remember?
@@ -65,17 +70,31 @@ layer2 = layer(layer1, 5);
 Δnout(layer1, -2);
 
 @test [nout(layer1)] == nin(layer2) == [2]
+````
 
-### Third example ###
+As can be seen above, the consequence of changing the output size of `layer1` was that the input size of `layer2` also was changed.
+
+Besides the very simple graph, this mutation was trivial because both layers are of the type `SizeAbsorb`, meaning that a change in number of inputs/outputs does not propagate further in the graph.
+
+Lets do a non-trivial example where changes propagate:
+
+```julia
+# First a few "normal" layers
+invertex = inputvertex("input", 6);
+start = layer(invertex, 6);
+split = layer(start, div(nout(invertex) , 3));
+
 # When multiplying with a scalar, the output size is the same as the input size.
 # This vertex type is said to be SizeInvariant (in lack of better words).
 scalarmult(v, f::Integer) = invariantvertex(x -> x .* f, v)
 
-invertex = inputvertex("input", 6);
-start = layer(invertex, 6);
-split = layer(start, div(nout(invertex) , 3));
+# Concatenation is a third type of vertex, called SizeStack where the output size is the sum of input sizes
 joined = conc(scalarmult(split, 2), scalarmult(split,3), scalarmult(split,5), dims=2);
+@test trait(joined) == SizeStack()
+
+# Elementwise addition is SizeInvariant
 out = start + joined;
+@test trait(out) == SizeInvariant()
 
 @test [nout(invertex)] == nin(start) == nin(split) == [3 * nout(split)] == [sum(nin(joined))] == [nout(out)] == [6]
 @test [nout(start), nout(joined)] == nin(out) == [6, 6]
@@ -333,6 +352,176 @@ apply_mutation(graph)
 
 @test nin(merged) == [5, 3]
 @test graph(ones(Int, 1, 4)) == [32 32 32]
+```
+
+## Advanced usage
+
+The previous examples have been focused on giving an overview of the purpose of this library. For more advanced usage, there are many of ways to customize the behavior and in other ways alter or hook in to the functionality. Here are a few of the most important.
+
+### Strategies
+
+For more or less all operations which mutate the graph, it is possible achieve fine grained control of the operation through selecting a strategy.
+
+Here is an example of strategies for changing the size:
+
+```julia
+# A simple graph where one vertex has a constraint for changing the size.
+invertex = inputvertex("in", 3)
+layer1 = layer(invertex, 4)
+joined = conc(scalarmult(layer1, 2), scalarmult(layer1, 3), dims=2)
+
+# joined can only change in steps of 2
+@test minΔnoutfactor(joined) == 2
+
+# all_in_graph finds all vertices in the same graph as the given vertex
+verts = all_in_graph(joined)
+
+# Strategy to try to change it by one and throw an error when not successful
+exactOrFail = ΔNout{Exact}(joined, 1, ΔSizeFailError("Size change failed!!"))
+
+# Note that we now call Δsize instead of Δnout as the direction is given by the strategy
+@test_throws ErrorException Δsize(exactOrFail, verts)
+
+# No change was made
+@test nout(joined) == 2*nout(layer1) == 8
+
+# Try to change by one and fail silently when not successful
+exactOrNoop = ΔNout{Exact}(joined, 1, ΔSizeFailNoOp())
+
+Δsize(exactOrNoop, verts)
+
+# No change was made
+@test nout(joined) == 2*nout(layer1) == 8
+
+# In many cases it is ok to not get the exact change which was requested
+relaxedOrFail = ΔNout{Relaxed}(joined, 1, ΔSizeFailError("This should not happen!!"))
+
+Δsize(relaxedOrFail, verts)
+
+# Changed by two as this was the smallest possible change
+@test nout(joined) == 2*nout(layer1) == 10
+
+# Logging when fallback is applied is also possible
+using Logging
+# Yeah, this is not easy on the eyes, but it gets the job done...
+exactOrLogThenRelax = ΔNout{Exact}(joined, 1, LogΔSizeExec(Logging.Info, "Exact failed, relaxing", ΔNout{Relaxed}(joined, 1, ΔSizeFailError("This should not happen!!"))))
+
+@test_logs (:info, "Exact failed, relaxing") Δsize(exactOrLogThenRelax, verts)
+
+@test nout(joined) == 2*nout(layer1) == 12
+```
+A similar pattern is used for most other mutating operations. Use the built-in documentation to explore the options until I find the energy and time to write proper documentation. As I could not let go of the OO habit of having abstract base types for everything, the existing strategies can be discovered using `subtypes` as a stop-gap solution.
+
+### Traits
+
+A variant (bastardization?) of the [holy trait](https://docs.julialang.org/en/v1/manual/methods/#Trait-based-dispatch-1) pattern is used to annotate the type of a vertex. In the examples above the three 'core' types `SizeAbsorb`, `SizeStack` and `SizeInvariant` are shown, but it is also possible to attach other information and behaviors by freeriding on this mechanism.
+
+This is done by adding the argument `traitdecoration` when creating a vertex and supplying a function which takes a trait and return a new trait (which typically wraps the input).
+
+Some examples:
+
+```julia
+noname = layer(inputvertex("in", 2), 2)
+@test name(noname) == "MutationVertex::SizeAbsorb"
+
+# Naming vertices is so useful for logging and debugging I almost made it mandatory
+named = absorbvertex(SimpleLayer(2, 3), 3, inputvertex("in", 2), traitdecoration = t -> NamedTrait(t, "named layer"))
+@test name(named) == "named layer"
+
+# Speaking of logging...
+layer1 = absorbvertex(SimpleLayer(2, 3), 3, inputvertex("in", 2), traitdecoration = t -> SizeChangeLogger(NamedTrait(t, "layer1")))
+
+# What info is shown can be controlled by supplying an extra argument to SizeChangeLogger
+nameonly = NameInfoStr()
+layer2 = absorbvertex(SimpleLayer(nout(layer1), 4), 4, layer1, traitdecoration = t -> SizeChangeLogger(nameonly, NamedTrait(t, "layer2")))
+
+@test_logs(
+(:info, "Change nout of layer1, inputs=[in], outputs=[layer2], nin=[2], nout=[3], SizeAbsorb() by 1"),
+(:info, "Change nin of layer2 by 1"), # Note: less verbose compared to layer1 due to NameInfoStr
+ Δnout(layer1, 1))
+
+ # traitdecoration works exactly the same for conc and invariantvertex as well, no need for an example
+
+ # Use the >> operator when creating SizeInvariant vertices using arithmetic operators:
+ add = "addvertex" >> inputvertex("in1", 1) + inputvertex("in2", 1)
+ @test name(add) == "addvertex"
+
+ # For more elaborate traits one can use traitconf
+ add2 = traitconf(t -> SizeChangeLogger(NamedTrait(t, "layer1 + layer2"))) >> layer1 + layer2
+ @test name(add2) == "layer1 + layer2"
+
+ @test_logs(
+ (:info, "Change nout of layer1, inputs=[in], outputs=[layer2, layer1 + layer2], nin=[2], nout=[4], SizeAbsorb() by 1"),
+ (:info, "Change nin of layer2 by 1"),
+ (:info, "Change nout of layer2 by 1"),
+ (:info, "Change nin of layer1 + layer2, inputs=[layer1, layer2], outputs=[], nin=[4, 4], nout=[4], SizeInvariant() by 1, 1"),
+ (:info, "Change nout of layer1 + layer2, inputs=[layer1, layer2], outputs=[], nin=[5, 5], nout=[4], SizeInvariant() by 1"),
+  Δnout(layer1, 1))
+
+  # When creating own trait wrappers, remember to subtype DecoratingTrait or else there will be pain!
+
+  # Wrong!! Not a subtype of DecoratingTrait
+  struct PainfulTrait{T<:MutationTrait} <: MutationTrait
+      base::T
+  end
+  painlayer = absorbvertex(SimpleLayer(2, 3), 3, inputvertex("in", 2), traitdecoration = PainfulTrait)
+
+  # Now one must implement a lot of methods for PainfulTrait...
+  @test_throws MethodError Δnout(painlayer, 1)
+
+  # Right! Is a subtype of DecoratingTrait
+  struct SmoothSailingTrait{T<:MutationTrait} <: DecoratingTrait
+      base::T
+  end
+  # Just implement base and all will be fine
+  NaiveNASlib.base(t::SmoothSailingTrait) = t.base
+
+  smoothlayer = absorbvertex(SimpleLayer(2, 3), 3, inputvertex("in", 2), traitdecoration = SmoothSailingTrait)
+
+  Δnout(smoothlayer, 1)
+  @test nout(smoothlayer) == 4
+
+```
+
+### Graph instrumentation and modification
+
+In many cases it is desirable to change things like traits of an existing graph. This can be achieved by supplying an extra argument when copying the graph. The extra argument is a function which determines how each individual component of the graph shall be copied.
+
+Depending on what one wants to achieve, it can be more or less messy. Here is a pretty messy example:
+
+```julia
+invertex = inputvertex("in", 2)
+layer1 = layer(invertex, 3)
+layer2 = layer(layer1, 4)
+
+graph = CompGraph(invertex, layer2)
+
+@test name.(vertices(graph)) == ["in", "MutationVertex::SizeAbsorb", "MutationVertex::SizeAbsorb"]
+
+# Ok, lets add names to layer1 and layer2 and change the name of invertex
+
+# Lets first define the default: Fallback to "clone"
+# clone is the built-in function to copy things in this manner as I did not want to override Base.copy
+copyfun(args...;cf) = clone(args...;cf=cf) # Keyword argument cf is the function to use for copying all fields of the input
+
+# Add a name to layer1 and layer2
+function copyfun(v::MutationVertex,args...;cf)
+    # This is probably not practical to do in a real graph, so make sure you have names when first creating it...
+    name = v == layer1 ? "layer1" : "layer2"
+    addname(args...;cf) = clone(args...;cf=cf)
+    addname(t::SizeAbsorb;cf) = NamedTrait(t, name) # SizeAbsorb has no fields, otherwise we would have had to run cf for each one of them...
+    clone(v, args...;cf=addname)
+end
+
+# Change name of invertex
+# Here we can assume that invertex name is unique in the whole graph or else we would have had to use the above way
+copyfun(s::String; cf) = s == name(invertex) ? "in changed" : s
+
+# Now supply copyfun when copying the graph.
+# I must admit that thinking about what this does makes me a bit dizzy...
+namedgraph = copy(graph, copyfun)
+
+@test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
 ```
 
 ## Contributing
