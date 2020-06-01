@@ -137,4 +137,28 @@
         @test p.nin == [1, 2]
         @test p.nout == [1,2,3,4,5,-1,-1]
     end
+
+    @testset "Pass kwargs" begin
+        mutable struct KwargsProbe
+            kws
+        end
+        KwargsProbe() = KwargsProbe(nothing)
+        NaiveNASlib.mutate_inputs(p::KwargsProbe, newsize...; kwargs...) = p.kws = kwargs
+        NaiveNASlib.mutate_outputs(p::KwargsProbe, newsize; kwargs...) = p.kws = kwargs
+
+        compgraph_apply(v; kwargs...) = apply_mutation(CompGraph(inputs(v), [v]); kwargs...)
+
+        @testset "Kwargs pass $f" for f in (
+            mutate_inputs,
+            mutate_outputs,
+            apply_mutation,
+            compgraph_apply)
+            p = KwargsProbe()
+            iv = inputvertex("in", 1)
+            v = absorbvertex(p, 1, iv)
+
+            f(v; test=:pass)
+            @test p.kws == pairs((test=:pass,))
+        end
+    end
 end
