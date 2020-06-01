@@ -550,7 +550,7 @@ Sizes will be adjusted based on given `strategy`.
 """
 function create_edge!(from::AbstractVertex, to::AbstractVertex; pos = length(inputs(to))+1, strategy = default_create_edge_strat(to))
 
-    prealignsizes(strategy, from, to, v -> false) || return
+    prealignsizes(strategy, from, to, v -> false) || return false
 
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
@@ -594,10 +594,11 @@ Sizes will be adjusted based on given `strategy`.
 """
 function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy = default_remove_edge_strat(to))
 
-    prealignsizes(strategy, from, to, v -> false) || return
+    prealignsizes(strategy, from, to, v -> false) || return false
 
     in_ind  = findall(vx -> vx == from, inputs(to))[nr]
     out_ind = findall(vx -> vx == to, outputs(from))[nr]
+
     deleteat!(inputs(to), in_ind)
     deleteat!(outputs(from), out_ind)
 
