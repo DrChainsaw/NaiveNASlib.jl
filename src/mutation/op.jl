@@ -97,9 +97,9 @@ clone(op::NoOp) = op
     IoSize
 Size for input and output of a computation
 """
-mutable struct IoSize <: MutationState
-    nin::AbstractArray{Integer,1}
-    nout::Integer
+mutable struct IoSize{I, O} <: MutationState
+    nin::I
+    nout::O
 end
 IoSize(size::Integer) = IoSize(size, size)
 IoSize(in::Integer, out::Integer) = IoSize([in], out)
@@ -129,9 +129,9 @@ Indexes to retain for input and output of a computation
 
 What those indices mean is up to the computation
 """
-mutable struct IoIndices <: MutationState
-    in::AbstractArray{<:AbstractArray{<:Integer,1},1}
-    out::AbstractArray{<:Integer,1}
+mutable struct IoIndices{I,O} <: MutationState
+    in::I
+    out::O
 end
 IoIndices(in::Integer, out::Integer) = IoIndices([in], out)
 IoIndices(in::AbstractArray{<:Integer}, out::Integer) = IoIndices(collect.(range.(1, in, step=1)), collect(1:out))
@@ -165,11 +165,11 @@ Also maintains indices separately.
 
 Useful for tracking change through several mutations before making a selection of which parameters to keep.
 """
-mutable struct IoChange <: MutationState
-    size::MutationState
-    indices::MutationState
-    inΔ::AbstractVector{<:Integer}
-    outΔ::Integer
+mutable struct IoChange{S,I,DI,DO} <: MutationState
+    size::S
+    indices::I
+    inΔ::DI
+    outΔ::DO
 end
 
 IoChange(insize, outsize) =  IoChange(IoSize(insize, outsize), IoIndices(insize, outsize))

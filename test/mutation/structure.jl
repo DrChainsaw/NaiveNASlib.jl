@@ -294,6 +294,33 @@
                 @test nin(v4) == nin_org(v4) == nout.([v2, v3]) == [4,5]
                 @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [4+5]
             end
+
+            @testset "Remove all $t" for (t, vf) in ((SizeStack, sv), (SizeInvariant, iv))
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 3, name="v2")
+                v3 = av(v0, 3, name="v3")
+                v4 = vf(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+                v6 = av(v4, 4, name="v6")
+
+
+                is = copy(inputs(v4))
+                os = copy(outputs(v4))
+
+                @test all(ov -> remove_edge!(v4, ov; strategy=NoSizeChange()), os)
+                @test all(iv -> remove_edge!(iv, v4; strategy=NoSizeChange()), is)
+
+                @test inputs(v4) == []
+                @test outputs(v4) == []
+                
+                @test outputs(v1) == []
+                @test outputs(v2) == []
+                @test outputs(v3) == []
+
+                @test inputs(v5) == []
+                @test inputs(v6) == []
+            end
         end
 
         @testset "Edge addition" begin
