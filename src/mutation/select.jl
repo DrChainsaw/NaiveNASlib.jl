@@ -308,7 +308,7 @@ function inoutconstraint!(s, ::SizeStack, v, model, vardict::Dict)
     for (i, vi) in enumerate(inputs(v))
         var_i = vardict[vi]
         # Sizes mismatch when vertex/edge was removed (or edge added)
-        if nout_org(vi) == nin_org(v)[i]
+        if nout_org(vi) == nin_org(v)[i] && offs+length(var_i)-1 <= length(var)
             @constraint(model, var_i .== var[offs:offs+length(var_i)-1])
         end
         offs += length(var_i)

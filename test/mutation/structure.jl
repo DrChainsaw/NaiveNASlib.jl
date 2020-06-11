@@ -313,7 +313,7 @@
 
                 @test inputs(v4) == []
                 @test outputs(v4) == []
-                
+
                 @test outputs(v1) == []
                 @test outputs(v2) == []
                 @test outputs(v3) == []
@@ -632,6 +632,28 @@
                 @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align=IncreaseSmaller(), select=NoutRevert(), fallback=FailAlignSizeWarn()))
                 @test inputs(v4) == [v1, v2]
                 @test nin(v4) == nout.([v1, v2]) == [4,4]
+            end
+
+            @testset "PostSelectOutputs SizeStack accidental aligned last" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                # These kinda shenanigans is what one might do when one wants to remove an edge without replacing the input neurons of the next layer.
+                insert!(v2, v -> conc(v, dims=1), reverse)
+                dummy = outputs(v2)[]
+                remove_edge!(v2, dummy; strategy = NoSizeChange())
+
+                @test  create_edge!(v3, dummy, strategy = PostAlignJuMP())
+                @test remove!(dummy, RemoveStrategy(NoSizeChange()))
+
+                Δoutputs(v4, v -> ones(nout_org(v)))
+                @test inputs(v4) == [v1, v3, v3]
+                @test nin(v4) == nout.([v1, v3, v3]) == [3,5,5]
+                @test nin(v5) == [nout(v4)] == [13]
             end
 
             @testset "PostApplyMutation SizeStack" begin
