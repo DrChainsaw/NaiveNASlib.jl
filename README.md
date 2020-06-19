@@ -6,7 +6,7 @@
 
 NaiveNASlib is a library of functions for mutating computation graphs. It is designed with Neural Architecture Search (NAS) in mind, but can be used for any purpose where doing changes to a model architecture is desired.
 
-It is "batteries excluded" in the sense that it is independent of both neural network implementation and search policy implementation. If you need batteries, check out https://github.com/DrChainsaw/NaiveNASflux.jl.
+It is "batteries excluded" in the sense that it is independent of both neural network implementation and search policy implementation. If you need batteries, check out [NaiveNASflux](https://github.com/DrChainsaw/NaiveNASflux.jl).
 
 Its only contribution to this world is some help with the sometimes annoyingly complex procedure of changing an existing neural network into a new, similar yet different, neural network.
 
