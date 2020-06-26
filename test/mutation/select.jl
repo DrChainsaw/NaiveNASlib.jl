@@ -548,6 +548,26 @@
         @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
     end
 
+    @testset "TruncateInIndsToValid" begin
+        inpt = iv(3)
+        v1 = av(inpt, 3, "v1")
+        v2 = tv(v1, "v2")
+        v3 = av(v2, 2, "v3")
+
+        g = CompGraph(inpt, v2)
+        @test size(g(ones(Float32, 1,3))) == (1, nout(v2))
+
+        vnew = av(inpt, 7, "vnew")
+        create_edge!(vnew, v2;strategy=PostAlignJuMP())
+        @test nin_org(v2) == [3, 0] != [nout(v1), nout(vnew)]
+
+        Δoutputs(TruncateInIndsToValid(), g, v -> 1:nout_org(v))
+
+        @test out_inds(op(vnew)) == [4,5,6,7]
+        @test in_inds(op(v2)) == [[1,2,3,-1], [1,2,3,-1]]
+        @test out_inds(op(v2)) == [1,2,3,-1]
+    end
+
     @testset "CompConstraint" begin
 
         struct CompConstraint end

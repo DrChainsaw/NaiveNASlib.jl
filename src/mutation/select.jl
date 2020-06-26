@@ -15,10 +15,10 @@ abstract type AbstractSelectionStrategy end
 
 Logs output from function `msgfun` at LogLevel `level` and executes `AbstractSelectionStrategy andthen`.
 """
-struct LogSelection <: AbstractSelectionStrategy
-    level::Logging.LogLevel
-    msgfun
-    andthen::AbstractSelectionStrategy
+struct LogSelection{L,F,S <: AbstractSelectionStrategy} <: AbstractSelectionStrategy
+    level::L
+    msgfun::F
+    andthen::S
 end
 LogSelection(msgfun::Function, andthen) = LogSelection(Logging.Info, msgfun, andthen)
 LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogSelection(level, v -> "Selection for vertex $(name(v)) failed! $nextstr", andthen)
@@ -47,8 +47,8 @@ Select indices for a vertex using `AbstractSelectionStrategy s` (default `OutSel
 
 Intended use it to reduce the number of constraints for a `AbstractJuMPSelectionStrategy` as only the parts of the graph which are changed will be considered.
 """
-struct SelectDirection <: AbstractSelectionStrategy
-    strategy::AbstractSelectionStrategy
+struct SelectDirection{S <: AbstractSelectionStrategy} <: AbstractSelectionStrategy
+    strategy::S
 end
 SelectDirection() = SelectDirection(OutSelectExact())
 
@@ -60,9 +60,9 @@ SelectDirection() = SelectDirection(OutSelectExact())
 
 Invokes `apply(v)` for each `AbstractVertex v` which was changed as a result of `AbstractSelectionStrategy s`.
 """
-struct ApplyAfter <: AbstractSelectionStrategy
-    apply::Function
-    strategy::AbstractSelectionStrategy
+struct ApplyAfter{F, S} <: AbstractSelectionStrategy
+    apply::F
+    strategy::S
 end
 ApplyAfter() = ApplyAfter(OutSelectExact())
 ApplyAfter(s::AbstractSelectionStrategy) = ApplyAfter(apply_mutation, s)
@@ -95,12 +95,29 @@ If `T == Relaxed`, output indices for each vertex `v` are selected with the obje
 
 Possible to set a `fallback AbstractSelectionStrategy` should it be impossible to select indices according to the strategy.
 """
-struct OutSelect{T} <: AbstractJuMPSelectionStrategy
-    fallback::AbstractSelectionStrategy
+struct OutSelect{T, S <: AbstractSelectionStrategy} <: AbstractJuMPSelectionStrategy
+    fallback::S
 end
 OutSelectExact() = OutSelect{Exact}(LogSelectionFallback("Relaxing size constraint...", OutSelectRelaxed()))
 OutSelectRelaxed() = OutSelect{Relaxed}(LogSelectionFallback("Reverting...", NoutRevert()))
+OutSelect{T}(s::S) where {T,S} = OutSelect{T, S}(s)
 fallback(s::OutSelect) = s.fallback
+
+"""
+    TruncateInIndsToValid{S} <: AbstractSelectionStrategy
+    TruncateInIndsToValid()
+    TruncateInIndsToValid(s::S)
+
+Ensures that all selected input indices are within range of existing input indices after applying `s` (default `OutSelectExact`).
+
+Not needed in normal cases, but certain structural mutations (e.g create_edge!) may cause this to happen due to how constraints are (not) created when original sizes do not align in conjunction with how result of selection is interpreted.
+
+While this may be considered a flaw in the output selection procedure, it is rare enough so that in most cases when it happens it is the result of a user error or lower level bug. Therefore this strategy is left optional to be used only in cases when mismatches are expected.
+"""
+struct TruncateInIndsToValid{S <: AbstractSelectionStrategy} <: AbstractSelectionStrategy
+    strategy::S
+end
+TruncateInIndsToValid() = TruncateInIndsToValid(OutSelectExact())
 
 """
     Δoutputs(g::CompGraph, valuefun::Function)
@@ -151,6 +168,48 @@ function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVe
         Δoutputs(ins, outs, vs)
     end
     return success
+end
+
+function Δoutputs(s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
+    success, ins, outs = solve_outputs_selection(s.strategy, vs, valuefun)
+    if success
+        for (vv, ininds) in ins
+            for innr in eachindex(ininds)
+                ininds[innr] = aligntomax(nin_org(vv)[innr], ininds[innr])
+            end
+            newins, newouts = align_outs_to_ins(vv, ins[vv], outs[vv])
+            ins[vv] = newins
+            outs[vv] = newouts
+        end
+        Δoutputs(ins, outs, vs)
+    end
+    return success
+end
+
+aligntomax(maxval, ::Missing) = missing
+function aligntomax(maxval, arr)
+    arr = copy(arr)
+    maxind = argmax(arr)
+    while arr[maxind] > maxval
+        newval = maxval
+        while newval in arr && newval > -1
+            newval -= 1
+        end
+        arr[maxind] = newval == 0 ? -1 : newval
+        maxind = argmax(arr)
+    end
+    return arr
+end
+
+align_outs_to_ins(v, ins, outs) = align_outs_to_ins(trait(v), v, ins, outs)
+align_outs_to_ins(t::DecoratingTrait, v, ins, outs) = align_outs_to_ins(base(t), v, ins, outs)
+align_outs_to_ins(t, v, ins, outs) = ins,outs
+function align_outs_to_ins(::SizeInvariant, v, ins::AbstractArray, outs)
+    isempty(ins) && return ins, outs
+    inds = ins[1]
+    newins = repeat([inds], length(ins))
+    newouts = ismissing(outs) ? outs : inds
+    return newins, newouts
 end
 
 """

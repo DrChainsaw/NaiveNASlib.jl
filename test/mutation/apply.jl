@@ -113,6 +113,20 @@
         @test mm3.W == [3 10 17; 5 12 19; 0 0 0; 0 0 0; 0 0 0]
     end
 
+    @testset "No apply to vertex with no inputs" begin
+        mmv1, mm1 = mcv(2, 4, inpt(2, "in"), "mmv1")
+        mmv2, mm2 = mcv(4, 3, mmv1, "mmv2")
+
+        w1pre = mm1.W
+        w2pre = mm2.W
+
+        remove_edge!(mmv1, mmv2)
+        apply_mutation.([mmv1, mmv2])
+
+        @test mm1.W == w1pre
+        @test mm2.W == w2pre
+    end
+
     @testset "Size only mutation" begin
         mutable struct SizeProbe
             nin
