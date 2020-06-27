@@ -44,6 +44,8 @@ end
     FailAlignSizeNoOp()
 
 Don't do any size change and return failure status.
+
+Note that this means that graphs will most likely be left corrupted state if used as a fallback.
 """
 struct FailAlignSizeNoOp <: AbstractAlignSizeStrategy end
 
