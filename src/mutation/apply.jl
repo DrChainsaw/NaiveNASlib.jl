@@ -31,7 +31,8 @@ Supplied `kwargs` will be passed on to computation.
 """
 function apply_mutation(v::AbstractVertex; kwargs...) end
 function apply_mutation(v::MutationVertex; kwargs...)
-    mutate_inputs(v; kwargs...)
+    # Empty nin leads to stack overflow due to splatting below.
+    !isempty(nin(v)) && mutate_inputs(v; kwargs...)
     mutate_outputs(v; kwargs...)
 end
 apply_mutation(g::CompGraph; kwargs...) = apply_mutation.(vertices(g); kwargs...)

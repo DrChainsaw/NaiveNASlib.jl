@@ -14,6 +14,17 @@
     @testset "Edge mutation" begin
         @testset "Edge removal" begin
 
+            @testset "Fail noop" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v1, 4, name="v2")
+
+                @test remove_edge!(v1, v2; strategy=FailAlignSizeNoOp()) == false
+
+                @test name.(inputs(v2)) == [name(v1)]
+                @test name.(outputs(v1)) == [name(v2)]
+            end
+
             @testset "Remove from absorbing" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")
@@ -324,6 +335,17 @@
         end
 
         @testset "Edge addition" begin
+
+            @testset "Fail noop" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v1, 4, name="v2")
+
+                @test create_edge!(v1, v2; strategy=FailAlignSizeNoOp()) == false
+
+                @test name.(inputs(v2))== [name(v1)]
+                @test name.(outputs(v1)) == [name(v2)]
+            end
 
             @testset "Add to absorbing" begin
                 v0 = inpt(3, "v0")
@@ -1098,6 +1120,17 @@
     end
 
     @testset "Vertex removal" begin
+
+        @testset "Fail noop" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+
+            @test remove!(v1, RemoveStrategy(FailAlignSizeNoOp())) == false
+
+            @test name.(inputs(v2)) == [name(v1)]
+            @test name.(outputs(v1)) == [name(v2)]
+        end
 
         @testset "Remove from linear graph" begin
             v0 = inpt(3)

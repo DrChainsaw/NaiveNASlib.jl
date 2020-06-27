@@ -36,13 +36,13 @@ export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor
 export AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
 
 #Selection util
-export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, Δoutputs, solve_outputs_selection
+export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, TruncateInIndsToValid, Δoutputs, solve_outputs_selection
 
 # Connectivity mutation
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlignJuMP, SelectOutputs, ApplyMutation, PostSelectOutputs, PostApplyMutation
+export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeNoOp, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlignJuMP, SelectOutputs, ApplyMutation, PostSelectOutputs, PostApplyMutation
 
 # Connect strategies
 export AbstractConnectStrategy, ConnectAll, ConnectNone
