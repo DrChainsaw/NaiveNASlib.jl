@@ -14,6 +14,17 @@
     @testset "Edge mutation" begin
         @testset "Edge removal" begin
 
+            @testset "Fail noop" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v1, 4, name="v2")
+
+                @test remove_edge!(v1, v2; strategy=FailAlignSizeNoOp()) == false
+
+                @test name.(inputs(v2)) == [name(v1)]
+                @test name.(outputs(v1)) == [name(v2)]
+            end
+
             @testset "Remove from absorbing" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")
@@ -294,9 +305,47 @@
                 @test nin(v4) == nin_org(v4) == nout.([v2, v3]) == [4,5]
                 @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [4+5]
             end
+
+            @testset "Remove all $t" for (t, vf) in ((SizeStack, sv), (SizeInvariant, iv))
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 3, name="v2")
+                v3 = av(v0, 3, name="v3")
+                v4 = vf(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+                v6 = av(v4, 4, name="v6")
+
+
+                is = copy(inputs(v4))
+                os = copy(outputs(v4))
+
+                @test all(ov -> remove_edge!(v4, ov; strategy=NoSizeChange()), os)
+                @test all(iv -> remove_edge!(iv, v4; strategy=NoSizeChange()), is)
+
+                @test inputs(v4) == []
+                @test outputs(v4) == []
+
+                @test outputs(v1) == []
+                @test outputs(v2) == []
+                @test outputs(v3) == []
+
+                @test inputs(v5) == []
+                @test inputs(v6) == []
+            end
         end
 
         @testset "Edge addition" begin
+
+            @testset "Fail noop" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v1, 4, name="v2")
+
+                @test create_edge!(v1, v2; strategy=FailAlignSizeNoOp()) == false
+
+                @test name.(inputs(v2))== [name(v1)]
+                @test name.(outputs(v1)) == [name(v2)]
+            end
 
             @testset "Add to absorbing" begin
                 v0 = inpt(3, "v0")
@@ -605,6 +654,28 @@
                 @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align=IncreaseSmaller(), select=NoutRevert(), fallback=FailAlignSizeWarn()))
                 @test inputs(v4) == [v1, v2]
                 @test nin(v4) == nout.([v1, v2]) == [4,4]
+            end
+
+            @testset "PostSelectOutputs SizeStack accidental aligned last" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                # These kinda shenanigans is what one might do when one wants to remove an edge without replacing the input neurons of the next layer.
+                insert!(v2, v -> conc(v, dims=1), reverse)
+                dummy = outputs(v2)[]
+                remove_edge!(v2, dummy; strategy = NoSizeChange())
+
+                @test  create_edge!(v3, dummy, strategy = PostAlignJuMP())
+                @test remove!(dummy, RemoveStrategy(NoSizeChange()))
+
+                Δoutputs(v4, v -> ones(nout_org(v)))
+                @test inputs(v4) == [v1, v3, v3]
+                @test nin(v4) == nout.([v1, v3, v3]) == [3,5,5]
+                @test nin(v5) == [nout(v4)] == [13]
             end
 
             @testset "PostApplyMutation SizeStack" begin
@@ -1049,6 +1120,17 @@
     end
 
     @testset "Vertex removal" begin
+
+        @testset "Fail noop" begin
+            v0 = inpt(3, "v0")
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+
+            @test remove!(v1, RemoveStrategy(FailAlignSizeNoOp())) == false
+
+            @test name.(inputs(v2)) == [name(v1)]
+            @test name.(outputs(v1)) == [name(v2)]
+        end
 
         @testset "Remove from linear graph" begin
             v0 = inpt(3)

@@ -94,11 +94,11 @@ import LightGraphs:adjacency_matrix,is_cyclic
         function testop(v) end
         testop(v::MutationVertex) = testop(trait(v), v)
         function testop(::MutationTrait, v) end
-        testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoChange
+        testop(::SizeAbsorb, v) = @test op(v) isa IoChange
         foreach(testop, mapreduce(flatten, vcat, graph.outputs))
 
         # But new graph shall use IoIndices
-        testop(::SizeAbsorb, v) = @test typeof(op(v)) == IoIndices
+        testop(::SizeAbsorb, v) = @test op(v) isa IoIndices
         foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
     end
 

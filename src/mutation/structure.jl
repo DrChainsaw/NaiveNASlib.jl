@@ -40,6 +40,16 @@ struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
 end
 
 """
+    FailAlignSizeNoOp <: AbstractAlignSizeStrategy
+    FailAlignSizeNoOp()
+
+Don't do any size change and return failure status.
+
+Note that this means that graphs will most likely be left corrupted state if used as a fallback.
+"""
+struct FailAlignSizeNoOp <: AbstractAlignSizeStrategy end
+
+"""
     FailAlignSizeError <: AbstractAlignSizeStrategy
     FailAlignSizeError()
 
@@ -273,12 +283,12 @@ Default strategy is to first set `nin==nout` for `v` and then connect all its `i
 to all its `outputs`.
 """
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
-    prealignsizes(strategy.align, v, vx -> vx == v) || return
+    prealignsizes(strategy.align, v, vx -> vx == v) || return false
 
     remove!(v, inputs, outputs, strategy.reconnect)
     remove!(v, outputs, inputs, strategy.reconnect)
 
-    postalignsizes(strategy.align, v)
+    return postalignsizes(strategy.align, v)
 end
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
@@ -326,6 +336,7 @@ function prealignsizes(s::FailAlignSizeWarn, vin, vout, will_rm)
     return prealignsizes(s.andthen, vin, vout, will_rm)
 end
 prealignsizes(::FailAlignSizeRevert, vin, vout, will_rm) = false # No action needed?
+prealignsizes(::FailAlignSizeNoOp, vin, vout, will_rm) = false
 
 # Actual actions
 function prealignsizes(s::CheckAligned, vin, vout, will_rm)
@@ -430,6 +441,7 @@ postalignsizes(s::AbstractAlignSizeStrategy, v) = postalignsizes(s, v, v, missin
 postalignsizes(s::AbstractAlignSizeStrategy, vin, vout, pos) = true
 
 # Failure cases
+postalignsizes(::FailAlignSizeNoOp, vin, vout, pos) = false
 postalignsizes(::FailAlignSizeError, vin, vout, pos) = error("Could not align sizes of $(vin) and $(vout)!")
 function postalignsizes(s::FailAlignSizeWarn, vin, vout, pos)
     @warn s.msgfun(vin, vout)
@@ -550,7 +562,7 @@ Sizes will be adjusted based on given `strategy`.
 """
 function create_edge!(from::AbstractVertex, to::AbstractVertex; pos = length(inputs(to))+1, strategy = default_create_edge_strat(to))
 
-    prealignsizes(strategy, from, to, v -> false) || return
+    prealignsizes(strategy, from, to, v -> false) || return false
 
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
@@ -594,10 +606,11 @@ Sizes will be adjusted based on given `strategy`.
 """
 function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy = default_remove_edge_strat(to))
 
-    prealignsizes(strategy, from, to, v -> false) || return
+    prealignsizes(strategy, from, to, v -> false) || return false
 
     in_ind  = findall(vx -> vx == from, inputs(to))[nr]
     out_ind = findall(vx -> vx == to, outputs(from))[nr]
+
     deleteat!(inputs(to), in_ind)
     deleteat!(outputs(from), out_ind)
 

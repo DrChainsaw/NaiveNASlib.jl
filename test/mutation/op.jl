@@ -5,7 +5,7 @@ import InteractiveUtils:subtypes
 @testset "Vertex mutation operations" begin
 
     expectedtype(t::Type{<:MutationOp}) = Integer
-    expectedtype(t::Type{IoIndices}) = AbstractArray{<:Integer,1}
+    expectedtype(t::Type{IoIndices}) = Vector{Int}
 
     @testset "Method contracts $subtype" for subtype in implementations(MutationOp)
         @test hasmethod(Δnin, (subtype,expectedtype(subtype)))

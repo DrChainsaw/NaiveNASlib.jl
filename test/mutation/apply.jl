@@ -113,6 +113,20 @@
         @test mm3.W == [3 10 17; 5 12 19; 0 0 0; 0 0 0; 0 0 0]
     end
 
+    @testset "No apply to vertex with no inputs" begin
+        mmv1, mm1 = mcv(2, 4, inpt(2, "in"), "mmv1")
+        mmv2, mm2 = mcv(4, 3, mmv1, "mmv2")
+
+        w1pre = mm1.W
+        w2pre = mm2.W
+
+        remove_edge!(mmv1, mmv2)
+        apply_mutation.([mmv1, mmv2])
+
+        @test mm1.W == w1pre
+        @test mm2.W == w2pre
+    end
+
     @testset "Size only mutation" begin
         mutable struct SizeProbe
             nin
@@ -136,5 +150,29 @@
         apply_mutation(v)
         @test p.nin == [1, 2]
         @test p.nout == [1,2,3,4,5,-1,-1]
+    end
+
+    @testset "Pass kwargs" begin
+        mutable struct KwargsProbe
+            kws
+        end
+        KwargsProbe() = KwargsProbe(nothing)
+        NaiveNASlib.mutate_inputs(p::KwargsProbe, newsize...; kwargs...) = p.kws = kwargs
+        NaiveNASlib.mutate_outputs(p::KwargsProbe, newsize; kwargs...) = p.kws = kwargs
+
+        compgraph_apply(v; kwargs...) = apply_mutation(CompGraph(inputs(v), [v]); kwargs...)
+
+        @testset "Kwargs pass $f" for f in (
+            mutate_inputs,
+            mutate_outputs,
+            apply_mutation,
+            compgraph_apply)
+            p = KwargsProbe()
+            iv = inputvertex("in", 1)
+            v = absorbvertex(p, 1, iv)
+
+            f(v; test=:pass)
+            @test p.kws == pairs((test=:pass,))
+        end
     end
 end
