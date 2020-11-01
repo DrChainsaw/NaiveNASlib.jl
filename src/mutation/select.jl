@@ -393,7 +393,7 @@ end
 function selectobjective!(::OutSelect{Relaxed}, v, data)
 
     # No thought behind scaling other than wanting to have roughly same order of magnitude
-    scale = sum(filter(>(0), data.valuefun(v)))
+    scale = max(0, maximum(data.valuefun(v)))
     sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v) + count(<(0), data.valuefun(v)))
     sizediffnorm = norm!(ScaleNorm(scale, MaxNormLinear()), data.model, sizediff)
 
