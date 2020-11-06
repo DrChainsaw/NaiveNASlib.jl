@@ -14,23 +14,27 @@
         function valfun(vv)
             vv ∉ inputs(v) && return ones(nout_org(vv))
             tosel = inds[vv .== inputs(v)]
-            value = -10 * ones(nout_org(vv))
+            value = fill(-10, nout_org(vv))
             selinds = filter(i -> i > 0, inds[inputs(v) .== vv][1])
             value[selinds] .= 1000
             return value
         end
-        Δnin(v, (length.(inds) .- nin(v))...)
+        
+        Δ = max.(0, length.(inds) .- nin(v))
+        Δnin(v, Δ...)
         Δoutputs(OutSelectRelaxed(), v, valfun)
     end
 
     function NaiveNASlib.Δnout(v::AbstractVertex, inds::Vector{<:Integer})
         function valfun(vv)
             vv != v && return ones(nout_org(vv))
-            value = -10 * ones(nout_org(vv))
+            value = fill(-10, nout_org(vv))
             value[filter(i -> i > 0, inds)] .= 1000
             return value
         end
-        Δnout(v, length(inds) .- nout(v))
+        
+        Δ = max(0, length(inds) - nout(v))
+        Δnout(v, Δ)
         Δoutputs(OutSelectRelaxed(), v, valfun)
     end
 

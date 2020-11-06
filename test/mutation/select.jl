@@ -254,31 +254,31 @@
         @test nout(v3) == 8
         @test nout(v4) == 4
 
-        @test @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v->1:nout_org(v))
+        @test @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v->-1:nout_org(v)-2)
         apply_mutation(g)
 
-        @test nout(v1) == 8
-        @test nout(v2) == 4
-        @test nout(v3) == 7
-        @test nout(v4) == 3
+        @test nout(v1) == 6
+        @test nout(v2) == 3
+        @test nout(v3) == 8
+        @test nout(v4) == 5
 
         @test size(g(ones(1, 3))) == (1, nout(v7))
 
         Δnout(v7, 4)
 
-        @test nout(v1) == 10
-        @test nout(v2) == 5
-        @test nout(v3) == 8
-        @test nout(v4) == 3
+        @test nout(v1) == 8
+        @test nout(v2) == 4
+        @test nout(v3) == 9
+        @test nout(v4) == 5
 
         # Works on the first try this time around
         @test Δoutputs(Output(), v7, v->1:nout_org(v))
         apply_mutation(g)
 
-        @test nout(v1) == 10
-        @test nout(v2) == 5
-        @test nout(v3) == 8
-        @test nout(v4) == 3
+        @test nout(v1) == 8
+        @test nout(v2) == 4
+        @test nout(v3) == 9
+        @test nout(v4) == 5
 
         @test size(g(ones(1, 3))) == (1, nout(v7))
     end

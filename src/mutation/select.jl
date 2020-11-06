@@ -390,20 +390,20 @@ function selectobjective!(s::AbstractJuMPSelectionStrategy, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
 end
 
-function selectobjective!(s::OutSelect{Relaxed}, v, data)
+function selectobjective!(::OutSelect{Relaxed}, v, data)
 
     # No thought behind scaling other than wanting to have roughly same order of magnitude
-    scale = sum(data.valuefun(v))
-    sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v))
+    scale = max(0, maximum(data.valuefun(v)))
+    sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v) + count(<(0), data.valuefun(v)))
     sizediffnorm = norm!(ScaleNorm(scale, MaxNormLinear()), data.model, sizediff)
 
     default = selectobjective!(DefaultJuMPSelectionStrategy(), v, data)
     return @expression(data.model, default - sizediffnorm)
 end
 
-valueobjective!(s::AbstractJuMPSelectionStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
+valueobjective!(::AbstractJuMPSelectionStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
 
-function insertlastobjective!(s,v,data)
+function insertlastobjective!(s, v, data)
     insvars = data.outinsertvars[v]
     preferend = collect(1:length(insvars))
     return @expression(data.model, 0.05*sum(insvars .* preferend))
@@ -415,7 +415,7 @@ function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
     return ininds, outinds
 end
 
-function extract_inds(s::AbstractJuMPSelectionStrategy, selectvars::T, insertvars::T) where T <: AbstractVector{JuMP.VariableRef}
+function extract_inds(::AbstractJuMPSelectionStrategy, selectvars::T, insertvars::T) where T <: AbstractVector{JuMP.VariableRef}
     # insertvar is 1.0 at indices where a new output shall be added and 0.0 where an existing one shall be selected
     result = -round.(Int, JuMP.value.(insertvars))
     selected = findall(xi -> xi > 0, JuMP.value.(selectvars))
