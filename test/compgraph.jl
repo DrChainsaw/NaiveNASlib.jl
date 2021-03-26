@@ -98,8 +98,11 @@ import LightGraphs:adjacency_matrix,is_cyclic
         foreach(testop, mapreduce(flatten, vcat, graph.outputs))
 
         # But new graph shall use IoIndices
-        testop(::SizeAbsorb, v) = @test op(v) isa IoIndices
-        foreach(testop, mapreduce(flatten, vcat, graph_inds.outputs))
+        function testop2(v) end
+        testop2(v::MutationVertex) = testop2(trait(v), v)
+        function testop2(::MutationTrait, v) end
+        testop2(::SizeAbsorb, v) = @test op(v) isa IoIndices
+        foreach(testop2, mapreduce(flatten, vcat, graph_inds.outputs))
     end
 
     @testset "Graph add trait" begin
