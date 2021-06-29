@@ -1,12 +1,13 @@
 module NaiveNASlib
 
 using LightGraphs, MetaGraphs
-using Statistics
-using Logging
+import Statistics
+import Logging
+import Logging: LogLevel, @logmsg
 
 import JuMP
 import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
-using Cbc
+import Cbc
 
 #Interface
 export AbstractVertex, AbstractMutationVertex, MutationOp, MutationState
@@ -36,7 +37,7 @@ export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor
 export AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, ΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
 
 #Selection util
-export AbstractSelectionStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPSelectionStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, TruncateInIndsToValid, Δoutputs, solve_outputs_selection
+export AbstractΔSizeStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPΔSizeStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, TruncateInIndsToValid, Δoutputs, solve_outputs_selection
 
 # Connectivity mutation
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
@@ -61,6 +62,7 @@ include("mutation/op.jl")
 include("mutation/vertex.jl")
 include("mutation/graph.jl")
 include("mutation/jumpnorm.jl")
+include("mutation/sizestrategies.jl")
 include("mutation/size.jl")
 include("mutation/apply.jl")
 include("mutation/select.jl")

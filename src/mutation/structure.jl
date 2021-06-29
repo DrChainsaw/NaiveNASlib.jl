@@ -132,7 +132,7 @@ First align size using `align`, then select outputs (through `Δoutputs`) using 
 Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
 """
 struct SelectOutputs <: AbstractAlignSizeStrategy
-    selectstrategy::AbstractSelectionStrategy
+    selectstrategy::AbstractΔSizeStrategy
     alignstrategy::AbstractAlignSizeStrategy
     valuefun::Function
 end
@@ -147,7 +147,7 @@ Post change alignment strategy which first aligns size using `align`, then selec
 Motivation is basically convenience when creating new edges between vertices.
 """
 struct PostSelectOutputs <: AbstractAlignSizeStrategy
-    selectstrategy::AbstractSelectionStrategy
+    selectstrategy::AbstractΔSizeStrategy
     alignstrategy::AbstractAlignSizeStrategy
     valuefun::Function
     fallback::AbstractAlignSizeStrategy

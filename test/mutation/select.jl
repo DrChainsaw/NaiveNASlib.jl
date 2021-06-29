@@ -21,7 +21,7 @@
 
     @testset "SelectDirection" begin
 
-        mutable struct TestProbe <: AbstractSelectionStrategy
+        mutable struct TestProbe <: AbstractΔSizeStrategy
             vs
             function TestProbe(v)
                 tp = new(nothing)
@@ -571,7 +571,7 @@
     @testset "CompConstraint" begin
 
         struct CompConstraint end
-        function NaiveNASlib.compconstraint!(::AbstractJuMPSelectionStrategy, ::CompConstraint, data)
+        function NaiveNASlib.compconstraint!(::AbstractJuMPΔSizeStrategy, ::CompConstraint, data)
             var = data.outselectvars[data.vertex];
             JuMP.@constraint(data.model, var[[1, 3]] .== 0)
         end

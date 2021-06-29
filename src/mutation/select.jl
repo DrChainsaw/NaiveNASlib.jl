@@ -2,133 +2,14 @@
 struct NeuronIndices end
 
 """
-    AbstractSelectionStrategy
-
-Base type for how to select the exact inputs/outputs indices from a vertex given a size change.
-"""
-abstract type AbstractSelectionStrategy end
-
-"""
-    LogSelection <: AbstractSelectionStrategy
-    LogSelection(msgfun::Function, andthen)
-    LogSelection(level, msgfun::Function, andthen)
-
-Logs output from function `msgfun` at LogLevel `level` and executes `AbstractSelectionStrategy andthen`.
-"""
-struct LogSelection{L,F,S <: AbstractSelectionStrategy} <: AbstractSelectionStrategy
-    level::L
-    msgfun::F
-    andthen::S
-end
-LogSelection(msgfun::Function, andthen) = LogSelection(Logging.Info, msgfun, andthen)
-LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogSelection(level, v -> "Selection for vertex $(name(v)) failed! $nextstr", andthen)
-
-"""
-    SelectionFail <: AbstractSelectionStrategy
-
-Throws an error.
-"""
-struct SelectionFail <: AbstractSelectionStrategy end
-
-"""
-    NoutRevert <: AbstractSelectionStrategy
-    NoutRevert()
-
-Reverts output size change for a vertex.
-"""
-struct NoutRevert <: AbstractSelectionStrategy end
-
-"""
-    SelectDirection <: AbstractSelectionStrategy
-    SelectDirection()
-    SelectDirection(s::AbstractSelectionStrategy)
-
-Select indices for a vertex using `AbstractSelectionStrategy s` (default `OutSelect{Exact}`) in only the direction(s) in which the vertex has changed size.
-
-Intended use it to reduce the number of constraints for a `AbstractJuMPSelectionStrategy` as only the parts of the graph which are changed will be considered.
-"""
-struct SelectDirection{S <: AbstractSelectionStrategy} <: AbstractSelectionStrategy
-    strategy::S
-end
-SelectDirection() = SelectDirection(OutSelectExact())
-
-"""
-    ApplyAfter <: AbstractSelectionStrategy
-    ApplyAfter()
-    ApplyAfter(s::AbstractSelectionStrategy)
-    ApplyAfter(apply::Function, s::AbstractSelectionStrategy)
-
-Invokes `apply(v)` for each `AbstractVertex v` which was changed as a result of `AbstractSelectionStrategy s`.
-"""
-struct ApplyAfter{F, S} <: AbstractSelectionStrategy
-    apply::F
-    strategy::S
-end
-ApplyAfter() = ApplyAfter(OutSelectExact())
-ApplyAfter(s::AbstractSelectionStrategy) = ApplyAfter(apply_mutation, s)
-
-"""
-    AbstractJuMPSelectionStrategy
-
-Base type for how to select the exact inputs/outputs indices from a vertex given a size change using JuMP to handle the constraints.
-"""
-abstract type AbstractJuMPSelectionStrategy <: AbstractSelectionStrategy end
-
-"""
-    DefaultJuMPSelectionStrategy <: AbstractJuMPSelectionStrategy
-
-Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
-"""
-struct DefaultJuMPSelectionStrategy <: AbstractJuMPSelectionStrategy end
-
-fallback(::AbstractJuMPSelectionStrategy) = SelectionFail()
-
-"""
-    OutSelect{T} <: AbstractSelectionStrategy
-    OutSelectExact()
-    OutSelectRelaxed()
-    OutSelect{T}(fallback)
-
-If `T == Exact`, output indices for each vertex `v` are selected with the constraint that `nout(v)` shall not change.
-
-If `T == Relaxed`, output indices for each vertex `v` are selected with the objective to deviate as little as possible from `nout(v)`.
-
-Possible to set a `fallback AbstractSelectionStrategy` should it be impossible to select indices according to the strategy.
-"""
-struct OutSelect{T, D, S <: AbstractSelectionStrategy} <: AbstractJuMPSelectionStrategy
-    Δsizes::D
-    fallback::S
-end
-OutSelectExact(vs...) = OutSelect{Exact}(IdDict(vs...), LogSelectionFallback("Relaxing size constraint...", OutSelectRelaxed(vs...)))
-OutSelectRelaxed(vs...) = OutSelect{Relaxed}(IdDict(vs...), LogSelectionFallback("Reverting...", NoutRevert()))
-OutSelect{T}(vs::D, s::S) where {T,D <: AbstractDict, S} = OutSelect{T, D, S}(vs, s)
-fallback(s::OutSelect) = s.fallback
-
-"""
-    TruncateInIndsToValid{S} <: AbstractSelectionStrategy
-    TruncateInIndsToValid()
-    TruncateInIndsToValid(s::S)
-
-Ensures that all selected input indices are within range of existing input indices after applying `s` (default `OutSelectExact`).
-
-Not needed in normal cases, but certain structural mutations (e.g create_edge!) may cause this to happen due to how constraints are (not) created when original sizes do not align in conjunction with how result of selection is interpreted.
-
-While this may be considered a flaw in the output selection procedure, it is rare enough so that in most cases when it happens it is the result of a user error or lower level bug. Therefore this strategy is left optional to be used only in cases when mismatches are expected.
-"""
-struct TruncateInIndsToValid{S <: AbstractSelectionStrategy} <: AbstractSelectionStrategy
-    strategy::S
-end
-TruncateInIndsToValid() = TruncateInIndsToValid(OutSelectExact())
-
-"""
     Δoutputs(g::CompGraph, valuefun::Function)
-    Δoutputs(s::AbstractSelectionStrategy, g::CompGraph, valuefun::Function)
+    Δoutputs(s::AbstractΔSizeStrategy, g::CompGraph, valuefun::Function)
     Δoutputs(v::AbstractVertex, valuefun::Function)
-    Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function)
+    Δoutputs(s::AbstractΔSizeStrategy, v::AbstractVertex, valuefun::Function)
     Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function)
-    Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function)
+    Δoutputs(s::AbstractΔSizeStrategy, d::Direction, v::AbstractVertex, valuefun::Function)
 
-Change output neurons of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
+Change output neurons of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractΔSizeStrategy s` (default `OutSelect{Exact}`).
 
 Return true of operation was successful, false otherwise.
 
@@ -137,9 +18,9 @@ Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx`
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
 Δoutputs(g::CompGraph, valuefun) = Δoutputs(OutSelectExact(), g, valuefun)
-Δoutputs(s::AbstractSelectionStrategy, g::CompGraph, valuefun) = Δoutputs(s, vertices(g), valuefun)
+Δoutputs(s::AbstractΔSizeStrategy, g::CompGraph, valuefun) = Δoutputs(s, vertices(g), valuefun)
 Δoutputs(v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), v, valuefun)
-Δoutputs(s::AbstractSelectionStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
+Δoutputs(s::AbstractΔSizeStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
 function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
     nin_change = nin_org(v) != nin(v)
     nout_change = nout_org(v) != nout(v)
@@ -154,16 +35,9 @@ function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
  end
 
 Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), d, v, valuefun)
-Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_Δsize_graph(v, d), valuefun)
+Δoutputs(s::AbstractΔSizeStrategy, d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_Δsize_graph(v, d), valuefun)
 
-function Δoutputs(s::ApplyAfter, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
-    success = Δoutputs(s.strategy, vs, valuefun)
-    # This is not 100% safe in all cases, as a strategy can chose to not do anything even in this case (although it probably should)
-    foreach(s.apply, filter(v -> nout(v) != nout_org(v) || nin(v) != nin_org(v), vs))
-    return success
-end
-
-function Δoutputs(s::AbstractSelectionStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function Δoutputs(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
     if success
         Δoutputs(ins, outs, vs)
@@ -245,35 +119,24 @@ function Δnout(s::OnlyFor, v, inds::AbstractVector{<:Integer})
 end
 
 
-function solve_outputs_selection(s::LogSelection, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     @logmsg s.level s.msgfun(vertices[1])
     return solve_outputs_selection(s.andthen, vertices, valuefun)
 end
 
-solve_outputs_selection(::SelectionFail, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
-
-function NaiveNASlib.solve_outputs_selection(::NoutRevert, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
-    for v in vertices
-        Δnout(NaiveNASlib.OnlyFor(), v, nout_org(v) - nout(v))
-        diff = nin_org(v) - nin(v)
-        Δnin(NaiveNASlib.OnlyFor(), v, diff...)
-    end
-
-    return false, Dict(vertices .=> UnitRange.(1, nout.(vertices))), Dict(vertices .=> map(nins -> UnitRange.(1,nins), nin.(vertices)))
-end
-
+solve_outputs_selection(::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
 
 """
-    solve_outputs_selection(s::AbstractSelectionStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+    solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
 
 Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input neuron indices and `noutdict[vi]` are new output neuron indices for each vertex `vi` in `vertices`.
 
-The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractSelectionStrategy s`.
+The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractΔSizeStrategy s`.
 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
-function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
-    model = selectmodel(s, vertices, values)
+function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+    model = selectmodel(NeuronIndices(), s, vertices, values)
 
     # The binary variables `outselectvars` tells us which existing output indices to select
     # The integer variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
@@ -288,8 +151,8 @@ function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Abs
     objexpr = @expression(model, objective, 0)
     for v in vertices
         data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, objexpr = objexpr, valuefun = valuefun)
-        vertexconstraints!(v, s, data)
-        objexpr = selectobjective!(s, v, data)
+        vertexconstraints!(NeuronIndices(), v, s, data)
+        objexpr = selectobjective!(NeuronIndices(), s, v, data)
     end
 
     @objective(model, Max, objexpr)
@@ -302,28 +165,28 @@ function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Abs
 
 end
 
-accept(::AbstractJuMPSelectionStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
+accept(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
 
-selectmodel(::AbstractJuMPSelectionStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
+selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
 
 # First dispatch on traits to sort out things like immutable vertices
-vertexconstraints!(v::AbstractVertex, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(trait(v), v, s, data)
-vertexconstraints!(t::DecoratingTrait, v, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(base(t), v, s, data)
-vertexconstraints!(t::MutationSizeTrait, v, s::AbstractJuMPSelectionStrategy, data) = vertexconstraints!(s, t, v, data) # Now dispatch on strategy (and trait)
-function vertexconstraints!(::Immutable, v, s::AbstractJuMPSelectionStrategy, data)
+vertexconstraints!(case, v::AbstractVertex, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, trait(v), v, s, data)
+vertexconstraints!(case, t::DecoratingTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, base(t), v, s, data)
+vertexconstraints!(case, t::MutationSizeTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, s, t, v, data) # Now dispatch on strategy (and trait)
+function vertexconstraints!(::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
      @constraint(data.model, data.outselectvars[v] .== 1)
      @constraint(data.model, data.outinsertvars[v] .== 0)
  end
 
 
-function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTrait, v, data)
-    insertconstraints!(s, t, v, data)
-    sizeconstraint!(s, t, v, data)
-    compconstraint!(s, v, (data..., vertex=v))
-    inoutconstraint!(s, t, v, data)
+function vertexconstraints!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, t::MutationSizeTrait, v, data)
+    insertconstraints!(case, s, t, v, data)
+    sizeconstraint!(case, s, t, v, data)
+    compconstraint!(case, s, v, (data..., vertex=v))
+    inoutconstraint!(case, s, t, v, data)
 end
 
-insertconstraints!(::AbstractJuMPSelectionStrategy, ::MutationSizeTrait, v, data) = noinsertgaps!(data.model, data.outselectvars[v], data.outinsertvars[v])
+insertconstraints!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, ::MutationSizeTrait, v, data) = noinsertgaps!(data.model, data.outselectvars[v], data.outinsertvars[v])
 
 """
     noinsertgaps!(model, select, insert, maxinsert=length(outsel) * 10)
@@ -348,24 +211,23 @@ function noinsertgaps!(model, select, insert, maxinsert=length(select) * 10)
     @constraint(model, length(insert) - sum(select) <= sum(insert_nogap))
 end
 
-sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data) = @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
+sizeconstraint!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, t, v, data) = @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
 
-function sizeconstraint!(s::OutSelect{Exact}, t, v, data)
-    Δ = get(s.Δsizes, v, nothing)
-    if Δ !== nothing
-        @constraint(data.model, sum(data.outselectvars[v]) +sum(data.outinsertvars[v]) == nout(v) + Δ)
+function sizeconstraint!(case::NeuronIndices, s::ΔNout{Exact}, t, v, data)
+    if s.vertex === v 
+        @constraint(data.model, sum(data.outselectvars[v]) +sum(data.outinsertvars[v]) == nout(v) + s.Δ)
     else
-        sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
+        sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), t, v, data)
     end
 end
 
-function inoutconstraint!(s, ::SizeAbsorb, v, data) end
-function inoutconstraint!(s, t::SizeTransparent, v, data)
-    inoutconstraint!(s, t, v, data.model, data.outselectvars)
-    inoutconstraint!(s, t, v, data.model, data.outinsertvars)
+function inoutconstraint!(::NeuronIndices, s, ::SizeAbsorb, v, data) end
+function inoutconstraint!(case::NeuronIndices, s, t::SizeTransparent, v, data)
+    inoutconstraint!(case, s, t, v, data.model, data.outselectvars)
+    inoutconstraint!(case, s, t, v, data.model, data.outinsertvars)
 end
 
-function inoutconstraint!(s, ::SizeStack, v, model, vardict::Dict)
+function inoutconstraint!(::NeuronIndices, s, ::SizeStack, v, model, vardict::Dict)
     offs = 1
     var = vardict[v]
     for (i, vi) in enumerate(inputs(v))
@@ -378,7 +240,7 @@ function inoutconstraint!(s, ::SizeStack, v, model, vardict::Dict)
     end
 end
 
-function inoutconstraint!(s, ::SizeInvariant, v, model, vardict::Dict)
+function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict::Dict)
     var = vardict[v]
     for (i, vi) in enumerate(inputs(v))
         # Sizes mismatch when vertex/edge was removed (or edge added)
@@ -388,27 +250,27 @@ function inoutconstraint!(s, ::SizeInvariant, v, model, vardict::Dict)
     end
 end
 
-function selectobjective!(s::AbstractJuMPSelectionStrategy, v, data)
-    value = valueobjective!(s, v, data)
-    insertlast = insertlastobjective!(s, v, data)
+function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data)
+    value = valueobjective!(case, s, v, data)
+    insertlast = insertlastobjective!(case, s, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
 end
 
-function selectobjective!(s::OutSelect{Relaxed}, v, data)
+function selectobjective!(case::NeuronIndices, s::ΔNout{Relaxed}, v, data)
 
     # No thought behind scaling other than wanting to have roughly same order of magnitude
     scale = max(0, maximum(data.valuefun(v)))
-    Δ = get(s.Δsizes, v, 0)
+    Δ = s.vertex === v ? s.Δ : 0
     sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v) - Δ + count(<(0), data.valuefun(v)))
     sizediffnorm = norm!(ScaleNorm(scale, MaxNormLinear()), data.model, sizediff)
 
-    default = selectobjective!(DefaultJuMPSelectionStrategy(), v, data)
+    default = selectobjective!(case, DefaultJuMPSelectionStrategy(), v, data)
     return @expression(data.model, default - sizediffnorm)
 end
 
-valueobjective!(::AbstractJuMPSelectionStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
+valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
 
-function insertlastobjective!(s, v, data)
+function insertlastobjective!(::NeuronIndices, s, v, data)
     insvars = data.outinsertvars[v]
     preferend = collect(length(insvars) : -1 : 1)
     return @expression(data.model, -0.05*sum(insvars .* preferend))
@@ -420,7 +282,7 @@ function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
     return ininds, outinds
 end
 
-function extract_inds(::AbstractJuMPSelectionStrategy, selectvars::T, insertvars::T) where T <: AbstractVector{JuMP.VariableRef}
+function extract_inds(::AbstractJuMPΔSizeStrategy, selectvars::T, insertvars::T) where T <: AbstractVector{JuMP.VariableRef}
     # insertvar is N at indices where a N new output neurons shall be added
     insert = round.(Int, JuMP.value.(insertvars))
     selected = findall(xi -> xi > 0, JuMP.value.(selectvars))
