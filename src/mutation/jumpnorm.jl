@@ -51,7 +51,7 @@ Add a set of linear constraints to a model to map `X` to an expression `X′` wh
 
 Note that it only works for the objective function and only for minimization.
 """
-function norm!(s::L1NormLinear, model, X, denom=1)
+function norm!(::L1NormLinear, model, X, denom=1)
     # Use trick from http://lpsolve.sourceforge.net/5.1/absolute.htm to make min abs(expression) linear
     X′ = @variable(model, [1:length(X)])
     @constraint(model,  X .<= X′ .* denom)
@@ -66,7 +66,7 @@ Add a set of linear constraints to a model to map `X` to a variable `X′` which
 
 Note that it only works for the objective function and only for minimization.
 """
-function norm!(s::MaxNormLinear, model, X, denom=1)
+function norm!(::MaxNormLinear, model, X, denom=1)
     # Use trick from https://math.stackexchange.com/questions/2589887/how-can-the-infinity-norm-minimization-problem-be-rewritten-as-a-linear-program to make min abs(expression) linear
     X′ = @variable(model)
     @constraint(model,  X .<= X′ .* denom)

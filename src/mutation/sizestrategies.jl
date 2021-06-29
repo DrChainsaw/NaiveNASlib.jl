@@ -43,20 +43,21 @@ struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
 
 """
 LogΔSizeExec <: AbstractJuMPΔSizeStrategy
-LogΔSizeExec(msg::String)
-LogΔSizeExec(level::Logging.LogLevel, msg::String)
-LogΔSizeExec(level::Logging.LogLevel, msg::String, andthen::AbstractJuMPΔSizeStrategy)
+LogΔSizeExec(msgfun)
+LogΔSizeExec(msgfun, level::Logging.LogLevel)
+LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrategy)
 
-Logs `msg` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen`.
+Logs `msgfun(v)` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen` for vertex `v`.
 """
-struct LogΔSizeExec <: AbstractJuMPΔSizeStrategy
+struct LogΔSizeExec{F, S} <: AbstractJuMPΔSizeStrategy
+msgfun::F
 level::LogLevel
-msg::String
-andthen::AbstractJuMPΔSizeStrategy
+andthen::S
 end
-LogΔSizeExec(msg::String) = LogΔSizeExec(Logging.Info, msg)
-LogΔSizeExec(level::LogLevel, msg::String) = LogΔSizeExec(level, msg, ΔSizeFailNoOp())
-LogSelectionFallback(nextstr, andthen; level=Logging.Warn) =LogΔSizeExec(level, v -> "Selection for vertex $(name(v)) failed! $nextstr", andthen)
+LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeFailNoOp())
+LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoop()) = LogΔSizeExec(v -> msg, level, andthen)
+
+LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(name(v)) failed! $nextstr", level, andthen)
 
 
 """
@@ -88,7 +89,7 @@ vertex::V
 Δ::Int
 fallback::F
 end
-ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(v, Δ)))
+ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec("Could not change nout of $v by $(Δ)! Relaxing constraints...", Logging.Warn, ΔNoutRelaxed(v, Δ)))
 ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
 ΔNout{T}(v::V, Δ::Integer, f::F) where {V, T, F} = ΔNout{T, V, F}(v, Int(Δ), f)
 fallback(s::ΔNout) = s.fallback

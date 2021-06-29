@@ -58,7 +58,7 @@ outputs(v::InputSizeVertex) = outputs(base(v))
 Base type for traits relevant when mutating.
 """
 abstract type MutationTrait end
-# For convenience as 99% of all traits are immutable. Don't forget to implement for stateful traits or else there will be pain!
+# For convenience as traits are generally immutable. Don't forget to implement for stateful traits or else there will be pain!
 clone(t::MutationTrait, cf=nothing) = t
 
 """

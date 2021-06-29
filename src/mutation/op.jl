@@ -111,7 +111,7 @@ nout(s::IoSize) = s.nout
 in_inds(s::IoSize) = [1:insize for insize in s.nin]
 out_inds(s::IoSize) = 1:s.nout
 
-Maybe{T} = Union{T, Missing}
+const Maybe{T} = Union{T, Missing}
 Δnin(s::IoSize, Δ::Maybe{Integer}...) = s.nin .+= replace(collect(Δ), missing => 0)
 Δnout(s::IoSize, Δ::Integer) = s.nout += Δ
 function Δnin(s::IoSize, Δ::Maybe{AbstractArray{<:Integer,1}}...)

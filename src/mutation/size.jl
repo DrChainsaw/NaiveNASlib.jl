@@ -184,26 +184,19 @@ findterminating(::SizeStack, v, d::Function, o::Function, visited) = collectterm
 findterminating(::SizeInvariant, v, d::Function, o::Function, visited) = vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
 collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
 
-
-# Just another name for Δsize with the corresponding direction
-Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Output(), v, Δ)
-Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Input(), v, Δs...)
+"""
+    ScalarSize
+    
+Treat vertices as having a scalar size when formulating the size change problem.
+"""
+struct ScalarSize end
 
 """
-    Δsize(d::Direction, v::AbstractVertex, Δ...)
-
-Change size of `v` by `Δ` in direction `d`.
-"""
-Δsize(d::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_Δsize_graph(v, d))
-Δsize(d::Output, v, Δ::T) where T <: Integer = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
-
-
-"""
-    Δsize(s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+    Δsize(case, s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
 
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
-function Δsize(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
+function Δsize(::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
         Δsize(nins, nouts, vertices)
@@ -211,12 +204,12 @@ function Δsize(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVe
 end
 
 """
-    Δsize(nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+    Δsize(nins::AbstractDict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
 
 Set output size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
 Set input size of all keys `vi` in `nins` to `nins[vi]`.
 """
-function Δsize(nins::Dict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+function Δsize(nins::AbstractDict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
 
     for (i, vi) in enumerate(vertices)
@@ -310,7 +303,7 @@ end
 newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
 newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)
 function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
-    @logmsg s.level s.msg
+    @logmsg s.level s.msgfun(vertices[1])
     return newsizes(s.andthen, vertices)
 end
 
@@ -330,7 +323,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
 
     noutdict = Dict(zip(vertices, noutvars))
     for v in vertices
-        vertexconstraints!(v, s, (model=model, noutdict=noutdict))
+        vertexconstraints!(ScalarSize(), v, s, (model=model, noutdict=noutdict))
     end
 
     sizeobjective!(s, model, noutvars, vertices)
@@ -354,17 +347,15 @@ sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_w
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
 
 # First we dispatch on trait in order to filter out immutable vertices
-vertexconstraints!(v::AbstractVertex, s, data) = vertexconstraints!(trait(v), v, s, data)
-vertexconstraints!(t::DecoratingTrait, v, s, data) = vertexconstraints!(base(t), v, s,data)
-function vertexconstraints!(::Immutable, v, s, data)
+function vertexconstraints!(case::ScalarSize, ::Immutable, v, s, data)
     @constraint(data.model, data.noutdict[v] == nout(v))
     @constraint(data.model, getall(data.noutdict, inputs(v)) .== nin(v))
-    vertexconstraints!(s, v, data)
+    vertexconstraints!(case, s, v, data)
 end
-vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
+vertexconstraints!(case::ScalarSize, t::MutationSizeTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, s, v, data) # Now dispatch on strategy
 
 # This must be applied to immutable vertices as well
-function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
+function vertexconstraints!(::ScalarSize, v::AbstractVertex, s::AlignNinToNout, data)
     vertexconstraints!(v, s.vstrat, data)
     # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
     for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
@@ -401,10 +392,10 @@ Add constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
+function vertexconstraints!(case, s::AbstractJuMPΔSizeStrategy, v, data)
     ninconstraint!(s, v, data)
-    compconstraint!(s, v, (data..., vertex=v))
-    sizeconstraint!(s, v, data)
+    compconstraint!(case, s, v, (data..., vertex=v))
+    sizeconstraint!(case, s, v, data)
 end
 
 """
@@ -414,27 +405,27 @@ Add size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-sizeconstraint!(s::AbstractJuMPΔSizeStrategy, v, data) = @constraint(data.model, data.noutdict[v] >= 1)
+sizeconstraint!(::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data) = @constraint(data.model, data.noutdict[v] >= 1)
 
-function sizeconstraint!(s::ΔNout{Exact}, v, data)
+function sizeconstraint!(case::ScalarSize, s::ΔNout{Exact}, v, data)
     if v == s.vertex
         @constraint(data.model, data.noutdict[v] == nout(v) + s.Δ)
     else
-        sizeconstraint!(DefaultJuMPΔSizeStrategy(), v, data)
+        sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), v, data)
     end
 end
 
-function sizeconstraint!(s::ΔNin{Exact}, v, data)
+function sizeconstraint!(case::ScalarSize, s::ΔNin{Exact}, v, data)
     if v in s.vertices
         Δ = s.Δs[s.vertices .== v][1]
         @constraint(data.model, data.noutdict[v] == nout(v) + Δ)
     else
-        sizeconstraint!(DefaultJuMPΔSizeStrategy(), v, data)
+        sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), v, data)
     end
 end
 
 """
-    ninconstraint!(s, v, data)
+    ninconstraint!(case, s, v, data)
 
 Add input size constraints for `AbstractVertex v` using strategy `s`.
 
@@ -449,7 +440,7 @@ ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, getall(dat
 
 
 """
-    ninconstraint!(s, v, data)
+    compconstraint!(case, s, v, data)
 
 Add constraints on the computation (e.g. neural network layer) for `AbstractVertex v` using strategy `s`.
 
@@ -462,13 +453,13 @@ function compconstraint!(case, s, f, data) end
 
 
 """
-    sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
+    sizeobjective!(case, s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
 
 Add the objective for `noutvars` using strategy `s`.
 """
-sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices) = @objective(model, Min, objective!(s, model, noutvars, vertices))
+sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices) = @objective(model, Min, objective!(ScalarSize(), s, model, noutvars, vertices))
 
-function objective!(s, model, noutvars, vertices)
+function objective!(::ScalarSize, s, model, noutvars, vertices)
     sizetargets = nout.(vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.

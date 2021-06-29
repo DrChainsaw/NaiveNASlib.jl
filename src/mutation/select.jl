@@ -1,51 +1,91 @@
 
+"""
+    NeuronIndices
+
+Treat vertices as having parameters which represents neurons when formulating the size change problem.
+"""
 struct NeuronIndices end
 
+# Just another name for Δsize with the corresponding direction
+Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Δsizetype(v), Output(), v, Δ)
+Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Δsizetype(v), Input(), v, Δs...)
+
+Δnout(valuefun::Function, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Δsizetype(v), Output(), v, Δ)
+Δnin(valuefun::Function, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Δsizetype, Input(), v, Δ, Δs...)
+
+
+Δsizetype(v::AbstractVertex, seen=Set()) = v in seen ? nothing : Δsizetype(trait(v), v, push!(seen, v))
+Δsizetype(t::DecoratingTrait, v, seen) = Δsizetype(base(t), v, seen)
+Δsizetype(t::MutationTrait, v, seen) = Δsizetype(t, base(v), seen)
+Δsizetype(::MutationTrait, ::InputVertex, seen) = nothing
+Δsizetype(::MutationTrait, v::CompVertex, seen) = Δsizetype(v.computation)
+Δsizetype(f) = NeuronIndices()
+
+Δsizetype(::SizeTransparent, v, seen) = partialsort!(vcat(map(vi -> Δsizetype(vi, seen), inputs(v)), map(vo -> Δsizetype(vo, seen), outputs(v))), 1; by=Δsizetypeprio, rev=true)
+
+Δsizetypeprio(::Nothing) = 0
+Δsizetypeprio(::ScalarSize) = 1
+Δsizetypeprio(::NeuronIndices) = 2
+
+
 """
-    Δoutputs(g::CompGraph, valuefun::Function)
-    Δoutputs(s::AbstractΔSizeStrategy, g::CompGraph, valuefun::Function)
-    Δoutputs(v::AbstractVertex, valuefun::Function)
-    Δoutputs(s::AbstractΔSizeStrategy, v::AbstractVertex, valuefun::Function)
-    Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function)
-    Δoutputs(s::AbstractΔSizeStrategy, d::Direction, v::AbstractVertex, valuefun::Function)
+    Δsize(case, d::Direction, v::AbstractVertex, Δ...)
+
+Change size of `v` by `Δ` in direction `d`.
+"""
+Δsize(case, d::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(case, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_Δsize_graph(v, d))
+Δsize(case, d::Output, v, Δ::T) where T <: Integer = Δsize(case, ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
+
+Δsize(f, case, ::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(f, case, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_graph(v))
+Δsize(f, case, ::Output, v, Δ::T) where T <: Integer = Δsize(f, case, ΔNoutExact(v, Δ), all_in_graph(v))
+
+
+"""
+    Δsize(valuefun, g::CompGraph)
+    Δsize(valuefun, s::AbstractΔSizeStrategy, g::CompGraph)
+    Δsize(valuefun, v::AbstractVertex)
+    Δsize(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex)
 
 Change output neurons of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractΔSizeStrategy s` (default `OutSelect{Exact}`).
 
 Return true of operation was successful, false otherwise.
 
-Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output index `i` shall be preferred over `j` for vertex `vx`.
+Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`.
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
-Δoutputs(g::CompGraph, valuefun) = Δoutputs(OutSelectExact(), g, valuefun)
-Δoutputs(s::AbstractΔSizeStrategy, g::CompGraph, valuefun) = Δoutputs(s, vertices(g), valuefun)
-Δoutputs(v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), v, valuefun)
-Δoutputs(s::AbstractΔSizeStrategy, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_graph(v), valuefun)
-function Δoutputs(s::SelectDirection, v::AbstractVertex, valuefun::Function)
+Δsize(valuefun, g::CompGraph) = Δsize(valuefun, DefaultJuMPΔSizeStrategy(), g)
+Δsize(valuefun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize(valuefun, s, vertices(g))
+Δsize(valuefun, v::AbstractVertex) = Δsize(valuefun, DefaultJuMPΔSizeStrategy(), v)
+Δsize(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize(valuefun, s, all_in_graph(v))
+function Δsize(valuefun, s::SelectDirection, v::AbstractVertex)
     nin_change = nin_org(v) != nin(v)
     nout_change = nout_org(v) != nout(v)
-    if nout_change && nin_change
-        return Δoutputs(s.strategy, Both(), v, valuefun)
+    
+    d = if nout_change && nin_change
+        Both()
     elseif nout_change
-        return Δoutputs(s.strategy, Output(), v, valuefun)
+        Output()
     elseif nin_change
-        return Δoutputs(s.strategy, Input(), v, valuefun)
+        Input()
+    else
+        return true
     end
-    return true
- end
 
-Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(OutSelectExact(), d, v, valuefun)
-Δoutputs(s::AbstractΔSizeStrategy, d::Direction, v::AbstractVertex, valuefun::Function) = Δoutputs(s, all_in_Δsize_graph(v, d), valuefun)
+    return Δsize(valuefun, s.strategy, d, v)
+end
 
-function Δoutputs(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
+Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true), s, vs)
+
+function Δsize(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
     if success
-        Δoutputs(ins, outs, vs)
+        Δsize(case, ins, outs, vs)
     end
     return success
 end
 
-function Δoutputs(s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function Δsize(valuefun, ::NeuronIndices, s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s.strategy, vs, valuefun)
     if success
         for (vv, ininds) in ins
@@ -56,7 +96,7 @@ function Δoutputs(s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex
             ins[vv] = newins
             outs[vv] = newouts
         end
-        Δoutputs(ins, outs, vs)
+        Δsize(ins, outs, vs)
     end
     return success
 end
@@ -88,11 +128,11 @@ function align_outs_to_ins(::SizeInvariant, v, ins::AbstractArray, outs)
 end
 
 """
-    Δoutputs(ins::Dict outs::Dict, vertices::AbstractVector{<:AbstractVertex})
+    Δsize(ins::Dict outs::Dict, vertices::AbstractVector{<:AbstractVertex})
 
 Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` respectively.
 """
-function Δoutputs(ins::Dict, outs::Dict, vs::AbstractVector{<:AbstractVertex})
+function Δsize(::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
 
     for vi in vs
         Δnin(OnlyFor(), vi, ins[vi]...)
@@ -124,7 +164,7 @@ function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:Ab
     return solve_outputs_selection(s.andthen, vertices, valuefun)
 end
 
-solve_outputs_selection(::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
+solve_outputs_selection(::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Size change failed for vertex $(name.(vertices))")
 
 """
     solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
@@ -148,7 +188,7 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     outselectvars = Dict(v => @variable(model, [1:nout(v)], Bin) for v in vertices)
     outinsertvars = Dict(v => @variable(model, [1:nout(v)], Int, lower_bound=0) for v in vertices)
 
-    objexpr = @expression(model, objective, 0)
+    objexpr = objective!(NeuronIndices(), s, vertices, (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, valuefun=valuefun))
     for v in vertices
         data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, objexpr = objexpr, valuefun = valuefun)
         vertexconstraints!(NeuronIndices(), v, s, data)
@@ -214,7 +254,7 @@ end
 sizeconstraint!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, t, v, data) = @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
 
 function sizeconstraint!(case::NeuronIndices, s::ΔNout{Exact}, t, v, data)
-    if s.vertex === v 
+    if s.vertex === v
         @constraint(data.model, sum(data.outselectvars[v]) +sum(data.outinsertvars[v]) == nout(v) + s.Δ)
     else
         sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), t, v, data)
@@ -250,22 +290,20 @@ function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict
     end
 end
 
+function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, data) 
+    scale = map(v -> max(0, maximum(data.valuefun(v))), vertices)
+    noutvars = map(v -> @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])), vertices)
+    sizetargets = map(v -> nout(v) - count(<(0), data.valuefun(v)), vertices)
+    # L1 norm prevents change in vertices which does not need to change.
+    # Max norm tries to spread out the change so no single vertex takes most of the change.
+    return norm!(SumNorm(-0.1 => L1NormLinear(), -0.8 => MaxNormLinear()), data.model, @expression(data.model, objective[i=1:length(noutvars)], scale[i] * (noutvars[i] - sizetargets[i])), sizetargets)
+end
+
+
 function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data)
     value = valueobjective!(case, s, v, data)
     insertlast = insertlastobjective!(case, s, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
-end
-
-function selectobjective!(case::NeuronIndices, s::ΔNout{Relaxed}, v, data)
-
-    # No thought behind scaling other than wanting to have roughly same order of magnitude
-    scale = max(0, maximum(data.valuefun(v)))
-    Δ = s.vertex === v ? s.Δ : 0
-    sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v) - Δ + count(<(0), data.valuefun(v)))
-    sizediffnorm = norm!(ScaleNorm(scale, MaxNormLinear()), data.model, sizediff)
-
-    default = selectobjective!(case, DefaultJuMPSelectionStrategy(), v, data)
-    return @expression(data.model, default - sizediffnorm)
 end
 
 valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
@@ -273,7 +311,8 @@ valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expre
 function insertlastobjective!(::NeuronIndices, s, v, data)
     insvars = data.outinsertvars[v]
     preferend = collect(length(insvars) : -1 : 1)
-    return @expression(data.model, -0.05*sum(insvars .* preferend))
+    scale = minimum(x -> x > 0 ? x : typemax(x), data.valuefun(v)) / sum(preferend) 
+    return @expression(data.model, -0.1scale*sum(insvars .* preferend))
 end
 
 function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
