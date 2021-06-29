@@ -183,8 +183,8 @@ nout(v::AbstractVertex, op::MutationOp) = nout(trait(v), v)
 nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
 
 # SizeTransparent does not need mutation state to keep track of sizes
-nout(t::SizeInvariant, v::AbstractVertex) = nin(v)[1]
-nout(t::SizeStack, v::AbstractVertex) = sum(nin(v))
+nout(::SizeInvariant, v::AbstractVertex) = nin(v)[1]
+nout(::SizeStack, v::AbstractVertex) = sum(nin(v))
 
 nout_org(v::AbstractVertex) = nout_org(trait(v), v)
 nout_org(t::DecoratingTrait, v) = nout_org(base(t), v)
@@ -545,7 +545,7 @@ end
 function vertexconstraints!(v::AbstractVertex, s::AlignNinToNoutVertices, data)
     # Any s.ininds which are mapped to vertices which are not yet added in s.vstrat.nindict[s.vout] will cause undefined reference below
     # There is a check to wait for them to be added, but if they are not in data.noutdict they will never be added, so we need to check for that too. Not 100% this can even happen, so I'm just waiting for this in itself to trigger a bug. Sigh...
-    neededinds = filter(i -> i != nothing, indexin(keys(data.noutdict), inputs(s.vout)))
+    neededinds = filter(i -> i !== nothing, indexin(keys(data.noutdict), inputs(s.vout)))
 
     condition() = s.vout in keys(s.vstrat.nindict) && all(i -> isassigned(s.vstrat.nindict[s.vout], i), neededinds)
 

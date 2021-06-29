@@ -1,5 +1,5 @@
 
-# Methods to help select or add a number of outputs given a new size as this problem apparently belongs to the class of FU-complete problems. And yes, I curse the day I conceived the idea for this project right now...
+struct NeuronIndices end
 
 """
     AbstractSelectionStrategy
@@ -95,12 +95,13 @@ If `T == Relaxed`, output indices for each vertex `v` are selected with the obje
 
 Possible to set a `fallback AbstractSelectionStrategy` should it be impossible to select indices according to the strategy.
 """
-struct OutSelect{T, S <: AbstractSelectionStrategy} <: AbstractJuMPSelectionStrategy
+struct OutSelect{T, D, S <: AbstractSelectionStrategy} <: AbstractJuMPSelectionStrategy
+    Δsizes::D
     fallback::S
 end
-OutSelectExact() = OutSelect{Exact}(LogSelectionFallback("Relaxing size constraint...", OutSelectRelaxed()))
-OutSelectRelaxed() = OutSelect{Relaxed}(LogSelectionFallback("Reverting...", NoutRevert()))
-OutSelect{T}(s::S) where {T,S} = OutSelect{T, S}(s)
+OutSelectExact(vs...) = OutSelect{Exact}(IdDict(vs...), LogSelectionFallback("Relaxing size constraint...", OutSelectRelaxed(vs...)))
+OutSelectRelaxed(vs...) = OutSelect{Relaxed}(IdDict(vs...), LogSelectionFallback("Reverting...", NoutRevert()))
+OutSelect{T}(vs::D, s::S) where {T,D <: AbstractDict, S} = OutSelect{T, D, S}(vs, s)
 fallback(s::OutSelect) = s.fallback
 
 """
@@ -127,7 +128,7 @@ TruncateInIndsToValid() = TruncateInIndsToValid(OutSelectExact())
     Δoutputs(d::Direction, v::AbstractVertex, valuefun::Function)
     Δoutputs(s::AbstractSelectionStrategy, d::Direction, v::AbstractVertex, valuefun::Function)
 
-Change outputs of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
+Change output neurons of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractSelectionStrategy s` (default `OutSelect{Exact}`).
 
 Return true of operation was successful, false otherwise.
 
@@ -249,9 +250,9 @@ function solve_outputs_selection(s::LogSelection, vertices::AbstractVector{<:Abs
     return solve_outputs_selection(s.andthen, vertices, valuefun)
 end
 
-solve_outputs_selection(s::SelectionFail, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
+solve_outputs_selection(::SelectionFail, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Selection failed for vertex $(name.(vertices))")
 
-function NaiveNASlib.solve_outputs_selection(s::NoutRevert, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function NaiveNASlib.solve_outputs_selection(::NoutRevert, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     for v in vertices
         Δnout(NaiveNASlib.OnlyFor(), v, nout_org(v) - nout(v))
         diff = nin_org(v) - nin(v)
@@ -265,7 +266,7 @@ end
 """
     solve_outputs_selection(s::AbstractSelectionStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
 
-Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input indices and `noutdict[vi]` are new output indices for each vertex `vi` in `vertices`.
+Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input neuron indices and `noutdict[vi]` are new output neuron indices for each vertex `vi` in `vertices`.
 
 The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractSelectionStrategy s`.
 
@@ -275,15 +276,14 @@ function solve_outputs_selection(s::AbstractJuMPSelectionStrategy, vertices::Abs
     model = selectmodel(s, vertices, values)
 
     # The binary variables `outselectvars` tells us which existing output indices to select
-    # The binary variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
+    # The integer variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
     # Thus, the result will consist of all selected indices with possibly interlaced -1s
 
     # TODO: Edge case when vertices are not all in graph (i.e there is at least one vertex for which its inputs or outputs are not part of vertices) and valuefun returns >= 0 might result in size inconsistency.
     # Either make sure values are > 0 for such vertices or add constraints to them!
     # Afaik this happens when only v's inputs are touched. Cleanest fix might be to separate "touch output" from "touch input". See https://github.com/DrChainsaw/NaiveNASlib.jl/issues/39
-    outselectvars = Dict(vertices .=> map(v -> @variable(model, [1:length(valuefun(v))], binary=true), vertices))
-    outinsertvars = Dict(vertices .=> map(v -> @variable(model, [1:nout(v)], binary=true), vertices))
-    # Optimization: Init outinsertvars as empty and only add if needed: outinsertvars = Dict{eltype(outselectvars).types...}()
+    outselectvars = Dict(v => @variable(model, [1:nout(v)], Bin) for v in vertices)
+    outinsertvars = Dict(v => @variable(model, [1:nout(v)], Int, lower_bound=0) for v in vertices)
 
     objexpr = @expression(model, objective, 0)
     for v in vertices
@@ -317,41 +317,45 @@ function vertexconstraints!(::Immutable, v, s::AbstractJuMPSelectionStrategy, da
 
 
 function vertexconstraints!(s::AbstractJuMPSelectionStrategy, t::MutationSizeTrait, v, data)
+    insertconstraints!(s, t, v, data)
     sizeconstraint!(s, t, v, data)
     compconstraint!(s, v, (data..., vertex=v))
     inoutconstraint!(s, t, v, data)
 end
 
+insertconstraints!(::AbstractJuMPSelectionStrategy, ::MutationSizeTrait, v, data) = noinsertgaps!(data.model, data.outselectvars[v], data.outinsertvars[v])
 
-function sizeconstraint!(::OutSelect{Exact}, t, v, data)
-    nselect = min(nout(v), nout_org(v))
-    ninsert = max(0, nout(v) - nselect)
-    @constraint(data.model, sum(data.outselectvars[v]) == nselect)
-    @constraint(data.model, sum(data.outinsertvars[v]) == ninsert)
+"""
+    noinsertgaps!(model, select, insert, maxinsert=length(outsel) * 10)
+
+Add constraints so that `insert` does not create undefined gaps in the result of the neuron selection.
+
+Assume `select` is a set of binary variables where `select[i] = 1` means select the output neuron at position `i` and `insert[i] = N` means insert `N` new output neurons at the position after `i`.
+
+An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1]` because this results in the instruction to use existing output neurons `1 and 2` and then insert a new neuron at position `4`. 
+In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method contrains `model` so that this solution is infeasible.
+"""
+function noinsertgaps!(model, select, insert, maxinsert=length(select) * 10)
+    insert_nogap = @variable(model, [1:length(insert)], Bin)
+
+    @constraint(model, sum(insert) <= maxinsert)
+
+    # insert[i] == 0 if insert_nogap[i] == 1
+    @constraint(model, [i=1:length(insert)], insert[i] <= 2maxinsert * insert_nogap[i])
+    # Monotonicity of insert_nogap, i.e insert_nogap[i] can only be 1 if insert_nogap[i+1] is 1
+    @constraint(model, [i=2:length(insert)], insert_nogap[i] <= insert_nogap[i-1])
+    # Force insert_nogap to have at least as many ones as the number of not selected neurons
+    @constraint(model, length(insert) - sum(select) <= sum(insert_nogap))
 end
 
-function sizeconstraint!(::OutSelect{Exact}, t::SizeStack, v, data)
-    nselect = sum(min.(nin_org(v), nin(v)))
-    ninsert = sum(max.(0, nin(v) - nin_org(v)))
-    @constraint(data.model, sum(data.outselectvars[v]) == nselect)
-    @constraint(data.model, sum(data.outinsertvars[v]) == ninsert)
-end
+sizeconstraint!(::AbstractJuMPSelectionStrategy, t, v, data) = @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
 
-function sizeconstraint!(::OutSelect{Relaxed}, t, v, data)
-    @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
-
-    # Handle insertions
-    # The constraint that either there are no new outputs or the total number of outputs must be equal to the length of outinsertvars is a somewhat unfortunate result of the approach chosen to solve the problem.
-    # If not enforced, we will end up in situations where some indices shall neither be selected nor have insertions. For example, the result might say "keep indices 1,2,3 and insert a new output at index 10".
-    # If one can come up with a constraint to formulate "no gaps" (such as the gab above) instead of the current approach the chances of finding a feasible soluion would probably increase.
-    # Maybe this https://cs.stackexchange.com/questions/12102/express-boolean-logic-operations-in-zero-one-integer-linear-programming-ilp in combination with this https://math.stackexchange.com/questions/2022967/how-to-model-a-constraint-of-consecutiveness-in-0-1-programming?rq=1
-    outsel = data.outselectvars[v]
-    outins = data.outinsertvars[v]
-    model = data.model
-    if length(outins) > length(outsel)
-        @constraint(data.model, sum(outins) == length(outins) - sum(outsel))
-    elseif length(outins) > 0
-        @constraint(data.model, outins .== 0)
+function sizeconstraint!(s::OutSelect{Exact}, t, v, data)
+    Δ = get(s.Δsizes, v, nothing)
+    if Δ !== nothing
+        @constraint(data.model, sum(data.outselectvars[v]) +sum(data.outinsertvars[v]) == nout(v) + Δ)
+    else
+        sizeconstraint!(DefaultJuMPSelectionStrategy(), t, v, data)
     end
 end
 
@@ -390,11 +394,12 @@ function selectobjective!(s::AbstractJuMPSelectionStrategy, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
 end
 
-function selectobjective!(::OutSelect{Relaxed}, v, data)
+function selectobjective!(s::OutSelect{Relaxed}, v, data)
 
     # No thought behind scaling other than wanting to have roughly same order of magnitude
     scale = max(0, maximum(data.valuefun(v)))
-    sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v) + count(<(0), data.valuefun(v)))
+    Δ = get(s.Δsizes, v, 0)
+    sizediff = @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v]) - nout(v) - Δ + count(<(0), data.valuefun(v)))
     sizediffnorm = norm!(ScaleNorm(scale, MaxNormLinear()), data.model, sizediff)
 
     default = selectobjective!(DefaultJuMPSelectionStrategy(), v, data)
@@ -405,8 +410,8 @@ valueobjective!(::AbstractJuMPSelectionStrategy, v, data) = @expression(data.mod
 
 function insertlastobjective!(s, v, data)
     insvars = data.outinsertvars[v]
-    preferend = collect(1:length(insvars))
-    return @expression(data.model, 0.05*sum(insvars .* preferend))
+    preferend = collect(length(insvars) : -1 : 1)
+    return @expression(data.model, -0.05*sum(insvars .* preferend))
 end
 
 function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
@@ -416,20 +421,35 @@ function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
 end
 
 function extract_inds(::AbstractJuMPSelectionStrategy, selectvars::T, insertvars::T) where T <: AbstractVector{JuMP.VariableRef}
-    # insertvar is 1.0 at indices where a new output shall be added and 0.0 where an existing one shall be selected
-    result = -round.(Int, JuMP.value.(insertvars))
+    # insertvar is N at indices where a N new output neurons shall be added
+    insert = round.(Int, JuMP.value.(insertvars))
     selected = findall(xi -> xi > 0, JuMP.value.(selectvars))
+    return join_extracted_inds(selected, insert)
+end
 
-    # TODO: Needs investigation
-    sum(result) == 0 && return selected
+function join_extracted_inds(selected, insert)
+    result = Vector{Int}(undef, length(selected) + sum(insert))
 
-    j = 1
-    for i in eachindex(result)
-        if result[i] == 0
+    # Expected result of algorithm: initialize result = selected, then insert insert[i] -1 elements after each index i in result  
+
+    i = 1 # result index
+    j = 1 # selected index
+    k = 1 # insert index
+    while i <= length(result)
+        if j <= i && j <= length(selected)
             result[i] = selected[j]
             j += 1
+            i += 1
         end
+        if insert[k] > 0
+            start = i
+            stop = i+insert[k]-1
+            result[start:stop] .= -1
+            i += insert[k]
+        end
+        k += 1
     end
-
     return result
 end
+
+
