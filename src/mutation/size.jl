@@ -347,19 +347,23 @@ sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_w
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
 
 # First we dispatch on trait in order to filter out immutable vertices
+# First dispatch on traits to sort out things like immutable vertices
+vertexconstraints!(case, v::AbstractVertex, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, trait(v), v, s, data)
+vertexconstraints!(case, t::DecoratingTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, base(t), v, s, data)
+vertexconstraints!(case, ::MutationSizeTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, s, v, data) # Now dispatch on strategy
+
 function vertexconstraints!(case::ScalarSize, ::Immutable, v, s, data)
     @constraint(data.model, data.noutdict[v] == nout(v))
     @constraint(data.model, getall(data.noutdict, inputs(v)) .== nin(v))
     vertexconstraints!(case, s, v, data)
 end
-vertexconstraints!(case::ScalarSize, t::MutationSizeTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, s, v, data) # Now dispatch on strategy
 
 # This must be applied to immutable vertices as well
-function vertexconstraints!(::ScalarSize, v::AbstractVertex, s::AlignNinToNout, data)
-    vertexconstraints!(v, s.vstrat, data)
+function vertexconstraints!(currcase::ScalarSize, v::AbstractVertex, s::AlignNinToNout, data, case=currcase)
+    vertexconstraints!(currcase, v, s.vstrat, data)
     # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
     for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
-        ninvar = @variable(data.model, integer=true)
+        ninvar = @variable(data.model; integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
 
         ninarr = get!(() -> Vector{JuMP.VariableRef}(undef, length(inputs(vo))), s.nindict, vo)
@@ -367,7 +371,7 @@ function vertexconstraints!(::ScalarSize, v::AbstractVertex, s::AlignNinToNout, 
     end
 end
 
-function vertexconstraints!(v::AbstractVertex, s::AlignNinToNoutVertices, data)
+function vertexconstraints!(currcase::ScalarSize, v::AbstractVertex, s::AlignNinToNoutVertices, data, case=currcase)
     # Any s.ininds which are mapped to vertices which are not yet added in s.vstrat.nindict[s.vout] will cause undefined reference below
     # There is a check to wait for them to be added, but if they are not in data.noutdict they will never be added, so we need to check for that too. Not 100% this can even happen, so I'm just waiting for this in itself to trigger a bug. Sigh...
     neededinds = filter(i -> i !== nothing, indexin(keys(data.noutdict), inputs(s.vout)))
@@ -377,7 +381,7 @@ function vertexconstraints!(v::AbstractVertex, s::AlignNinToNoutVertices, data)
     # Just to make sure we only do this once without having to store hasadded as a field in AlignNinToNoutVertices:
     #  - Check the condition before vertexconstraints! -> Only when condition changes from false to true do we add as we assume this is the first time the condition becomes fulfilled
     hasadded = condition()
-    vertexconstraints!(v, s.vstrat, data)
+    vertexconstraints!(case, v, s.vstrat, data)
 
     if !hasadded && condition()
         @constraint(data.model, data.noutdict[s.vin] .== s.vstrat.nindict[s.vout][s.ininds])

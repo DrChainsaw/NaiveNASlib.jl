@@ -7,12 +7,11 @@ Treat vertices as having parameters which represents neurons when formulating th
 struct NeuronIndices end
 
 # Just another name for Δsize with the corresponding direction
-Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Δsizetype(v), Output(), v, Δ)
-Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Δsizetype(v), Input(), v, Δs...)
+Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Output(), v, Δ)
+Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Input(), v, Δs...)
 
-Δnout(valuefun::Function, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Δsizetype(v), Output(), v, Δ)
-Δnin(valuefun::Function, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Δsizetype, Input(), v, Δ, Δs...)
-
+Δnout(valuefun::Function, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Output(), v, Δ)
+Δnin(valuefun::Function, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Input(), v, Δ, Δs...)
 
 Δsizetype(v::AbstractVertex, seen=Set()) = v in seen ? nothing : Δsizetype(trait(v), v, push!(seen, v))
 Δsizetype(t::DecoratingTrait, v, seen) = Δsizetype(base(t), v, seen)
@@ -21,23 +20,53 @@ struct NeuronIndices end
 Δsizetype(::MutationTrait, v::CompVertex, seen) = Δsizetype(v.computation)
 Δsizetype(f) = NeuronIndices()
 
+# TODO: Label elemwise and concatenation to allow them to return some low prio Δsizetype? Now things like BatchNorm will not have an opinion on its Δsizetype
+# Perhaps better idea: pass down trait to Δsizetype(f) and default to low prio Δsizetype for SizeTransparent? Requires that one always looks at all vertices, but that seems to be the requirement anyways
 Δsizetype(::SizeTransparent, v, seen) = partialsort!(vcat(map(vi -> Δsizetype(vi, seen), inputs(v)), map(vo -> Δsizetype(vo, seen), outputs(v))), 1; by=Δsizetypeprio, rev=true)
 
 Δsizetypeprio(::Nothing) = 0
 Δsizetypeprio(::ScalarSize) = 1
 Δsizetypeprio(::NeuronIndices) = 2
 
+"""
+    default_outvalue(v::AbstractVertex) 
+
+Default function used to calculate value of output neurons when `NeuronIndices` is used and no function is provided.
+
+Implement `default_outvalue(t, f)` where `f` is the computation performed by `CompVertex` to set the default for `f` and `t` is the [`trait`](@ref) of `v`. 
+
+# Examples
+
+```julia-repl
+julia> struct Affine{T}
+    W::Matrix{T}
+end;
+
+# Default is weight magnitude
+julia> NaiveNASlib.default_outvalue(t, l::Affine) = mean(abs, l.W; dims=2);
+
+```
 
 """
-    Δsize(case, d::Direction, v::AbstractVertex, Δ...)
+default_outvalue(v::AbstractVertex) = default_outvalue(trait(v), v)
+default_outvalue(t, v::AbstractVertex) = default_outvalue(t, base(v))
+default_outvalue(t, ::InputVertex) = 1
+default_outvalue(t, v::CompVertex) = default_outvalue(t, v.computation)
+default_outvalue(t, f) = 1
+
+"""
+    Δsize(d::Direction, v::AbstractVertex, Δ...)
 
 Change size of `v` by `Δ` in direction `d`.
 """
-Δsize(case, d::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(case, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_Δsize_graph(v, d))
-Δsize(case, d::Output, v, Δ::T) where T <: Integer = Δsize(case, ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
+Δsize(d::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_Δsize_graph(v, d))
+Δsize(d::Output, v, Δ::T) where T <: Integer = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
 
-Δsize(f, case, ::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(f, case, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_graph(v))
-Δsize(f, case, ::Output, v, Δ::T) where T <: Integer = Δsize(f, case, ΔNoutExact(v, Δ), all_in_graph(v))
+Δsize(f, ::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(f, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_graph(v))
+Δsize(f, ::Output, v, Δ::T) where T <: Integer = Δsize(f, ΔNoutExact(v, Δ), all_in_graph(v))
+
+Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true), s, vs)
+Δsize(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true), s, vs)
 
 
 """
@@ -74,9 +103,7 @@ function Δsize(valuefun, s::SelectDirection, v::AbstractVertex)
 
     return Δsize(valuefun, s.strategy, d, v)
 end
-
-Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true), s, vs)
-
+Δsize(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(default_outvalue, case,s , vs)
 function Δsize(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
     if success
@@ -187,10 +214,13 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     # Afaik this happens when only v's inputs are touched. Cleanest fix might be to separate "touch output" from "touch input". See https://github.com/DrChainsaw/NaiveNASlib.jl/issues/39
     outselectvars = Dict(v => @variable(model, [1:nout(v)], Bin) for v in vertices)
     outinsertvars = Dict(v => @variable(model, [1:nout(v)], Int, lower_bound=0) for v in vertices)
+    # This is the same variable name as used when adjusting size only. It allows us to delegate alot of size changing strategies to ScalarSize. 
+    # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
+    noutdict = Dict(v => @expression(model, sum(outselectvars[v]) + sum(outinsertvars[v])) for v in vertices)
 
     objexpr = objective!(NeuronIndices(), s, vertices, (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, valuefun=valuefun))
     for v in vertices
-        data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, objexpr = objexpr, valuefun = valuefun)
+        data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, noutdict = noutdict, objexpr = objexpr, valuefun = valuefun)
         vertexconstraints!(NeuronIndices(), v, s, data)
         objexpr = selectobjective!(NeuronIndices(), s, v, data)
     end
@@ -209,24 +239,24 @@ accept(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.
 
 selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
 
-# First dispatch on traits to sort out things like immutable vertices
-vertexconstraints!(case, v::AbstractVertex, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, trait(v), v, s, data)
-vertexconstraints!(case, t::DecoratingTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, base(t), v, s, data)
-vertexconstraints!(case, t::MutationSizeTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, s, t, v, data) # Now dispatch on strategy (and trait)
 function vertexconstraints!(::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
      @constraint(data.model, data.outselectvars[v] .== 1)
      @constraint(data.model, data.outinsertvars[v] .== 0)
- end
-
-
-function vertexconstraints!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, t::MutationSizeTrait, v, data)
-    insertconstraints!(case, s, t, v, data)
-    sizeconstraint!(case, s, t, v, data)
-    compconstraint!(case, s, v, (data..., vertex=v))
-    inoutconstraint!(case, s, t, v, data)
 end
 
-insertconstraints!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, ::MutationSizeTrait, v, data) = noinsertgaps!(data.model, data.outselectvars[v], data.outinsertvars[v])
+# ScalarSize constraints happen to be good here, but we must ensure that vertexconstraints!(::NeuronIndices,...) gets called instead of vertexconstraints!(::ScalarSize,...)
+# For AlignNinToNout we could just have broken out the call to vertexconstraints!, but for AlignNinToNoutVertices we need to call it in the middle of the function
+vertexconstraints!(::NeuronIndices, v::AbstractVertex, s::AlignNinToNout, data) = vertexconstraints!(ScalarSize(), v, s, data, NeuronIndices())
+vertexconstraints!(::NeuronIndices, v::AbstractVertex, s::AlignNinToNoutVertices, data) = vertexconstraints!(ScalarSize(), v::AbstractVertex, s::AlignNinToNoutVertices, data, NeuronIndices())
+
+function vertexconstraints!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data)
+    insertconstraints!(case, s, v, data)
+    sizeconstraint!(case, s, v, data)
+    compconstraint!(case, s, v, (data..., vertex=v))
+    inoutconstraint!(case, s, v, data)
+end
+
+insertconstraints!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = noinsertgaps!(data.model, data.outselectvars[v], data.outinsertvars[v])
 
 """
     noinsertgaps!(model, select, insert, maxinsert=length(outsel) * 10)
@@ -251,15 +281,11 @@ function noinsertgaps!(model, select, insert, maxinsert=length(select) * 10)
     @constraint(model, length(insert) - sum(select) <= sum(insert_nogap))
 end
 
-sizeconstraint!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, t, v, data) = @constraint(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])  >= 1)
 
-function sizeconstraint!(case::NeuronIndices, s::ΔNout{Exact}, t, v, data)
-    if s.vertex === v
-        @constraint(data.model, sum(data.outselectvars[v]) +sum(data.outinsertvars[v]) == nout(v) + s.Δ)
-    else
-        sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), t, v, data)
-    end
-end
+sizeconstraint!(::NeuronIndices, s::ΔNout{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
+
+inoutconstraint!(case, s, v, data) = inoutconstraint!(case, s, trait(v), v, data) 
+inoutconstraint!(case, s, t::DecoratingTrait, v, data) = inoutconstraint!(case, s, base(t), v, data) 
 
 function inoutconstraint!(::NeuronIndices, s, ::SizeAbsorb, v, data) end
 function inoutconstraint!(case::NeuronIndices, s, t::SizeTransparent, v, data)
