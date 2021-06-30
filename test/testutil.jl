@@ -34,14 +34,40 @@ function showstr(f, v)
     return String(take!(buffer))
 end
 
-# Testing mock
-mutable struct MatMul{M<:AbstractMatrix}
-    W::M
-    lastins::Union{Missing, Vector{Int}}
+# Testing mocks
+mutable struct IndMem{F}
+    wrapped::F
+    lastins::Vector{Union{Missing, Vector{Int}}}
     lastouts::Vector{Int}
 end
+IndMem(w) = IndMem(w, convert(Vector{Union{Missing, Vector{Int}}}, map(i -> collect(1:i), nin(w))), collect(1:nout(w)))
+
+NaiveNASlib.minΔninfactor(im::IndMem) = minΔninfactor(im.wrapped)
+NaiveNASlib.minΔnoutfactor(im::IndMem) = minΔnoutfactor(im.wrapped)
+
+(im::IndMem)(x...) = im.wrapped(x...)
+NaiveNASlib.nout(im::IndMem) = nout(im.wrapped)
+NaiveNASlib.nin(im::IndMem) = nin(im.wrapped)
+
+lastins(v::AbstractVertex) = lastins(computation(v))
+lastins(f) = missing
+lastins(im::IndMem) = im.lastins
+
+lastouts(v::AbstractVertex) = lastouts(computation(v))
+lastouts(f) = missing
+lastouts(im::IndMem) = im.lastouts
+
+function NaiveNASlib.Δsize(im::IndMem, ins::AbstractVector, outs::AbstractVector)
+    Δsize(im.wrapped, ins, outs)
+    im.lastins = ins
+    im.lastouts = outs
+    nothing
+end
+
+mutable struct MatMul{M<:AbstractMatrix}
+    W::M
+end
 MatMul(nin, nout) = MatMul(reshape(collect(1:nin*nout), nout,nin))
-MatMul(W::AbstractMatrix) = MatMul(W, collect(1:size(W, 2)), collect(1:size(W, 1)))
 
 (mm::MatMul)(x) = mm.W * x
 
@@ -50,20 +76,12 @@ NaiveNASlib.minΔnoutfactor(::MatMul) = 1
 
 function NaiveNASlib.Δsize(mm::MatMul, ins::AbstractVector, outs::AbstractVector)
     mm.W = NaiveNASlib.parselect(mm.W, 1=>outs, 2=>ins[1])
-    mm.lastins = ins[1]
-    mm.lastouts = outs
     nothing
 end
 NaiveNASlib.nout(mm::MatMul) = size(mm.W, 1)
 NaiveNASlib.nin(mm::MatMul) = [size(mm.W, 2)]
 
-lastins(v::AbstractVertex) = lastins(computation(v))
-lastins(f) = missing
-lastins(mm::MatMul) = mm.lastins
-
-lastouts(v::AbstractVertex) = lastouts(computation(v))
-lastouts(f) = missing
-lastouts(mm::MatMul) = mm.lastouts
+lastins(im::IndMem{<:MatMul}) = im.lastins[1]
 
 computation(v::AbstractVertex) = computation(base(v))
 computation(v::CompVertex) = v.computation

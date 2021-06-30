@@ -5,10 +5,11 @@
     nt(name) = t -> NamedTrait(t, name)
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
-    av(in, outsize, name) = absorbvertex(MatMul(nout(in), outsize), in; traitdecoration=tf(name))
+    av(in, outsize, name) = absorbvertex(IndMem(MatMul(nout(in), outsize)), in; traitdecoration=tf(name))
     tv(in, name) = invariantvertex(identity, in; traitdecoration=tf(name))
 
-    cc(ins...; name) = conc(ins...; dims=1, traitdecoration=tf(name))
+    concindmem(ins) = f ->  IndMem(f, convert(Vector{Union{Missing, Vector{Int}}}, map(iv -> collect(1:nout(iv)), collect(ins))), collect(1:sum(nout, ins)))
+    cc(ins...; name) = conc(ins...; dims=1, traitdecoration=tf(name), outwrap=concindmem(ins))
     nc(name) = traitconf(nt(name))
 
     select_outputs_and_change(v, values) = select_outputs_and_change(NoutExact(), v, values)
@@ -77,8 +78,7 @@
         v1 = av(inpt, 5, "v1")
         v2 = av(v1, 4, "v2")
 
-        Δnout(v1, -2)
-        @test_throws ErrorException Δoutputs(SelectionFail(), v1, v -> 1:nout_org(v))
+        @test_throws ErrorException Δsize(v -> 1:nout_org(v), ΔSizeFailError("Success!?"), v1)
     end
 
     @testset "SizeStack duplicate" begin
@@ -119,38 +119,24 @@
         v6 = nc("v6") >> v4 + v5
 
         g = CompGraph(inpt, v6)
-        @test size(g(ones(1, 3))) == (1, nout(v6))
+        @test size(g(ones(3))) == (nout(v6),)
 
         @test minΔnoutfactor(v6) == 2
-        Δnout(v6, -4)
+        @test Δnout(v->1:nout_org(v), v6, -4)
 
         @test nout(v1) == 5
         @test nout(v2) == 2
         @test nout(v3) == 3
 
-        @test Δoutputs(v6, v->1:nout_org(v))
-        apply_mutation(g)
+        @test size(g(ones(3))) == (nout(v6),)
 
-        @test nout(v1) == 5
-        @test nout(v2) == 2
-        @test nout(v3) == 3
-
-        @test size(g(ones(1, 3))) == (1, nout(v6))
-
-        Δnout(v6, 6)
+        @test Δnout(v6, 6)
 
         @test nout(v1) == 9
         @test nout(v2) == 4
         @test nout(v3) == 5
 
-        @test Δoutputs(Output(), v6, v->1:nout_org(v))
-        apply_mutation(g)
-
-        @test nout(v1) == 9
-        @test nout(v2) == 4
-        @test nout(v3) == 5
-
-        @test size(g(ones(1, 3))) == (1, nout(v6))
+        @test size(g(ones(3))) == (nout(v6),)
     end
 
     @testset "SizeStack one immutable" begin
@@ -159,24 +145,21 @@
         v2 = cc(inpt, v1, name="v2")
 
         g = CompGraph(inpt, v2)
-        @test size(g(ones(1, 3))) == (1, nout(v2))
+        @test size(g(ones(3))) == (nout(v2),)
 
-        Δnout(v1, -3)
-
-        @test nin(v2) == [nout(inpt), nout(v1)] == [3, 2]
-        @test nout(v2) == 5
-
-        # "Tempt" optimizer to not select inputs from inpt
-        @test Δoutputs(OutSelect{NaiveNASlib.Relaxed}(SelectionFail()), v2, v -> v == v2 ? (-nout(inpt):nout_org(v1)-1) : 1:nout_org(v))
-        apply_mutation(g)
+        @test Δnout(v1, -3) do v
+            # "Tempt" optimizer to not select inputs from inpt
+            v === v2 && return (-nout(inpt):nout_org(v1)-1) 
+            return 1:nout_org(v)
+        end
 
         @test nin(v2) == [nout(inpt), nout(v1)] == [3, 2]
         @test nout(v2) == 5
 
-        @test size(g(ones(1, 3))) == (1, nout(v2))
+        @test size(g(ones(3))) == (nout(v2),)
     end
 
-    @testset "SizeInvariant exact infeasible" begin
+    @testset "Decrease SizeStack and SizeInvariant" begin
         inpt = iv(3)
         v1 = av(inpt, 10, "v1")
         v2 = av(inpt, 5, "v2")
@@ -189,46 +172,20 @@
         v7 = nc("v7") >> v5 + v6
 
         g = CompGraph(inpt, v7)
-        @test size(g(ones(1, 3))) == (1, nout(v7))
+        @test size(g(ones(3))) == (nout(v7),)
 
         @test minΔnoutfactor(v7) == 2
-        Δnout(v7, -6)
-
-        @test nout(v1) == 7
-        @test nout(v2) == 4
-        @test nout(v3) == 8
-        @test nout(v4) == 4
-
-        @test @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(v7, v->-1:nout_org(v)-2)
-        apply_mutation(g)
-
-        @test nout(v1) == 6
-        @test nout(v2) == 3
-        @test nout(v3) == 8
-        @test nout(v4) == 5
-
-        @test size(g(ones(1, 3))) == (1, nout(v7))
-
-        Δnout(v7, 4)
+        @test Δnout(v7, -7)
 
         @test nout(v1) == 8
         @test nout(v2) == 4
-        @test nout(v3) == 9
-        @test nout(v4) == 5
+        @test nout(v3) == 6
+        @test nout(v4) == 2
 
-        # Works on the first try this time around
-        @test Δoutputs(Output(), v7, v->1:nout_org(v))
-        apply_mutation(g)
-
-        @test nout(v1) == 8
-        @test nout(v2) == 4
-        @test nout(v3) == 9
-        @test nout(v4) == 5
-
-        @test size(g(ones(1, 3))) == (1, nout(v7))
+        @test size(g(ones(3))) == (nout(v7),)
     end
 
-    @testset "SizeInvariant increase exact infeasible" begin
+    @testset "Increase SizeStack and SizeInvariant" begin
         inpt = iv(3)
         v1 = av(inpt, 3, "v1")
         v2 = av(inpt, 4, "v2")
@@ -241,26 +198,22 @@
         v7 = nc("v7") >> v5 + v6
 
         g = CompGraph(inpt, v7)
-        @test size(g(ones(1, 3))) == (1, nout(v7))
+        @test size(g(ones(3))) == (nout(v7),)
+
+        oldg = copy(g)
 
         @test minΔnoutfactor(v7) == 1
         Δnout(v7, 6)
 
-        @test nout(v1) == 4
+        @test nout(v1) == 5
         @test nout(v2) == 6
         @test nout(v3) == 6
-        @test nout(v4) == 8
+        @test nout(v4) == 7
 
-        @test @test_logs (:warn, "Selection for vertex v7 failed! Relaxing size constraint...")  match_mode=:any Δoutputs(Output(), v7, v -> 1:nout_org(v))
-        apply_mutation(g)
+        @test size(g(ones(3))) == (nout(v7),)
 
-        # Sizes can't change when increasing, even if problem is relaxed :(
-        @test nout(v1) == 4
-        @test nout(v2) == 6
-        @test nout(v3) == 6
-        @test nout(v4) == 8
-
-        @test size(g(ones(1, 3))) == (1, nout(v7))
+        # Since we are just increasing we have the same mapping except a few zeros
+        @test filter(>(0), g(1:3)) == oldg(1:3)
     end
 
     @testset "SizeStack increase decrease" begin
@@ -271,22 +224,20 @@
         v4 = av(v3, 4, "v4")
 
         g = CompGraph(inpt, v3)
-        @test size(g(ones(1, 3))) == (1, nout(v3))
+        @test size(g(ones(3))) == (nout(v3),)
 
-        Δnout(v3, -5)
-        Δnout(v1, 3)
+        # TODO: Test support for Δnout(v3 => -5, v1 => 1)
+        @test Δnout(v -> 1:nout(v), v3, -5)
+        @test Δnout(v -> 1:nout(v), v1, 3)
 
-        @test nin(v3) == [nout(v1), nout(v2)] == [5, 6]
+        @test nin(v3) == [nout(v1), nout(v2)] == [4, 7]
         @test nout(v3) == sum(nin(v3)) == 11
 
-        @test Δoutputs(Output(), v3, v -> 1:nout_org(v))
+        # Not so good, we threw away a few too many neurons when first decreasing and then increasing the size. Thats why there should be a way to do both in one go.
+        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1, -1, -1, -1], [1, 2, 3, 4, 5, 6, 7]]
+        @test lastouts(v3) == lastins(v4) == [1, -1, -1, -1, 2, 3, 4, 5, 6, 7, 8] 
 
-        @test in_inds(op(v3)) == [out_inds(op(v1)), out_inds(op(v2))] == [[1,2,3,-1,-1],[5,6,7,8,9,10]]
-        @test [out_inds(op(v3))] == in_inds(op(v4)) == [[1,2,3,-1,-1,8,9,10,11,12,13]]
-
-        apply_mutation(g)
-        @test size(g(ones(1, 3))) == (1, nout(v3))
-
+        @test size(g(ones(3))) == (nout(v3),)
     end
 
     @testset "Constrained by remote subtree" begin
@@ -316,7 +267,7 @@
         v10 = av(v9, 5, "v10")
 
         g = CompGraph(inpt, [v1, v9])
-        @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
+        @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
 
         Δnout(v2, -1)
 
@@ -324,29 +275,15 @@
         @test nout(v7) == 13
         @test nout(v0) == 9
 
-        @test Δoutputs(v1, v -> 1:nout_org(v))
-        apply_mutation(g)
-
-        @test nout(v6) == 4
-        @test nout(v7) == 13
-        @test nout(v0) == 9
-
-        @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
+        @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
 
         Δnout(v2, 5)
 
         @test nout(v6) == 4
-        @test nout(v7) == 16
+        @test nout(v7) == 18
         @test nout(v0) == 14
 
-        @test @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->1:nout_org(v))
-        apply_mutation(g)
-
-        @test nout(v6) == 4
-        @test nout(v7) == 16
-        @test nout(v0) == 14
-
-        @test size.(g(ones(1,3))) == ((1, nout(v1)), (1, nout(v9)))
+        @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
     end
 
     @testset "Increase after vertex removal" begin
@@ -357,7 +294,7 @@
         v4 = av(v3, 3, "v4")
 
         g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
 
         remove!(v3, RemoveStrategy())
 
@@ -500,7 +437,7 @@
         v3 = av(v2, 2, "v3")
 
         g = CompGraph(inpt, v2)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v2))
+        @test size(g(ones(3))) == (nout(v2),)
 
         vnew = av(inpt, 7, "vnew")
         create_edge!(vnew, v2;strategy=PostAlignJuMP())
@@ -516,18 +453,19 @@
     @testset "CompConstraint" begin
 
         struct CompConstraint end
-        function NaiveNASlib.compconstraint!(::AbstractJuMPΔSizeStrategy, ::CompConstraint, data)
+        function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, ::AbstractJuMPΔSizeStrategy, ::CompConstraint, data)
             var = data.outselectvars[data.vertex];
             JuMP.@constraint(data.model, var[[1, 3]] .== 0)
         end
+        NaiveNASlib.nout(::CompConstraint) = 4
+        ccouts = nothing
+        NaiveNASlib.Δsize(::CompConstraint, ins::AbstractVector, outs::AbstractVector) = ccouts=outs
 
         inpt = iv(3)
-        v1 = absorbvertex(CompConstraint(), 4, inpt, traitdecoration = tf("v1"))
+        v1 = absorbvertex(CompConstraint(), inpt, traitdecoration = tf("v1"))
         v2 = av(v1, 5, "v2")
 
         Δnout(v1, 3)
-        @test @test_logs (:warn, "Selection for vertex v1 failed! Relaxing size constraint...") Δoutputs(Output(), v1, v->nout_org(v):-1:1)
-
-        @test out_inds(op(v1)) == in_inds(op(v2))[] == [2, 4, -1, -1, -1, -1, -1]
+        @test ccouts == lastins(v2) == [2, 4, -1, -1, -1, -1, -1]
     end
 end
