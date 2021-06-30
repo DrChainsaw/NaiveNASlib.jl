@@ -146,7 +146,7 @@ end
 align_outs_to_ins(v, ins, outs) = align_outs_to_ins(trait(v), v, ins, outs)
 align_outs_to_ins(t::DecoratingTrait, v, ins, outs) = align_outs_to_ins(base(t), v, ins, outs)
 align_outs_to_ins(t, v, ins, outs) = ins,outs
-function align_outs_to_ins(::SizeInvariant, v, ins::AbstractArray, outs)
+function align_outs_to_ins(::SizeInvariant, v, ins::AbstractVector, outs)
     isempty(ins) && return ins, outs
     inds = ins[1]
     newins = repeat([inds], length(ins))
@@ -155,15 +155,14 @@ function align_outs_to_ins(::SizeInvariant, v, ins::AbstractArray, outs)
 end
 
 """
-    Δsize(ins::Dict outs::Dict, vertices::AbstractVector{<:AbstractVertex})
+    Δsize(case::NeuronIndices, ins::Dict, ins::AbstractDict, outs::AbstractDict, vertices::AbstractVector{<:AbstractVertex})
 
 Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` respectively.
 """
-function Δsize(::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
+function Δsize(case::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
 
     for vi in vs
-        Δnin(OnlyFor(), vi, ins[vi]...)
-        Δnout(OnlyFor(), vi, outs[vi])
+        Δsize(case, OnlyFor(), vi, ins[vi], outs[vi])
     end
 
     for vi in vs
@@ -171,6 +170,76 @@ function Δsize(::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::Abst
         after_Δnout(vi, outs[vi])
     end
 end
+
+Δsize(case::NeuronIndices, s::OnlyFor, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector) = Δsize(case, s, base(v), ins, outs)
+Δsize(::NeuronIndices, ::OnlyFor, v::CompVertex, ins::AbstractVector, outs::AbstractVector) = Δsize(v.computation, ins, outs)
+function Δsize(f, ins::AbstractVector, outs::AbstractVector) end
+
+function Δsize(::NeuronIndices, ::OnlyFor, v::InputSizeVertex, ins::AbstractVector, outs::AbstractVector) 
+    if !all(isempty, skipmissing(ins))
+        throw(ArgumentError("Try to change input neurons of InputVertex $(name(v)) to $ins"))
+    end 
+    if outs != 1:nout(v)
+        throw(ArgumentError("Try to change output neurons of InputVertex $(name(v)) to $outs"))
+    end
+end
+
+"""
+    parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = zeros) where {T, N}
+
+Return a new `AbstractArray{T, N}` which has a subset of the elements of `pars`.
+
+Which elements to select is determined by `elements_per_dim` which is a `Pair{Int, Vector{Int}}` mapping dimension (first memeber) to which elements to select in that dimension (second memeber).
+
+For a single `dim=>elems` pair, the following holds: `selectdim(output, dim, i) == selectdim(pars, dim, elems[i])` if `elems[i]` is positive and `selectdim(output, dim, i) .== newfun(T, dim, size)[j]` if `elems[i]` is the `j:th` negative value and `size` is `sum(elems .< 0)`.
+
+# Examples
+```julia-repl
+
+julia> pars = reshape(1:3*5, 3,5)
+3×5 reshape(::UnitRange{Int64}, 3, 5) with eltype Int64:
+ 1  4  7  10  13
+ 2  5  8  11  14
+ 3  6  9  12  15
+
+ julia> NaiveNASlib.parselect(pars, 1 => [-1, 1,3,-1,2], 2=>[3, -1, 2], newfun = (T, d, s...) -> -ones(T, s))
+ 5×3 Array{Int64,2}:
+  -1  -1  -1
+   7  -1   4
+   9  -1   6
+  -1  -1  -1
+   8  -1   5
+```
+"""
+function parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = (T, dim, size...) -> 0) where {T, N}
+    psize = collect(size(pars))
+    assign = repeat(Any[Colon()], N)
+    access = repeat(Any[Colon()], N)
+
+    elements_per_dim = filter(!ismissing ∘ last, elements_per_dim)
+
+    for (dim, elements) in elements_per_dim
+        psize[dim] = length(elements)
+    end
+    newpars = similar(pars, psize...)
+
+    for (dim, elements) in elements_per_dim
+        indskeep = filter(ind -> ind > 0, elements)
+        indsmap = elements .> 0
+        newmap = .!indsmap
+
+        assign[dim] = findall(indsmap)
+        access[dim] = indskeep
+        tsize = copy(psize)
+        tsize[dim] = sum(newmap)
+        selectdim(newpars, dim, newmap) .= newfun(T, dim, tsize...)
+    end
+
+    newpars[assign...] = pars[access...]
+    return newpars
+end
+parselect(::Missing, args...;kwargs...) = missing
+
 
 function Δnin(::OnlyFor, v) end
 function Δnin(::OnlyFor, v, inds::Missing) end

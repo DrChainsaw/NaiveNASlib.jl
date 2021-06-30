@@ -33,11 +33,11 @@ julia> v(3)
 15
 ```
 """
-vertex(computation, outsize::Integer, trait::MutationTrait, inputs::AbstractVertex...; mutation=IoChange) = MutationVertex(CompVertex(computation, inputs...), mutation(collect(nout.(inputs)), outsize), trait)
+vertex(computation, trait::MutationTrait, inputs::AbstractVertex...) = MutationVertex(CompVertex(computation, inputs...), trait)
 
 
 """
-    immutablevertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity)
+    immutablevertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
 
 Return an immutable computation type vertex.
 
@@ -45,14 +45,7 @@ Return an immutable computation type vertex.
 ```julia-repl
 julia> using NaiveNASlib
 
-julia> v = immutablevertex(x -> x * [1 2 3; 4 5 6], 3, inputvertex("input", 2));
-
-julia> nin(v)
-1-element Array{Int64,1}:
- 2
-
-julia> nout(v)
-3
+julia> v = immutablevertex(x -> x * [1 2 3; 4 5 6], inputvertex("input", 2));
 
 julia> v([1 2])
 1×3 Array{Int64,2}:
@@ -60,10 +53,10 @@ julia> v([1 2])
 
 ```
 """
-immutablevertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity) = vertex(computation, outsize, traitdecoration(Immutable()), inputs..., mutation=mutation)
+immutablevertex(computation, inputs::AbstractVertex...; traitdecoration=identity) = vertex(computation, traitdecoration(Immutable()), inputs...)
 
 """
-    absorbvertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity)
+    absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
 
 Return a mutable computation type vertex which absorbs size changes. Typical example of this is a neural network layer.
 
@@ -71,14 +64,7 @@ Return a mutable computation type vertex which absorbs size changes. Typical exa
 ```julia-repl
 julia> using NaiveNASlib
 
-julia> v = absorbvertex(x -> x * [1 2 3; 4 5 6], 3, inputvertex("input", 2));
-
-julia> nin(v)
-1-element Array{Int64,1}:
- 2
-
-julia> nout(v)
-3
+julia> v = absorbvertex(x -> x * [1 2 3; 4 5 6], inputvertex("input", 2));
 
 julia> v([1 2])
 1×3 Array{Int64,2}:
@@ -86,10 +72,10 @@ julia> v([1 2])
 
 ```
 """
-absorbvertex(computation, outsize::Integer, inputs::AbstractVertex...; mutation=IoChange, traitdecoration=identity) = vertex(computation, outsize, traitdecoration(SizeAbsorb()), inputs..., mutation=mutation)
+absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity) = vertex(computation, traitdecoration(SizeAbsorb()), inputs...)
 
 """
-    invariantvertex(computation, input; mutation=IoChange, traitdecoration=identity)
+    invariantvertex(computation, input; traitdecoration=identity)
 
 Return a mutable computation type vertex which is size invariant, i.e nin == nout.
 
@@ -111,10 +97,10 @@ julia> v([1 2])
  2  4
 ```
 """
-invariantvertex(computation, input; mutation=IoChange, traitdecoration=identity) = vertex(computation, nout(input), traitdecoration(SizeInvariant()), input, mutation=mutation)
+invariantvertex(computation, input; traitdecoration=identity) = vertex(computation, traitdecoration(SizeInvariant()), input)
 
 """
-    conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity)
+    conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
 
 Return a mutable vertex which concatenates input along dimension `dim`.
 # Examples
@@ -142,39 +128,29 @@ julia> v([1], [2, 3], [4, 5, 6])
  6
 ```
 """
-conc(v::AbstractVertex, vs::AbstractVertex...; dims, mutation=IoChange, traitdecoration=identity, outwrap=identity) = vertex(outwrap((x...) -> cat(x..., dims=dims)), sum(nout.((v, vs...))), traitdecoration(SizeStack()), v, vs..., mutation=mutation)
+conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity) = vertex(outwrap((x...) -> cat(x..., dims=dims)), traitdecoration(SizeStack()), v, vs...)
 
 
 """
     VertexConf
-    VertexConf(;mutation = IoChange, traitdecoration = identity, outwrap = identity)
+    VertexConf(; traitdecoration = identity, outwrap = identity)
 
 
 Config struct to be used with element wise op syntax (`+`, `-`, `*`, `/`).
 
-`mutation` determines how size changes of the vertex are handled
 `traitdecoration` allows for decorating the vertex trait with stuff like logging, validation etc.
 `outwrap` is a function which returns a function which will be applied to the computed output. For example, the following `outwrap` scales output by a factor of 2: `outwrap = f ->  (x...) -> 2f((x...)`
 """
-struct VertexConf
-    mutation
-    traitdecoration
-    outwrap
+struct VertexConf{TD, OW}
+    traitdecoration::TD
+    outwrap::OW
 end
-mutationconf(m) = VertexConf(mutation=m)
 traitconf(t) = VertexConf(traitdecoration=t)
 outwrapconf(o) = VertexConf(outwrap=o)
-VertexConf(;mutation = IoChange, traitdecoration = identity, outwrap = identity)= VertexConf(mutation, traitdecoration, outwrap)
-
-
-function invariant_outsize(vs::AbstractVertex...)
-    outsize = unique([nout.(vs)...])
-    length(outsize) == 1 || throw(DimensionMismatch("Dimensions must match! Got $([nout.(vs)...])"))
-    return outsize[]
-end
+VertexConf(;traitdecoration = identity, outwrap = identity)= VertexConf(traitdecoration, outwrap)
 
 # Common wiring for all elementwise operations
-elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex(conf.outwrap((x...) -> op.(x...)), invariant_outsize(vs...), conf.traitdecoration(SizeInvariant()), vs..., mutation=conf.mutation)
+elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex(conf.outwrap((x...) -> op.(x...)), conf.traitdecoration(SizeInvariant()), vs...)
 
 
 """

@@ -35,27 +35,36 @@ function showstr(f, v)
 end
 
 # Testing mock
-mutable struct MatMul
-    W::AbstractMatrix
-    MatMul(nin, nout) = new(reshape(collect(1:nin*nout), nin,nout))
-    MatMul(W) = new(W)
+mutable struct MatMul{M<:AbstractMatrix}
+    W::M
+    lastins::Union{Missing, Vector{Int}}
+    lastouts::Vector{Int}
 end
-(mm::MatMul)(x) = x * mm.W
-function NaiveNASlib.mutate_inputs(mm::MatMul, inputs::AbstractArray{<:Integer, 1}...)
-    indskeep = filter(ind -> ind > 0, inputs[1])
-    newmap = inputs[1] .> 0
+MatMul(nin, nout) = MatMul(reshape(collect(1:nin*nout), nout,nin))
+MatMul(W::AbstractMatrix) = MatMul(W, collect(1:size(W, 2)), collect(1:size(W, 1)))
 
-    newmat = zeros(Int64, length(newmap), size(mm.W, 2))
-    newmat[newmap, :] = mm.W[indskeep, :]
-    mm.W = newmat
-end
-function NaiveNASlib.mutate_outputs(mm::MatMul, outputs::AbstractArray{<:Integer, 1})
-    indskeep = filter(ind -> ind > 0, outputs)
-    newmap = outputs .> 0
+(mm::MatMul)(x) = mm.W * x
 
-    newmat = zeros(Int64, size(mm.W, 1), length(newmap))
-    newmat[:, newmap] = mm.W[:, indskeep]
-    mm.W = newmat
-end
 NaiveNASlib.minΔninfactor(::MatMul) = 1
 NaiveNASlib.minΔnoutfactor(::MatMul) = 1
+
+function NaiveNASlib.Δsize(mm::MatMul, ins::AbstractVector, outs::AbstractVector)
+    mm.W = NaiveNASlib.parselect(mm.W, 1=>outs, 2=>ins[1])
+    mm.lastins = ins[1]
+    mm.lastouts = outs
+    nothing
+end
+NaiveNASlib.nout(mm::MatMul) = size(mm.W, 1)
+NaiveNASlib.nin(mm::MatMul) = [size(mm.W, 2)]
+
+lastins(v::AbstractVertex) = lastins(computation(v))
+lastins(f) = missing
+lastins(mm::MatMul) = mm.lastins
+
+lastouts(v::AbstractVertex) = lastouts(computation(v))
+lastouts(f) = missing
+lastouts(mm::MatMul) = mm.lastouts
+
+computation(v::AbstractVertex) = computation(base(v))
+computation(v::CompVertex) = v.computation
+computation(::InputVertex) = identity

@@ -11,9 +11,9 @@ function base end
 
 Decorates an AbstractVertex with output edges.
 """
-struct OutputsVertex <: AbstractVertex
-    base::AbstractVertex
-    outs::AbstractVector{AbstractVertex}
+struct OutputsVertex{V<:AbstractVertex} <: AbstractVertex
+    base::V
+    outs::Vector{AbstractVertex} # Untyped because we might add other vertices to it
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
@@ -32,12 +32,12 @@ Vertex with an (immutable) size.
 
 Intended use is for wrapping an InputVertex in conjuntion with mutation
 """
-struct InputSizeVertex <: AbstractVertex
-    base::AbstractVertex
-    size::Integer
+struct InputSizeVertex{V<:AbstractVertex} <: AbstractVertex
+    base::V
+    size::Int
 
     function InputSizeVertex(b::OutputsVertex, size::Integer)
-        this = new(b, size)
+        this = new{OutputsVertex}(b, Int(size))
         init!(b, this)
         return this
     end
@@ -104,17 +104,17 @@ Avbstract trait which wraps another trait. The wrapped trait of a `DecoratingTra
 """
 abstract type DecoratingTrait <: MutationTrait end
 
-struct NamedTrait <: DecoratingTrait
+struct NamedTrait{S} <: DecoratingTrait
     base::MutationTrait
-    name
+    name::S
 end
 base(t::NamedTrait) = t.base
 clone(t::NamedTrait; cf=clone) = NamedTrait(cf(base(t), cf=cf), cf(t.name, cf=cf))
 
-struct SizeChangeLogger <: DecoratingTrait
+struct SizeChangeLogger{T<:MutationTrait} <: DecoratingTrait
     level::LogLevel
     infostr::InfoStr
-    base::MutationTrait
+    base::T
 end
 SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
 SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Logging.Info, infostr, base)
@@ -122,8 +122,8 @@ base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
 clone(t::SizeChangeLogger; cf=clone) = SizeChangeLogger(cf(t.level, cf=cf), cf(t.infostr,cf=cf), cf(base(t), cf=cf))
 
-struct SizeChangeValidation <: DecoratingTrait
-    base::MutationTrait
+struct SizeChangeValidation{T<:MutationTrait} <: DecoratingTrait
+    base::T
 end
 base(t::SizeChangeValidation) = t.base
 clone(t::SizeChangeValidation; cf=clone) = SizeChangeValidation(cf(base(t), cf=cf))
@@ -141,26 +141,23 @@ The member trait describes the nature of the vertex itself, for example if size 
 are absorbed (e.g changing an nin x nout matrix to an nin - Δ x nout matrix) or if they
 propagate to neighbouring vertices (and if so, how).
 """
-struct MutationVertex <: AbstractVertex
-    base::AbstractVertex
-    op::MutationOp
-    trait::MutationTrait
+struct MutationVertex{V<:AbstractVertex, T<:MutationTrait} <: AbstractVertex
+    base::V
+    trait::T
 
-    function MutationVertex(b::OutputsVertex, s::MutationOp, t::MutationTrait)
-        this = new(b, s, t)
+    function MutationVertex(b::OutputsVertex, t::T) where T <: MutationTrait
+        this = new{OutputsVertex, T}(b, t)
         init!(b, this)
         return this
     end
 end
-MutationVertex(b::AbstractVertex, s::MutationOp, t::MutationTrait) = MutationVertex(OutputsVertex(b), s, t)
+MutationVertex(b::AbstractVertex, t::MutationTrait) = MutationVertex(OutputsVertex(b), t)
 
 clone(v::MutationVertex, ins::AbstractVertex...; cf=clone) = MutationVertex(
 cf(base(v), ins...,cf=cf),
-cf(v.op, cf=cf),
 cf(v.trait, cf=cf))
 
 base(v::MutationVertex) = v.base
-op(v::MutationVertex) = v.op
 trait(v::MutationVertex) = v.trait
 (v::MutationVertex)(x...) = base(v)(x...)
 
@@ -173,7 +170,7 @@ show_less(io::IO, v::InputSizeVertex) = show_less(io, base(v))
 show_less(io::IO, v::MutationVertex) = print(io, name(v))
 show_less(io::IO, v::OutputsVertex) = show_less(io, base(v))
 
-function show(io::IO, v::OutputsVertex)
+function Base.show(io::IO, v::OutputsVertex)
      show(io, base(v))
      print(io, ", outputs=")
      show(io, outputs(v))

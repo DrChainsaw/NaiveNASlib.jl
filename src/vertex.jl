@@ -60,8 +60,8 @@ julia> InputVertex("input")
 InputVertex("input")
 ```
 """
-struct InputVertex <: AbstractVertex
-    name
+struct InputVertex{N} <: AbstractVertex
+    name::N
 end
 clone(v::InputVertex, ins::AbstractVertex...;cf=clone) = isempty(ins) ? InputVertex(cf(v.name,cf=cf)) : error("Input vertex got inputs: $(ins)!")
 inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
@@ -86,13 +86,13 @@ julia>CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
 6
 ```
 """
-struct CompVertex <: AbstractVertex
-    computation
-    inputs::AbstractVector{AbstractVertex}
+struct CompVertex{F} <: AbstractVertex
+    computation::F
+    inputs::Vector{AbstractVertex} # Untyped because we might add other vertices to it
 end
-CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(ins))
+CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(AbstractVertex, ins))
 clone(v::CompVertex, ins::AbstractVertex...;cf=clone) = CompVertex(cf(v.computation, cf=cf), ins...)
-inputs(v::CompVertex)::AbstractVector{AbstractVertex} = v.inputs
+inputs(v::CompVertex) = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
 
 ## Stuff for displaying information about vertices

@@ -1,35 +1,29 @@
 
 #TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
 # all MutationVertex has state?
-nin(v::InputSizeVertex) = []
-nin(v::MutationVertex) = nin(v, op(v))
-nin(v::AbstractVertex, op::MutationState) = nin(op)
-nin(v::AbstractVertex, op::MutationOp) = nin(trait(v), v)
+nin(t, ::InputSizeVertex) = []
+nin(v::AbstractVertex) = nin(trait(v), v)
 nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
+nin(t::SizeAbsorb, v::AbstractVertex) = nin(t, base(v))
+nin(::SizeAbsorb, v::CompVertex) = nin(v.computation)
 
 # SizeTransparent does not need mutation state to keep track of sizes
 nin(::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
 
-nout(v::InputSizeVertex) = v.size
-nout(v::MutationVertex) = nout(v, op(v))
-nout(v::AbstractVertex, op::MutationState) = nout(op)
-nout(v::AbstractVertex, op::MutationOp) = nout(trait(v), v)
+nout(v::AbstractVertex) = nout(trait(v), v)
 nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
+nout(t::SizeAbsorb, v::AbstractVertex) = nout(t, base(v))
+nout(::SizeAbsorb, v::CompVertex) = nout(v.computation)
+nout(t, v::InputSizeVertex) = v.size
 
-# SizeTransparent does not need mutation state to keep track of sizes
+# SizeTransparent might not care about size
 nout(::SizeInvariant, v::AbstractVertex) = nin(v)[1]
 nout(::SizeStack, v::AbstractVertex) = sum(nin(v))
 
-nout_org(v::AbstractVertex) = nout_org(trait(v), v)
-nout_org(t::DecoratingTrait, v) = nout_org(base(t), v)
-nout_org(::MutationSizeTrait, v::MutationVertex) = nout_org(op(v))
-nout_org(::Immutable, v) = nout(v)
+# TODO: Remove
+nout_org(v::AbstractVertex) = nout(v)
+nin_org(v::AbstractVertex) = nin(v)
 
-nin_org(v::InputSizeVertex) = []
-nin_org(v::AbstractVertex) = nin_org(trait(v), v)
-nin_org(t::DecoratingTrait, v) = nin_org(base(t), v)
-nin_org(::MutationSizeTrait, v::MutationVertex) = nin_org(op(v))
-nin_org(::Immutable, v) = nin(v)
 
 
 """

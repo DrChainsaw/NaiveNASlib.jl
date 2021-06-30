@@ -5,10 +5,10 @@
     nt(name) = t -> NamedTrait(t, name)
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
-    av(in, outsize, name) = absorbvertex(MatMul(nout(in), outsize), outsize, in, traitdecoration=tf(name))
-    tv(in, name) = invariantvertex(identity, in, traitdecoration=tf(name))
+    av(in, outsize, name) = absorbvertex(MatMul(nout(in), outsize), in; traitdecoration=tf(name))
+    tv(in, name) = invariantvertex(identity, in; traitdecoration=tf(name))
 
-    cc(ins...; name) = conc(ins...; dims=2, traitdecoration=tf(name))
+    cc(ins...; name) = conc(ins...; dims=1, traitdecoration=tf(name))
     nc(name) = traitconf(nt(name))
 
     select_outputs_and_change(v, values) = select_outputs_and_change(NoutExact(), v, values)
@@ -25,18 +25,18 @@
             vs
             function TestProbe(v)
                 tp = new(nothing)
-                Δoutputs(SelectDirection(tp), v, v -> error("Shall not be called!"))
+                Δsize(v -> error("Shall not be called!"), SelectDirection(tp), v)
                 return tp
             end
         end
-        NaiveNASlib.Δoutputs(s::TestProbe, vs::AbstractVector{<:AbstractVertex}, vfun::Function) = s.vs = Set(vs)
+        NaiveNASlib.Δsize(vfun, case, s::TestProbe, vs::AbstractVector{<:AbstractVertex}) = s.vs = Set(vs)
 
         v1 = av(iv(3), 5, "v1")
         v2 = av(v1, 4, "v2")
         v3 = av(v2, 3, "v3")
 
         tp = TestProbe(v2)
-        @test tp.vs == nothing
+        @test tp.vs === nothing
 
         Δnin(v2, -1)
         tp = TestProbe(v2)
@@ -52,20 +52,6 @@
 
     end
 
-    @testset "ApplyAfter" begin
-        v1 = av(iv(3), 5, "v1")
-        v2 = av(v1, 4, "v2")
-        v3 = av(v2, 3, "v3")
-
-        res = []
-        apply(v) = push!(res, v)
-
-        Δnout(v2, -1)
-        @test Δoutputs(ApplyAfter(apply, OutSelectExact()), v2, v -> 1:nout_org(v))
-
-        @test res == [v2, v3]
-    end
-
     @testset "Absorb 2 Absorb" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
@@ -73,46 +59,17 @@
 
         g = CompGraph(inpt, v2)
 
-        Δnout(v1, -2)
-        @test Δoutputs(v1, v -> 1:nout_org(v))
+        @test Δnout(v -> 1:nout(v), v1, -2)
 
-        @test out_inds(op(v1)) == in_inds(op(v2))[] == [3,4,5]
-        apply_mutation(g)
+        @test lastouts(v1) == lastins(v2) == [3,4,5]
 
-        @test size(g(ones(1, 3))) == (1, nout(v2))
+        @test size(g(ones(3))) == (nout(v2),)
 
-        Δnout(v1, 3)
-        @test Δoutputs(Output(), v1, v->1:nout_org(v))
+        @test Δnout(v1, 3)
 
-        @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,-1,-1,-1]
-        apply_mutation(g)
+        @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
 
-        @test size(g(ones(1, 3))) == (1, nout(v2))
-    end
-
-    @testset "Absorb 2 Absorb revert" begin
-        inpt = iv(3)
-        v1 = av(inpt, 5, "v1")
-        v2 = av(v1, 4, "v2")
-
-        g = CompGraph(inpt, v2)
-
-        Δnout(v1, -2)
-        @test !Δoutputs(NoutRevert(), v1, v->1:nout_org(v))
-
-        @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,4,5]
-        apply_mutation(g)
-
-        @test size(g(ones(1, 3))) == (1, nout(v2))
-
-        Δnout(v1, +3)
-
-        @test !Δoutputs(NoutRevert(), v1, v-> 1:nout_org(v))
-
-        @test out_inds(op(v1)) == in_inds(op(v2))[] == [1,2,3,4,5]
-        apply_mutation(g)
-
-        @test size(g(ones(1, 3))) == (1, nout(v2))
+        @test size(g(ones(3))) == (nout(v2),)
     end
 
     @testset "Absorb 2 Absorb fail" begin
@@ -132,34 +89,22 @@
         v4 = cc(v3, v2, name="v4")
 
         g = CompGraph(inpt, v4)
-        @test size(g(ones(1, 3))) == (1, nout(v4))
+        @test size(g(ones(3,2))) == (nout(v4), 2)
 
         @test minΔnoutfactor(v4) == 2
-        Δnout(v4, -4)
-
-        @test nout(v1) == 5
-        @test nout(v2) == 3
-
-        @test Δoutputs(v4, v -> 1:nout_org(v))
-        apply_mutation(g)
-
-        @test nout(v1) == 5
-        @test nout(v2) == 3
-
-        @test size(g(ones(1, 3))) == (1, nout(v4))
-
-        Δnout(v4, 6)
+        @test Δnout(v4, -4)
 
         @test nout(v1) == 7
-        @test nout(v2) == 5
+        @test nout(v2) == 2
 
-        @test Δoutputs(Output(), v4, v->1:nout_org(v))
-        apply_mutation(g)
+        @test size(g(ones(3))) == (nout(v4),)
 
-        @test nout(v1) == 7
-        @test nout(v2) == 5
+        @test Δnout(v4, 6)
 
-        @test size(g(ones(1, 3))) == (1, nout(v4))
+        @test nout(v1) == 11
+        @test nout(v2) == 3
+
+        @test size(g(ones(3, 3))) == (nout(v4), 3)
     end
 
     @testset "SizeInvariant duplicate" begin

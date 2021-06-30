@@ -20,15 +20,15 @@ julia> CompGraph(inputs(cv), [cv, CompVertex(x -> 3x, cv)])(2,3)
 ```
 
 """
-struct CompGraph
-    inputs::AbstractVector{<:AbstractVertex}
-    outputs::AbstractVector{<:AbstractVertex}
+struct CompGraph{I<:AbstractVector{<:AbstractVertex}, O<:AbstractVector{<:AbstractVertex}}
+    inputs::I
+    outputs::O
 end
 CompGraph(input::AbstractVertex, output::AbstractVertex) = CompGraph([input], [output])
 CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex) = CompGraph(input, [output])
 CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = CompGraph([input], output)
 
-function (g::CompGraph)(x...) where T <:Integer
+function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
     memo::Dict{AbstractVertex, Any} = Dict(zip(g.inputs, x))
     if length(g.outputs) == 1
@@ -64,7 +64,7 @@ Dict{AbstractVertex,Any} with 4 entries:
   InputVertex(2, [CompVertex(*)])                                  => 3
 ```
 """
-function output!(memo::Dict{AbstractVertex, Any}, v::AbstractVertex)
+function output!(memo::AbstractDict{AbstractVertex, Any}, v::AbstractVertex)
     # Calculate outputs which are not already calculated
     return get!(memo, v) do
         inpt = map(iv -> output!(memo, iv), inputs(v))
