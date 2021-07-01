@@ -84,9 +84,16 @@ Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx`
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
+Δsize(g::CompGraph) = Δsize(default_outvalue, g::CompGraph)
 Δsize(valuefun, g::CompGraph) = Δsize(valuefun, DefaultJuMPΔSizeStrategy(), g)
+
+Δsize(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize(default_outvalue, s::AbstractΔSizeStrategy, g::CompGraph)
 Δsize(valuefun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize(valuefun, s, vertices(g))
+
+Δsize(v::AbstractVertex) = Δsize(default_outvalue, v::AbstractVertex)
 Δsize(valuefun, v::AbstractVertex) = Δsize(valuefun, DefaultJuMPΔSizeStrategy(), v)
+
+Δsize(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize(default_outvalue, s::AbstractΔSizeStrategy, v::AbstractVertex) 
 Δsize(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize(valuefun, s, all_in_graph(v))
 function Δsize(valuefun, s::SelectDirection, v::AbstractVertex)
     d = Δdirection(s.strategy)
@@ -98,7 +105,6 @@ end
 Δdirection(s::LogΔSizeExec) = Δdirection(s.andthen)
 Δdirection(::ΔNout) = Output()
 Δdirection(::ΔNin) = Input()
-
 
 Δsize(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(default_outvalue, case,s , vs)
 function Δsize(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
@@ -372,10 +378,11 @@ function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict
     end
 end
 
+# Minus sign because we maximize objective function in case NeuronIndices
 sizeobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) = -objective!(case, s, vertices, data)
 
 objective!(case::NeuronIndices, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, [s.vertex], [s.Δ], vertices, data)
-objective!(case::NeuronIndices, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs,vertices, data)
+objective!(case::NeuronIndices, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
 
 objective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vertices, data) = objective!(case, base(s), vertices, data) 
 function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) 

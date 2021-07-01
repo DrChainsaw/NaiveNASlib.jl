@@ -59,9 +59,9 @@ LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrate
 Logs `msgfun(v)` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen` for vertex `v`.
 """
 struct LogΔSizeExec{F, S} <: DecoratingJuMPΔSizeStrategy
-msgfun::F
-level::LogLevel
-andthen::S
+    msgfun::F
+    level::LogLevel
+    andthen::S
 end
 LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeFailNoOp())
 LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoop()) = LogΔSizeExec(v -> msg, level, andthen)
@@ -94,9 +94,9 @@ If `T == Relaxed`, size change will be added as an objective to the model which 
 If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
 struct ΔNout{T, V, F} <: AbstractJuMPΔSizeStrategy
-vertex::V
-Δ::Int
-fallback::F
+    vertex::V
+    Δ::Int
+    fallback::F
 end
 ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec("Could not change nout of $v by $(Δ)! Relaxing constraints...", Logging.Warn, ΔNoutRelaxed(v, Δ)))
 ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
@@ -120,9 +120,9 @@ If `T == Relaxed`, size change will be added as an objective to the model which 
 If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
 struct ΔNin{T, V, F} <: AbstractJuMPΔSizeStrategy
-vertices::Vector{V}
-Δs::Vector{Int}
-fallback::F
+    vertices::Vector{V}
+    Δs::Vector{Int}
+    fallback::F
 function ΔNin{T}(v, Δs, fallback::F) where {T, F}
     @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
     inds = .!ismissing.(Δs)
@@ -145,13 +145,13 @@ Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
 
 If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
 """
-struct AlignNinToNout <: DecoratingJuMPΔSizeStrategy
-nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
-vstrat::AbstractJuMPΔSizeStrategy
-fallback::AbstractJuMPΔSizeStrategy
+struct AlignNinToNout{S, F} <: DecoratingJuMPΔSizeStrategy
+    nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
+    vstrat::S
+    fallback::F
 end
 AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
-AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
+AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, Vector{JuMP.VariableRef}}(), vstrat, fallback)
 fallback(s::AlignNinToNout) = s.fallback
 base(s::AlignNinToNout) = s.vstrat
 
@@ -166,12 +166,12 @@ Useful in the context of removing vertices and/or edges.
 
 If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
 """
-struct AlignNinToNoutVertices <: DecoratingJuMPΔSizeStrategy
-vin::AbstractVertex
-vout::AbstractVertex
-ininds::AbstractArray{<:Integer}
-vstrat::AlignNinToNout
-fallback::AbstractJuMPΔSizeStrategy
+struct AlignNinToNoutVertices{V1,V2,F} <: DecoratingJuMPΔSizeStrategy
+    vin::V1
+    vout::V2
+    ininds::Vector{Int}
+    vstrat::AlignNinToNout
+    fallback::F
 end
 AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=failToAlign(vin, vout)) = AlignNinToNoutVertices(vin, vout, collect(inds), vstrat, fallback)
 AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, vstrat::AlignNinToNout, fallback::AbstractJuMPΔSizeStrategy=failToAlign(vin,vout)) = AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback)
@@ -190,7 +190,7 @@ Select indices for a vertex using `AbstractΔSizeStrategy s` (default `OutSelect
 
 Intended use it to reduce the number of constraints for a `AbstractJuMPΔSizeStrategy` as only the parts of the graph which are changed will be considered.
 """
-struct SelectDirection{S <: AbstractΔSizeStrategy} <: AbstractΔSizeStrategy
+struct SelectDirection{S} <: AbstractΔSizeStrategy
     strategy::S
 end
 SelectDirection() = SelectDirection(OutSelectExact())
@@ -206,7 +206,7 @@ Not needed in normal cases, but certain structural mutations (e.g create_edge!) 
 
 While this may be considered a flaw in the output selection procedure, it is rare enough so that in most cases when it happens it is the result of a user error or lower level bug. Therefore this strategy is left optional to be used only in cases when mismatches are expected.
 """
-struct TruncateInIndsToValid{S <: AbstractΔSizeStrategy} <: AbstractΔSizeStrategy
+struct TruncateInIndsToValid{S} <: AbstractΔSizeStrategy
     strategy::S
 end
 TruncateInIndsToValid() = TruncateInIndsToValid(DefaultJuMPΔSizeStrategy())
