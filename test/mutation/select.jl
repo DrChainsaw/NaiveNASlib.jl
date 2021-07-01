@@ -225,6 +225,49 @@
         @test size(g(ones(3))) == (nout(v7),)
     end
 
+    @testset "Decorating strategy" begin 
+        import NaiveNASlib: DecoratingJuMPΔSizeStrategy
+
+        struct DummyDecorator{S} <: DecoratingJuMPΔSizeStrategy
+            s::S
+        end
+        NaiveNASlib.base(s::DummyDecorator) = s.s
+
+        function graphgen()
+            inpt = iv(3)
+            v1 = av(inpt, 10, "v1")
+            v2 = av(inpt, 5, "v2")
+            v3 = av(inpt, 10, "v3")
+            v4 = av(inpt, 5, "v4")
+
+            v5 = cc(v1, v2, v3, name="v5")
+            v6 = cc(v2, v1, v2, v4, name="v6")
+
+            v7 = nc("v7") >> v5 + v6
+
+            CompGraph(inpt, v7)
+        end
+
+        genstrat(::Type{ΔNout{Exact}}, g) = ΔNoutExact(g.outputs[1], -7)
+        genstrat(::Type{ΔNout{Relaxed}}, g) = ΔNoutRelaxed(g.outputs[1], -7)
+        genstrat(::Type{ΔNin{Exact}}, g) = ΔNinExact(g.outputs[1], [-7, missing])
+        
+        @testset "$basestrat" for basestrat in (
+            ΔNout{Exact},
+            ΔNout{Relaxed},
+            ΔNin{Exact},
+        )
+            g_exp, g_act = graphgen(), graphgen()
+            s_exp = genstrat(basestrat, g_exp)
+            s_act = genstrat(basestrat, g_act)
+
+            @test Δsize(v -> 1:nout(v), s_exp, g_exp)
+            @test Δsize(v -> 1:nout(v), DummyDecorator(s_act), g_act)
+
+            @test nout.(vertices(g_exp)) == nout.(vertices(g_act))
+        end
+    end
+
     @testset "Increase SizeStack and SizeInvariant" begin
         inpt = iv(3)
         v1 = av(inpt, 3, "v1")
