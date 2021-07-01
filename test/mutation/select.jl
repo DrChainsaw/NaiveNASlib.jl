@@ -161,6 +161,24 @@
         @test size(g(ones(3))) == (nout(v6),)
     end
 
+    @testset "SizeStack exact infeasible" begin
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2a = tv(v1, "v2a")
+        v2b = tv(v1, "v2b")
+        v2c = tv(v1, "v2c")
+        v3 = cc(v2a, v2b, v2c; name="v3")
+
+        g = CompGraph(inpt, v3)
+        @test size(g(ones(3))) == (nout(v3),)
+
+        @test @test_logs (:warn, r"Could not change nout of") Δnout(v3, 2)
+
+        @test nout(v3) == 3nout(v1) == 15
+
+        @test size(g(ones(3))) == (nout(v3),)
+    end
+
     @testset "SizeStack one immutable" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")

@@ -270,9 +270,9 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
     noutdict = Dict(v => @expression(model, sum(outselectvars[v]) + sum(outinsertvars[v])) for v in vertices)
 
-    objexpr = objective!(case, s, vertices, (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, valuefun=valuefun))
+    objexpr = sizeobjective!(case, s, vertices, (;model, outselectvars, outinsertvars, noutdict, valuefun))
     for v in vertices
-        data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, noutdict = noutdict, objexpr = objexpr, valuefun = valuefun)
+        data = (;model, outselectvars, outinsertvars, noutdict, objexpr, valuefun)
         vertexconstraints!(case, v, s, data)
         objexpr = selectobjective!(case, s, v, data)
     end
@@ -371,14 +371,20 @@ function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict
         @constraint(model, var_i .== var)
     end
 end
-objective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, data) = objective!(case, base(s), vertices, data) 
-function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, data) 
+
+sizeobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) = -objective!(case, s, vertices, data)
+
+objective!(case::NeuronIndices, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, [s.vertex], [s.Δ], vertices, data)
+objective!(case::NeuronIndices, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs,vertices, data)
+
+objective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vertices, data) = objective!(case, base(s), vertices, data) 
+function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) 
     scale = map(v -> max(0, maximum(data.valuefun(v))), vertices)
-    noutvars = map(v -> @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])), vertices)
+    noutvars = map(v -> data.noutdict[v], vertices)
     sizetargets = map(v -> nout(v) - count(<(0), data.valuefun(v)), vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
-    return norm!(SumNorm(-0.1 => L1NormLinear(), -0.8 => MaxNormLinear()), data.model, @expression(data.model, objective[i=1:length(noutvars)], scale[i] * (noutvars[i] - sizetargets[i])), sizetargets)
+    return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), data.model, @expression(data.model, objective[i=1:length(noutvars)], scale[i] * (noutvars[i] - sizetargets[i])), sizetargets)
 end
 
 

@@ -310,17 +310,17 @@ Result vector is index aligned with `vertices`.
 Result `Dict` has a vector of input sizes for each element of `vertices` which has an input (i.e everything except input vertices).
 """
 function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
-
+    case = ScalarSize()
     model = sizemodel(s, vertices)
 
     noutvars = @variable(model, noutvars[i=1:length(vertices)], Int)
 
     noutdict = Dict(zip(vertices, noutvars))
     for v in vertices
-        vertexconstraints!(ScalarSize(), v, s, (model=model, noutdict=noutdict))
+        vertexconstraints!(case, v, s, (;model, noutdict))
     end
 
-    sizeobjective!(s, model, noutvars, vertices)
+    sizeobjective!(case, s, vertices, (;model, noutdict))
 
     JuMP.optimize!(model)
 
@@ -464,31 +464,37 @@ function compconstraint!(case, s, f, data) end
 
 Add the objective for `noutvars` using strategy `s`.
 """
-sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices) = @objective(model, Min, objective!(ScalarSize(), s, model, noutvars, vertices))
+sizeobjective!(s::AbstractJuMPΔSizeStrategy, vertices, data) = @objective(model, Min, objective!(ScalarSize(), s, vertices, data))
 
-function objective!(::ScalarSize, s, model, noutvars, vertices)
+function objective!(::ScalarSize, s, vertices, data)
+    model = data.model
+    noutvars = map(v -> data.noutdict[v], vertices)
     sizetargets = nout.(vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
 end
 
-objective!(s::ΔNout{Relaxed}, model, noutvars, vertices) = noutrelax!(model, [s.vertex], [s.Δ], noutvars, vertices)
-objective!(s::ΔNin{Relaxed}, model, noutvars, vertices) = noutrelax!(model, s.vertices, s.Δs, noutvars, vertices)
+objective!(case::ScalarSize, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, [s.vertex], [s.Δ], vertices, data)
+objective!(case::ScalarSize, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
 
-function noutrelax!(model, vs, Δs, noutvars, vertices)
-    inds = mapreduce(v -> vertices .== v, (i1,i2) -> i1 .| i2, vs)
-    def_obj = objective!(DefaultJuMPΔSizeStrategy(), model, noutvars[.!inds], vertices[.!inds])
-    sizetarget = nout.(vs) + Δs
-    Δnout_obj = norm!(L1NormLinear(), model, @expression(model, noutvars[inds] .- sizetarget))
+function noutrelax!(case, Δvs, Δs, vertices, data)
+    def_obj = objective!(case, DefaultJuMPΔSizeStrategy(), setdiff(vertices, Δvs), data)
+
+    model = data.model
+    noutvars = map(v -> data.noutdict[v], Δvs)
+
     # Force it to change as s.Δ might be too small
     # Trick from http://lpsolve.sourceforge.net/5.1/absolute.htm
-    Δnout_const = @expression(model, noutvars[inds] - nout.(vs))
-    B = @variable(model, [1:length(vs)], binary=true)
+    Δnout_const = @expression(model, noutvars .- nout.(Δvs))
+    B = @variable(model, [1:length(Δvs)], Bin)
     M = 1e5
     ϵ = 1e-2 # abs(Δnout_const) must be larger than this
     @constraint(model, Δnout_const .+ M .* B .>= ϵ)
     @constraint(model, Δnout_const .+ M .* B .<= M .- ϵ)
+   
+    sizetarget = nout.(Δvs) .+ Δs
+    Δnout_obj = norm!(L1NormLinear(), model, @expression(model, noutvars .- sizetarget))
 
     return @expression(model, def_obj + 1e6*sum(Δnout_obj))
 end
