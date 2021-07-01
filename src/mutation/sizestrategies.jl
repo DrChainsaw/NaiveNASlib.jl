@@ -24,6 +24,15 @@ Abstract type for strategies to change or align the sizes of vertices using JuMP
 abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
 
 """
+    DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
+
+Abstract type for AbstractJuMPΔSizeStrategies which wants to delegate some parts of the problem formulation to another strategy.
+
+More concretely: If `s` is a `DecoratingJuMPΔSizeStrategy` then `base(s)` will be used unless explicitly stated through dispatch.
+"""
+abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
+
+"""
 ΔSizeFailError <: AbstractJuMPΔSizeStrategy
 ΔSizeFailError(msg::String)
 
@@ -49,15 +58,15 @@ LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrate
 
 Logs `msgfun(v)` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen` for vertex `v`.
 """
-struct LogΔSizeExec{F, S} <: AbstractJuMPΔSizeStrategy
+struct LogΔSizeExec{F, S} <: DecoratingJuMPΔSizeStrategy
 msgfun::F
 level::LogLevel
 andthen::S
 end
 LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeFailNoOp())
 LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoop()) = LogΔSizeExec(v -> msg, level, andthen)
-
 LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(name(v)) failed! $nextstr", level, andthen)
+base(s::LogΔSizeExec) = s.andthen
 
 
 """
@@ -136,7 +145,7 @@ Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
 
 If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
 """
-struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
+struct AlignNinToNout <: DecoratingJuMPΔSizeStrategy
 nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
 vstrat::AbstractJuMPΔSizeStrategy
 fallback::AbstractJuMPΔSizeStrategy
@@ -144,6 +153,7 @@ end
 AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
 AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
 fallback(s::AlignNinToNout) = s.fallback
+base(s::AlignNinToNout) = s.vstrat
 
 """
 AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
@@ -156,7 +166,7 @@ Useful in the context of removing vertices and/or edges.
 
 If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
 """
-struct AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
+struct AlignNinToNoutVertices <: DecoratingJuMPΔSizeStrategy
 vin::AbstractVertex
 vout::AbstractVertex
 ininds::AbstractArray{<:Integer}
@@ -167,6 +177,7 @@ AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fall
 AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, vstrat::AlignNinToNout, fallback::AbstractJuMPΔSizeStrategy=failToAlign(vin,vout)) = AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback)
 AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, innerstrat::AbstractJuMPΔSizeStrategy, fallback=failtoalign(vin, vout)) = AlignNinToNoutVertices(vin, vout, inds, AlignNinToNout(vstrat=innerstrat), fallback)
 fallback(s::AlignNinToNoutVertices) = s.fallback
+base(s::AlignNinToNoutVertices) = s.vstrat
 
 failtoalign(vin, vout) = ΔSizeFailError("Could not align nout of $vin to nin of $(vout)!!")
 

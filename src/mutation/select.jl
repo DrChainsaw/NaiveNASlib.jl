@@ -256,7 +256,7 @@ Since selection of outputs is not guaranteed to work in all cases, a flag `succe
 """
 function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     model = selectmodel(NeuronIndices(), s, vertices, values)
-
+    case = NeuronIndices()
     # The binary variables `outselectvars` tells us which existing output indices to select
     # The integer variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
     # Thus, the result will consist of all selected indices with possibly interlaced -1s
@@ -270,25 +270,24 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
     noutdict = Dict(v => @expression(model, sum(outselectvars[v]) + sum(outinsertvars[v])) for v in vertices)
 
-    objexpr = objective!(NeuronIndices(), s, vertices, (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, valuefun=valuefun))
+    objexpr = objective!(case, s, vertices, (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, valuefun=valuefun))
     for v in vertices
         data = (model=model, outselectvars=outselectvars, outinsertvars=outinsertvars, noutdict = noutdict, objexpr = objexpr, valuefun = valuefun)
-        vertexconstraints!(NeuronIndices(), v, s, data)
-        objexpr = selectobjective!(NeuronIndices(), s, v, data)
+        vertexconstraints!(case, v, s, data)
+        objexpr = selectobjective!(case, s, v, data)
     end
 
     @objective(model, Max, objexpr)
 
     JuMP.optimize!(model)
 
-    !accept(s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
+    !accept(case, s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
 
 end
 
-accept(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
-
+selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, values) = selectmodel(case, base(s), v, values) 
 selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
 
 function vertexconstraints!(::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
@@ -308,6 +307,7 @@ function vertexconstraints!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, 
     inoutconstraint!(case, s, v, data)
 end
 
+insertconstraints!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = insertconstraints!(case, base(s), v, data) 
 insertconstraints!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = noinsertgaps!(data.model, data.outselectvars[v], data.outinsertvars[v])
 
 """
@@ -333,13 +333,15 @@ function noinsertgaps!(model, select, insert, maxinsert=length(select) * 10)
     @constraint(model, length(insert) - sum(select) <= sum(insert_nogap))
 end
 
-
+sizeconstraint!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = sizeconstraint!(case, base(s), v, data)
+sizeconstraint!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data) = sizeconstraint!(ScalarSize(), DefaultJuMPΔSizeStrategy(), v, data)
 sizeconstraint!(::NeuronIndices, s::ΔNout{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
 sizeconstraint!(::NeuronIndices, s::ΔNin{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
-sizeconstraint!(::NeuronIndices, s::AbstractΔSizeStrategy, v, data) = sizeconstraint!(ScalarSize(), DefaultJuMPΔSizeStrategy(), v, data)
 
+inoutconstraint!(case, s::DecoratingJuMPΔSizeStrategy, v, data) = inoutconstraint!(case, base(s), v, data) 
 inoutconstraint!(case, s, v, data) = inoutconstraint!(case, s, trait(v), v, data) 
 inoutconstraint!(case, s, t::DecoratingTrait, v, data) = inoutconstraint!(case, s, base(t), v, data) 
+
 
 function inoutconstraint!(::NeuronIndices, s, ::SizeAbsorb, v, data) end
 function inoutconstraint!(case::NeuronIndices, s, t::SizeTransparent, v, data)
@@ -369,7 +371,7 @@ function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict
         @constraint(model, var_i .== var)
     end
 end
-
+objective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, data) = objective!(case, base(s), vertices, data) 
 function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, data) 
     scale = map(v -> max(0, maximum(data.valuefun(v))), vertices)
     noutvars = map(v -> @expression(data.model, sum(data.outselectvars[v]) + sum(data.outinsertvars[v])), vertices)
@@ -385,9 +387,10 @@ function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v,
     insertlast = insertlastobjective!(case, s, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
 end
-
+valueobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = valueobjective!(case, base(s), v, data)
 valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
 
+insertlastobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = insertlastobjective!(case::NeuronIndices, base(s), v, data)
 function insertlastobjective!(::NeuronIndices, s, v, data)
     insvars = data.outinsertvars[v]
     preferend = collect(length(insvars) : -1 : 1)
@@ -395,6 +398,7 @@ function insertlastobjective!(::NeuronIndices, s, v, data)
     return @expression(data.model, -0.1scale*sum(insvars .* preferend))
 end
 
+extract_ininds_and_outinds(s::DecoratingJuMPΔSizeStrategy, outselectvars::Dict, outinsertvars::Dict) = extract_ininds_and_outinds(base(s), outselectvars, outinsertvars)
 function extract_ininds_and_outinds(s, outselectvars::Dict, outinsertvars::Dict)
     outinds = Dict([v => extract_inds(s, outselectvars[v], outinsertvars[v]) for v in keys(outselectvars)])
     ininds = Dict([v => getall(outinds, inputs(v)) for v in keys(outselectvars)])

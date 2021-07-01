@@ -324,7 +324,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
 
     JuMP.optimize!(model)
 
-    if accept(s, model)
+    if accept(ScalarSize(), s, model)
         return true, ninsAndNouts(s, vertices, noutvars)...
     end
     return newsizes(fallback(s), vertices)
@@ -336,6 +336,15 @@ end
 Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 """
 sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
+
+"""
+    accept(case, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model)
+
+Return true of the solution for `model` is accepted using strategy `s`.
+"""
+accept(case, s::DecoratingJuMPΔSizeStrategy, model::JuMP.Model) = accept(case, base(s), model)
+accept(case, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
+
 
 # Just a shortcut for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
@@ -483,13 +492,6 @@ function noutrelax!(model, vs, Δs, noutvars, vertices)
 
     return @expression(model, def_obj + 1e6*sum(Δnout_obj))
 end
-
-"""
-    accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model)
-
-Return true of the solution for `model` is accepted using strategy `s`.
-"""
-accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT
 
 function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
     nouts = round.(Int, JuMP.value.(noutvars))
