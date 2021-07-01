@@ -357,7 +357,7 @@ function vertexconstraints!(currcase::ScalarSize, v::AbstractVertex, s::AlignNin
     vertexconstraints!(currcase, v, s.vstrat, data)
     # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
     for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
-        ninvar = @variable(data.model; integer=true)
+        ninvar = @variable(data.model, integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
 
         ninarr = get!(() -> Vector{JuMP.VariableRef}(undef, length(inputs(vo))), s.nindict, vo)

@@ -6,51 +6,41 @@
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
     av(in, outsize, name) = absorbvertex(IndMem(MatMul(nout(in), outsize)), in; traitdecoration=tf(name))
-    tv(in, name) = invariantvertex(identity, in; traitdecoration=tf(name))
+    tv(in, name) = invariantvertex(IndMem(identity, [nout(in)], nout(in)), in; traitdecoration=tf(name))
 
-    concindmem(ins) = f ->  IndMem(f, convert(Vector{Union{Missing, Vector{Int}}}, map(iv -> collect(1:nout(iv)), collect(ins))), collect(1:sum(nout, ins)))
+    concindmem(ins) = f ->  IndMem(f, [nout(v) for v in ins], sum(nout, ins))
     cc(ins...; name) = conc(ins...; dims=1, traitdecoration=tf(name), outwrap=concindmem(ins))
     nc(name) = traitconf(nt(name))
-
-    select_outputs_and_change(v, values) = select_outputs_and_change(NoutExact(), v, values)
-    function select_outputs_and_change(s, v, values)
-        execute, selected = select_outputs(s, v, values)
-        if execute
-            Δnout(v, selected)
-        end
-    end
 
     @testset "SelectDirection" begin
 
         mutable struct TestProbe <: AbstractΔSizeStrategy
             vs
-            function TestProbe(v)
-                tp = new(nothing)
+            d
+            function TestProbe(v, d)
+                tp = new(nothing, d)
                 Δsize(v -> error("Shall not be called!"), SelectDirection(tp), v)
                 return tp
             end
         end
-        NaiveNASlib.Δsize(vfun, case, s::TestProbe, vs::AbstractVector{<:AbstractVertex}) = s.vs = Set(vs)
+        NaiveNASlib.Δsize(vfun, s::TestProbe, d, v::AbstractVertex) = s.vs = Set(all_in_Δsize_graph(v, d))
+        NaiveNASlib.Δdirection(t::TestProbe) = t.d
 
         v1 = av(iv(3), 5, "v1")
         v2 = av(v1, 4, "v2")
         v3 = av(v2, 3, "v3")
 
-        tp = TestProbe(v2)
+        tp = TestProbe(v2, nothing)
         @test tp.vs === nothing
 
-        Δnin(v2, -1)
-        tp = TestProbe(v2)
+        tp = TestProbe(v2, Input())
         @test tp.vs == Set([v2, v1])
 
-        Δnout(v2, 1)
-        tp = TestProbe(v2)
-        @test tp.vs == Set([v1, v2, v3])
-
-        Δnin(v2, 1)
-        tp = TestProbe(v2)
+        tp = TestProbe(v2, Output())
         @test tp.vs == Set([v2, v3])
 
+        tp = TestProbe(v2, Both())
+        @test tp.vs == Set([v1, v2, v3])
     end
 
     @testset "Absorb 2 Absorb" begin
@@ -63,13 +53,15 @@
         @test Δnout(v -> 1:nout(v), v1, -2)
 
         @test lastouts(v1) == lastins(v2) == [3,4,5]
-
         @test size(g(ones(3))) == (nout(v2),)
 
         @test Δnout(v1, 3)
 
         @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
+        @test size(g(ones(3))) == (nout(v2),)
 
+        @test Δnin(v2, -2)
+        @test lastouts(v1) == lastins(v2) == [3,4,5,6]
         @test size(g(ones(3))) == (nout(v2),)
     end
 
@@ -105,6 +97,20 @@
         @test nout(v2) == 3
 
         @test size(g(ones(3, 3))) == (nout(v4), 3)
+
+        @test Δnin(v4, -2, 3)
+
+        @test nout(v1) == 6
+        @test nout(v2) == 6
+
+        @test size(g(ones(3))) == (nout(v4),)
+
+        @test Δnin(v4, -2, missing)
+
+        @test nout(v1) == 4
+        @test nout(v2) == 6
+
+        @test size(g(ones(3))) == (nout(v4),)
     end
 
     @testset "SizeInvariant duplicate" begin
@@ -122,7 +128,7 @@
         @test size(g(ones(3))) == (nout(v6),)
 
         @test minΔnoutfactor(v6) == 2
-        @test Δnout(v->1:nout_org(v), v6, -4)
+        @test Δnout(v->1:nout(v), v6, -4)
 
         @test nout(v1) == 5
         @test nout(v2) == 2
@@ -135,6 +141,22 @@
         @test nout(v1) == 9
         @test nout(v2) == 4
         @test nout(v3) == 5
+
+        @test size(g(ones(3))) == (nout(v6),)
+
+        @test Δnin(v -> 1:nout(v), v6, -2, -2)
+
+        @test nout(v1) == 8
+        @test nout(v2) == 3
+        @test nout(v3) == 5
+
+        @test size(g(ones(3))) == (nout(v6),)
+
+        @test Δnin(v -> 1:nout(v), v6, 3, missing)
+
+        @test nout(v1) == 10
+        @test nout(v2) == 4
+        @test nout(v3) == 6
 
         @test size(g(ones(3))) == (nout(v6),)
     end
@@ -286,7 +308,7 @@
         @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
     end
 
-    @testset "Increase after vertex removal" begin
+    @testset "Increase at vertex removal" begin
         inpt = iv(3)
         v1 = av(inpt, 2, "v1")
         v2 = tv(v1, "v2")
@@ -296,19 +318,15 @@
         g = CompGraph(inpt, v4)
         @test size(g(ones(3))) == (nout(v4),)
 
-        remove!(v3, RemoveStrategy())
+        @test remove!(v3, RemoveStrategy())
 
-        @test Δoutputs(v2, v -> 1:nout_org(v))
+        @test lastins(v4)== [1,2,3,4]
+        @test lastouts(v1) == lastouts(v2) == [1, 2, -1, -1]
 
-        @test in_inds(op(v4))[] == [1,2,-1,-1] # TODO: Should be [1,2,3,4]
-        @test out_inds(op(v1)) == out_inds(op(v2)) == [1, 2, -1, -1]
-
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
     end
 
-    @testset "Decrease after vertex removal" begin
+    @testset "Decrease at vertex removal" begin
         inpt = iv(3)
         v1 = av(inpt, 2, "v1")
         v2 = tv(v1, "v2")
@@ -316,22 +334,20 @@
         v4 = av(v3, 3, "v4")
 
         g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
 
-        remove!(v3, RemoveStrategy(DecreaseBigger()))
+        @test remove!(v3, RemoveStrategy(DecreaseBigger()))
 
-        # What happened now is that nin(v4) got decreased from 4 to 2. We now need to select which inputs to keep
-        # However, there is absolutely no need at all to select anything from v2 and before as they have not changed.
-        @test Δoutputs(Output(), v2, v -> 1:nout_org(v))
+        # What happened now is that nin(v4) got decreased from 4 to 2. 
+        # However, there was absolutely no need at all to select anything from v2 and before as they have not changed.
 
-        @test in_inds(op(v4))[] == out_inds(op(v1)) == out_inds(op(v2)) == out_inds(op(v3)) == [1, 2]
+        @test lastins(v4) == lastouts(v3) == [3, 4]
+        @test lastouts(v1) == lastouts(v2) == [1, 2]
 
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
     end
 
-    @testset "Increase after vertex removal SizeStack" begin
+    @testset "Increase at vertex removal SizeStack" begin
         inpt = iv(3)
         v1 = av(inpt, 3, "v1")
         v2 = av(inpt, 4, "v2")
@@ -339,21 +355,20 @@
         v4 = cc(v2, v3, name="v4")
 
         g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
 
-        remove!(v3, RemoveStrategy())
+        @test remove!(v3, RemoveStrategy())
 
-        @test Δoutputs(Output(), v2, v -> 1:nout_org(v))
+        # v4 did not change
+        @test lastins(v4) == [[1, 2, 3, 4], [1, 2, 3, 4, 5]]
+        @test lastouts(v4) == 1:9
 
-        @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3,-1,-1]]
-        @test out_inds(op(v4)) == 1:9
+        @test [lastouts(v2), lastouts(v1)] == [[1,2,3,4], [1,2,3,-1,-1]]
 
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
     end
 
-    @testset "Decrease after vertex removal SizeStack" begin
+    @testset "Decrease at vertex removal SizeStack" begin
         inpt = iv(3)
         v1 = av(inpt, 3, "v1")
         v2 = av(inpt, 4, "v2")
@@ -361,73 +376,17 @@
         v4 = cc(v2, v3, name="v4")
 
         g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(Float32, 3))) == (nout(v4),)
 
-        remove!(v3, RemoveStrategy(DecreaseBigger()))
+        @test remove!(v3, RemoveStrategy(DecreaseBigger()))
 
-        @test Δoutputs(v2, v -> 1:nout_org(v))
+        @test lastins(v4) == [[1, 2, 3, 4], [2, 4, 5]]
+        @test lastouts(v4) == [1, 2, 3, 4, 6, 8, 9] 
 
-        @test in_inds(op(v4)) == [out_inds(op(v2)), out_inds(op(v1))] == [[1,2,3,4], [1,2,3]]
-        @test out_inds(op(v4)) == [1,2,3,4,7,8,9]
+        # v2 and v1 did not change
+        @test [lastouts(v2), lastouts(v1)] == [[1,2,3,4], [1,2,3]]
 
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
-    end
-
-    @testset "SelectOutputs after increse due to vertex removal" begin
-        inpt = iv(3)
-        v1 = av(inpt, 2, "v1")
-        v2 = av(v1, 3, "v2")
-        v3 = av(v2, 5, "v3")
-        v4 = av(v3, 3, "v4")
-
-        g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
-
-        remove!(v3, RemoveStrategy(SelectOutputs(select=SelectDirection(), valuefun = v -> 1:nout_org(v))))
-
-        @test out_inds(op(v2)) == [1,2,3,-1,-1]
-        @test in_inds(op(v4))[] == [1,2,3,4,5]
-
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
-    end
-
-    @testset "SelectOutputs after decrease due to vertex removal" begin
-        inpt = iv(3)
-        v1 = av(inpt, 2, "v1")
-        v2 = av(v1, 3, "v2")
-        v3 = av(v2, 5, "v3")
-        v4 = av(v3, 3, "v4")
-
-        g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
-
-        remove!(v3, RemoveStrategy(SelectOutputs(align=DecreaseBigger(), valuefun= v -> 1:nout_org(v))))
-
-        @test in_inds(op(v4))[] == out_inds(op(v3)) == [3,4,5]
-
-        apply_mutation(g)
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
-    end
-
-    @testset "ApplyMutation vertex removal SizeStack" begin
-        inpt = iv(3)
-        v1 = av(inpt, 3, "v1")
-        v2 = av(inpt, 4, "v2")
-        v3 = av(v1, 5, "v3")
-        v4 = cc(v2, v3, name="v4")
-
-        g = CompGraph(inpt, v4)
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
-
-        remove!(v3, RemoveStrategy(ApplyMutation()))
-        @test nout(v1) == 5
-
-        @test size(g(ones(Float32, 1,3))) == (1, nout(v4))
+        @test size(g(ones(3))) == (nout(v4),)
     end
 
     @testset "TruncateInIndsToValid" begin
@@ -440,18 +399,15 @@
         @test size(g(ones(3))) == (nout(v2),)
 
         vnew = av(inpt, 7, "vnew")
-        create_edge!(vnew, v2;strategy=PostAlignJuMP())
-        @test nin_org(v2) == [3, 0] != [nout(v1), nout(vnew)]
+        create_edge!(vnew, v2;strategy=PostAlign(TruncateInIndsToValid(AlignNinToNout())))
+        @test nin(v2) == [nout(v1), nout(vnew)] == [7, 7] 
 
-        Δoutputs(TruncateInIndsToValid(), g, v -> 1:nout_org(v))
-
-        @test out_inds(op(vnew)) == [4,5,6,7]
-        @test in_inds(op(v2)) == [[1,2,3,-1], [1,2,3,-1]]
-        @test out_inds(op(v2)) == [1,2,3,-1]
+        @test lastouts(vnew) == 1:7
+        @test lastins(v2) == [[1,2,3,-1,-1,-1,-1], [1,2,3,-1,-1,-1,-1]]
+        @test lastouts(v2) == [1,2,3,-1,-1,-1,-1]
     end
 
     @testset "CompConstraint" begin
-
         struct CompConstraint end
         function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, ::AbstractJuMPΔSizeStrategy, ::CompConstraint, data)
             var = data.outselectvars[data.vertex];

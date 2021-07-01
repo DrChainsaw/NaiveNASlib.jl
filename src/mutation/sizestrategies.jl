@@ -110,17 +110,18 @@ If `T == Relaxed`, size change will be added as an objective to the model which 
 
 If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
-struct ΔNin{T} <: AbstractJuMPΔSizeStrategy
-vertices::Vector{<:AbstractVertex}
+struct ΔNin{T, V, F} <: AbstractJuMPΔSizeStrategy
+vertices::Vector{V}
 Δs::Vector{Int}
-fallback::AbstractJuMPΔSizeStrategy
-function ΔNin{T}(v, Δs, fallback) where T
+fallback::F
+function ΔNin{T}(v, Δs, fallback::F) where {T, F}
     @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
     inds = .!ismissing.(Δs)
-    new(inputs(v)[inds], Δs[inds], fallback)
+    ivs = inputs(v)[inds]
+    new{T, eltype(ivs), F}(ivs, Δs[inds], fallback)
 end
 end
-ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Exact}(v, Δs, LogΔSizeExec(Logging.Warn, "Could not change nin of $v by $(join(Δs, ", "))! Relaxing constraints...", ΔNinRelaxed(v, Δs)))
+ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Exact}(v, Δs, LogΔSizeExec("Could not change nin of $v by $(join(Δs, ", "))! Relaxing constraints...", Logging.Warn, ΔNinRelaxed(v, Δs)))
 ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNin{Exact}(v, [Δ])
 ΔNinRelaxed(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Relaxed}(v, Δs, ΔSizeFailError("Could not change nin of $vertex by $(join(Δs, ", "))!!"))
 ΔNinRelaxed(v::AbstractVertex, Δ::Integer) = ΔNin{Relaxed}(v, [Δ])
@@ -197,4 +198,4 @@ While this may be considered a flaw in the output selection procedure, it is rar
 struct TruncateInIndsToValid{S <: AbstractΔSizeStrategy} <: AbstractΔSizeStrategy
     strategy::S
 end
-TruncateInIndsToValid() = TruncateInIndsToValid(OutSelectExact())
+TruncateInIndsToValid() = TruncateInIndsToValid(DefaultJuMPΔSizeStrategy())

@@ -43,7 +43,7 @@ export AbstractΔSizeStrategy, LogSelection, LogSelectionFallback, SelectionFail
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeNoOp, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlignJuMP, SelectOutputs, ApplyMutation, PostSelectOutputs, PostApplyMutation
+export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeNoOp, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlign, SelectOutputs, ApplyMutation, PostSelectOutputs, PostApplyMutation
 
 # Connect strategies
 export AbstractConnectStrategy, ConnectAll, ConnectNone

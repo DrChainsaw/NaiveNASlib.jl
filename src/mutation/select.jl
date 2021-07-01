@@ -13,6 +13,7 @@ struct NeuronIndices end
 Δnout(valuefun::Function, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Output(), v, Δ)
 Δnin(valuefun::Function, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Input(), v, Δ, Δs...)
 
+Δsizetype(vs::AbstractVector{<:AbstractVertex}) = partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true)
 Δsizetype(v::AbstractVertex, seen=Set()) = v in seen ? nothing : Δsizetype(trait(v), v, push!(seen, v))
 Δsizetype(t::DecoratingTrait, v, seen) = Δsizetype(base(t), v, seen)
 Δsizetype(t::MutationTrait, v, seen) = Δsizetype(t, base(v), seen)
@@ -65,8 +66,8 @@ Change size of `v` by `Δ` in direction `d`.
 Δsize(f, ::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(f, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_graph(v))
 Δsize(f, ::Output, v, Δ::T) where T <: Integer = Δsize(f, ΔNoutExact(v, Δ), all_in_graph(v))
 
-Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true), s, vs)
-Δsize(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true), s, vs)
+Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, Δsizetype(vs), s, vs)
+Δsize(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(Δsizetype(vs), s, vs)
 
 
 """
@@ -88,21 +89,17 @@ If provided, `Direction d` will narrow down the set of vertices to evaluate so t
 Δsize(valuefun, v::AbstractVertex) = Δsize(valuefun, DefaultJuMPΔSizeStrategy(), v)
 Δsize(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize(valuefun, s, all_in_graph(v))
 function Δsize(valuefun, s::SelectDirection, v::AbstractVertex)
-    nin_change = nin_org(v) != nin(v)
-    nout_change = nout_org(v) != nout(v)
-    
-    d = if nout_change && nin_change
-        Both()
-    elseif nout_change
-        Output()
-    elseif nin_change
-        Input()
-    else
-        return true
-    end
-
+    d = Δdirection(s.strategy)
+    d === nothing && return true
     return Δsize(valuefun, s.strategy, d, v)
 end
+
+Δdirection(::AbstractΔSizeStrategy) = Both()
+Δdirection(s::LogΔSizeExec) = Δdirection(s.andthen)
+Δdirection(::ΔNout) = Output()
+Δdirection(::ΔNin) = Input()
+
+
 Δsize(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(default_outvalue, case,s , vs)
 function Δsize(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
@@ -112,7 +109,7 @@ function Δsize(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::Ab
     return success
 end
 
-function Δsize(valuefun, ::NeuronIndices, s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex})
+function Δsize(valuefun, case::NeuronIndices, s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s.strategy, vs, valuefun)
     if success
         for (vv, ininds) in ins
@@ -123,7 +120,7 @@ function Δsize(valuefun, ::NeuronIndices, s::TruncateInIndsToValid, vs::Abstrac
             ins[vv] = newins
             outs[vv] = newouts
         end
-        Δsize(ins, outs, vs)
+        Δsize(case, ins, outs, vs)
     end
     return success
 end
@@ -241,20 +238,6 @@ end
 parselect(::Missing, args...;kwargs...) = missing
 
 
-function Δnin(::OnlyFor, v) end
-function Δnin(::OnlyFor, v, inds::Missing) end
-function Δnin(s::OnlyFor, v, inds::AbstractVector{<:Integer}...)
-    any(inds .!= [1:insize for insize in nin(v)]) || return
-    Δnin(s, trait(v), v, inds)
-end
-
-function Δnout(::OnlyFor, v, inds::Missing) end
-function Δnout(s::OnlyFor, v, inds::AbstractVector{<:Integer})
-    inds == 1:nout(v) && return
-    Δnout(s, trait(v), v, inds)
-end
-
-
 function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
     @logmsg s.level s.msgfun(vertices[1])
     return solve_outputs_selection(s.andthen, vertices, valuefun)
@@ -352,6 +335,8 @@ end
 
 
 sizeconstraint!(::NeuronIndices, s::ΔNout{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
+sizeconstraint!(::NeuronIndices, s::ΔNin{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
+sizeconstraint!(::NeuronIndices, s::AbstractΔSizeStrategy, v, data) = sizeconstraint!(ScalarSize(), DefaultJuMPΔSizeStrategy(), v, data)
 
 inoutconstraint!(case, s, v, data) = inoutconstraint!(case, s, trait(v), v, data) 
 inoutconstraint!(case, s, t::DecoratingTrait, v, data) = inoutconstraint!(case, s, base(t), v, data) 

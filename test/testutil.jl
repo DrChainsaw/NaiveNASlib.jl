@@ -41,6 +41,7 @@ mutable struct IndMem{F}
     lastouts::Vector{Int}
 end
 IndMem(w) = IndMem(w, convert(Vector{Union{Missing, Vector{Int}}}, map(i -> collect(1:i), nin(w))), collect(1:nout(w)))
+IndMem(w, is::AbstractVector{<:Integer}, os::Integer) = IndMem(w, convert(Vector{Union{Missing, Vector{Int}}}, map(i -> collect(1:i), is)), collect(1:os))
 
 NaiveNASlib.minΔninfactor(im::IndMem) = minΔninfactor(im.wrapped)
 NaiveNASlib.minΔnoutfactor(im::IndMem) = minΔnoutfactor(im.wrapped)
