@@ -415,8 +415,9 @@ Extra info like the model and variables is provided in `data`.
 sizeconstraint!(::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data) = @constraint(data.model, data.noutdict[v] >= 1)
 
 function sizeconstraint!(case::ScalarSize, s::ΔNout{Exact}, v, data)
-    if v == s.vertex
-        @constraint(data.model, data.noutdict[v] == nout(v) + s.Δ)
+    Δ = get(s.Δs, v, nothing)
+    if Δ !== nothing
+        @constraint(data.model, data.noutdict[v] == nout(v) + Δ)
     else
         sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), v, data)
     end
@@ -475,26 +476,25 @@ function objective!(::ScalarSize, s, vertices, data)
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
 end
 
-objective!(case::ScalarSize, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, [s.vertex], [s.Δ], vertices, data)
-objective!(case::ScalarSize, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
+objective!(case::ScalarSize, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, s.Δs, vertices, data)
+#objective!(case::ScalarSize, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
 
-function noutrelax!(case, Δvs, Δs, vertices, data)
-    def_obj = objective!(case, DefaultJuMPΔSizeStrategy(), setdiff(vertices, Δvs), data)
+function noutrelax!(case, Δs, vertices, data)
+    def_obj = objective!(case, DefaultJuMPΔSizeStrategy(), setdiff(vertices, keys(Δs)), data)
 
     model = data.model
-    noutvars = map(v -> data.noutdict[v], Δvs)
-
-    # Force it to change as s.Δ might be too small
+    # Force it to change as Δ might be too small
     # Trick from http://lpsolve.sourceforge.net/5.1/absolute.htm
-    Δnout_const = @expression(model, noutvars .- nout.(Δvs))
-    B = @variable(model, [1:length(Δvs)], Bin)
+    Δnout_const = @expression(model, [data.noutdict[v] - nout(v) for v in keys(Δs)])
+
+    B = @variable(model, [1:length(Δs)], Bin)
     M = 1e5
     ϵ = 1e-2 # abs(Δnout_const) must be larger than this
     @constraint(model, Δnout_const .+ M .* B .>= ϵ)
     @constraint(model, Δnout_const .+ M .* B .<= M .- ϵ)
    
-    sizetarget = nout.(Δvs) .+ Δs
-    Δnout_obj = norm!(L1NormLinear(), model, @expression(model, noutvars .- sizetarget))
+    sizediff = @expression(model, [data.noutdict[v] - nout(v) - Δ for (v, Δ) in Δs])
+    Δnout_obj = norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, sizediff)
 
     return @expression(model, def_obj + 1e6*sum(Δnout_obj))
 end

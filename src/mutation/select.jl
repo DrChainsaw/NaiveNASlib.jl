@@ -381,8 +381,8 @@ end
 # Minus sign because we maximize objective function in case NeuronIndices
 sizeobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) = -objective!(case, s, vertices, data)
 
-objective!(case::NeuronIndices, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, [s.vertex], [s.Δ], vertices, data)
-objective!(case::NeuronIndices, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
+objective!(case::NeuronIndices, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, s.Δs, vertices, data)
+#objective!(case::NeuronIndices, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
 
 objective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vertices, data) = objective!(case, base(s), vertices, data) 
 function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) 

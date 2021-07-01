@@ -94,14 +94,18 @@ If `T == Relaxed`, size change will be added as an objective to the model which 
 If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
 struct ΔNout{T, V, F} <: AbstractJuMPΔSizeStrategy
-    vertex::V
-    Δ::Int
+    Δs::Dict{V, Int}
     fallback::F
 end
-ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec("Could not change nout of $v by $(Δ)! Relaxing constraints...", Logging.Warn, ΔNoutRelaxed(v, Δ)))
-ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
-ΔNout{T}(v::V, Δ::Integer, f::F) where {V, T, F} = ΔNout{T, V, F}(v, Int(Δ), f)
+ΔNoutExact(args...; fallback=LogΔSizeExec("Could not change nout of $(Δnout_err_info(args...))! Relaxing constraints...", Logging.Warn, ΔNoutRelaxed(args...))) = ΔNout{Exact}(args...;fallback)
+ΔNoutRelaxed(args...;fallback=ΔSizeFailError("Could not change nout of $(Δnout_err_info(args...))!!")) = ΔNout{Relaxed}(args...;fallback)
+ΔNout{T}(v::AbstractVertex, Δ::Integer; fallback) where T = ΔNout{T}(v=>Int(Δ); fallback)
+ΔNout{T}(args...; fallback) where T = ΔNout{T}(Dict(args...); fallback)
+ΔNout{T}(Δs::Dict{V, Int}; fallback) where {T,V} = ΔNout{T,V,typeof(fallback)}(Δs, fallback)
 fallback(s::ΔNout) = s.fallback
+
+Δnout_err_info(v, Δ) = "$v by $Δ"
+Δnout_err_info(ps::Pair...) = join(map(p ->Δnout_err_info(p...), ps), ", ", " and ")
 
 """
 ΔNin{T} <: AbstractJuMPΔSizeStrategy

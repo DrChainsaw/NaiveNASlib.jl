@@ -326,12 +326,12 @@ proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 Δninstrat(t::DecoratingTrait, v, Δ) = Δninstrat(base(t), v, Δ)
 Δninstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
 Δninstrat(::MutationSizeTrait, v, Δ) = ΔNin{Exact}(v, [Δ], ΔSizeFailNoOp())
-Δninstrat(::SizeTransparent, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+Δninstrat(::SizeTransparent, v, Δ) = ΔNoutExact(v, Δ; fallback=ΔSizeFailNoOp())
 
 Δnoutstrat(v, Δ) = Δnoutstrat(trait(v), v, Δ)
 Δnoutstrat(t::DecoratingTrait, v, Δ) = Δnoutstrat(base(t), v, Δ)
 Δnoutstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
-Δnoutstrat(::MutationSizeTrait, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+Δnoutstrat(::MutationSizeTrait, v, Δ) = ΔNoutExact(v, Δ; fallback=ΔSizeFailNoOp())
 
 function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
