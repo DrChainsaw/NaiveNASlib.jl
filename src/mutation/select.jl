@@ -364,7 +364,7 @@ end
 
 function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict::Dict)
     var = vardict[v]
-    for (i, vi) in enumerate(inputs(v))
+    for vi in inputs(v)
         # Sizes mismatch when vertex/edge was removed (or edge added)
         nout_org(vi) == nout_org(v) || continue
         var_i = vardict[vi]
