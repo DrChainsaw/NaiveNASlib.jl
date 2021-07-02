@@ -180,14 +180,16 @@ end
 
 split_exact_relaxed(p::Tuple{AbstractVertex, Any}) = split_exact_relaxed(tuple(Pair(p...)))
 split_exact_relaxed(d::Tuple{Dict}) = split_exact_relaxed(first(d))
-function split_exact_relaxed(args::Union{AbstractDict, Tuple{Vararg{Pair}}})
-    exact=Dict()
-    relaxed=Dict() 
+function split_exact_relaxed(args::Union{AbstractDict{V}, Tuple{Vararg{Pair{V}}}}) where V
+    exact=Dict{V, Int}()
+    relaxed=Dict{V, Int}() 
     for (k, v) in args
         if !isa(v, Pair) || v isa Pair{<:Any, Exact}
             exact[k] = first(v) # first works for numbers too
         elseif v isa Pair{<:Any, Relaxed}
             relaxed[k] = first(v)
+        else
+            throw(ArgumentError(string("Unhandled value type: ", v)))
         end
     end
     return exact, relaxed
