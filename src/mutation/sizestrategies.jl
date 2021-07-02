@@ -79,6 +79,7 @@ struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 struct Exact end
 struct Relaxed end
 
+
 """
 ΔNout{T} <: AbstractJuMPΔSizeStrategy
 ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
@@ -97,17 +98,21 @@ struct ΔNout{T, V, F} <: AbstractJuMPΔSizeStrategy
     Δs::Dict{V, Int}
     fallback::F
 end
-ΔNoutExact(args...; fallback=LogΔSizeExec("Could not change nout of $(Δnout_err_info(args...))! Relaxing constraints...", Logging.Warn, ΔNoutRelaxed(args...))) = ΔNout{Exact}(args...;fallback)
+ΔNoutExact(args...; fallback=default_noutfallback(ΔNoutRelaxed,"nout", args)) = ΔNout{Exact}(args...;fallback)
 ΔNoutRelaxed(args...;fallback=ΔSizeFailError("Could not change nout of $(Δnout_err_info(args...))!!")) = ΔNout{Relaxed}(args...;fallback)
 ΔNout{T}(v::AbstractVertex, Δ::Integer; fallback) where T = ΔNout{T}(v=>Int(Δ); fallback)
 ΔNout{T}(args...; fallback) where T = ΔNout{T}(Dict(args...); fallback)
 ΔNout{T}(Δs::AbstractDict{V, Int}; fallback) where {T,V} = ΔNout{T,V,typeof(fallback)}(Dict(Δs), fallback)
 fallback(s::ΔNout) = s.fallback
 
-Δnout_err_info(v::AbstractVertex, Δ::Maybe{Int}...) = "$v by $(join(Δ, ","))"
-Δnout_err_info(v::AbstractVertex, Δ::NTuple{N, Maybe{Int}}) where N = Δnout_err_info(v, Δ...)
+Δnout_err_info(v, Δ::Maybe{Int}...) = "$v by $(join(Δ, ","))"
+Δnout_err_info(v, Δ::Tuple{Vararg{Maybe{Int}}}) = Δnout_err_info(v, Δ...)
 Δnout_err_info(ps::Pair...) = join(map(p ->Δnout_err_info(p...), ps), ", ", " and ")
 Δnout_err_info(d::AbstractDict) = join((Δnout_err_info(k, v) for (k,v) in d), ", ", " and ")
+
+function default_noutfallback(nextfallback, dirstr, args) 
+    LogΔSizeExec("Could not change $dirstr of $(Δnout_err_info(args...))! Relaxing constraints...", Logging.Warn, nextfallback(args...))
+end
 
 """
 ΔNin{T} <: AbstractJuMPΔSizeStrategy
@@ -125,19 +130,56 @@ If `T == Relaxed`, size change will be added as an objective to the model which 
 
 If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
-ΔNinExact(args...; fallback=LogΔSizeExec("Could not change nin of $(Δnout_err_info(args...))! Relaxing constraints...", Logging.Warn, ΔNinRelaxed(args...))) = ΔNin{Exact}(args...; fallback)
-ΔNinRelaxed(args...; fallback=ΔSizeFailError("Could not change nin of $(Δnout_err_info(args...))!!")) = ΔNin{Relaxed}(args...;fallback)
-ΔNin{T}(args...; fallback) where T = ΔNout{T}(Δnin2Δnout(args...); fallback)
+ΔNinExact(args...; fallback=default_noutfallback(ΔNinRelaxed, "nin", args)) = ΔNin(Exact(), args...; fallback)
+ΔNinRelaxed(args...; fallback=ΔSizeFailError("Could not change nin of $(Δnout_err_info(args...))!!")) = ΔNin(Relaxed(), args...;fallback)
+ΔNin(::T, args...; fallback) where T<:Union{Relaxed, Exact} = ΔNout{T}(Δnin2Δnout(args...); fallback)
 
-Δnin2Δnout(d::AbstractDict) = reduce(merge!, (Δnin2Δnout(k,v) for (k,v) in d); init=Dict{AbstractVertex, Int}())
-Δnin2Δnout(ps::Pair...) = mapreduce(p -> Δnin2Δnout(p...), merge!, ps) 
-Δnin2Δnout(v::AbstractVertex, Δs::Maybe{Int}) = Δnin2Δnout(v, tuple(Δs))
-function Δnin2Δnout(v::AbstractVertex, Δs::NTuple{N, Maybe{Int}}) where N
+Δnin2Δnout(d::AbstractDict) = reduce(merge!, (Δnin2Δnout(k,v) for (k,v) in d); init=Dict())
+Δnin2Δnout(ps::Pair{<:AbstractVertex}...) = mapreduce(p -> Δnin2Δnout(p...), merge!, ps; init=Dict()) 
+Δnin2Δnout(v::AbstractVertex, Δs) = Δnin2Δnout(v, tuple(Δs))
+Δnin2Δnout(v::AbstractVertex, Δs::Pair{<:Tuple, <:Union{Relaxed, Exact}}) = Dict(k => (v => last(Δs)) for (k,v) in Δnin2Δnout(v, first(Δs))) 
+function Δnin2Δnout(v::AbstractVertex, Δs::Tuple)
     @assert length(Δs) == length(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
     inds = findall(!ismissing, Δs)
     return Dict(inputs(v)[i] => Δs[i] for i in inds)
 end
 
+struct ΔNoutMix{VE, VR, F} <: AbstractJuMPΔSizeStrategy
+    exact::ΔNout{Exact, VE, F}
+    relax::ΔNout{Relaxed, VR, F}
+    fallback::F
+end
+fallback(s::ΔNoutMix) = s.fallback
+
+ΔNout(args...) = makeΔNout(ΔNoutExact, ΔNoutRelaxed, "nout", args...)
+ΔNin(args...) = ΔNout(Δnin2Δnout(args...))
+
+
+relaxed(i::Int) = i => Relaxed()
+relaxed(t::Tuple{Vararg{Int}}) = t => Relaxed()
+
+function makeΔNout(fexact, frelaxed, dirstr, args...) 
+    exact, relaxed = split_exact_relaxed(args)
+    isempty(relaxed) && return fexact(exact)
+    isempty(exact) && return frelaxed(relaxed)
+    fallback = default_noutfallback(frelaxed, dirstr, merge(exact, relaxed))
+    return ΔNoutMix(fexact(exact;fallback), frelaxed(relaxed;fallback), fallback)
+end
+
+split_exact_relaxed(p::Tuple{AbstractVertex, Any}) = split_exact_relaxed(tuple(Pair(p...)))
+split_exact_relaxed(d::Tuple{Dict}) = split_exact_relaxed(first(d))
+function split_exact_relaxed(args::Union{AbstractDict, Tuple{Vararg{Pair}}})
+    exact=Dict()
+    relaxed=Dict() 
+    for (k, v) in args
+        if !isa(v, Pair) || v isa Pair{<:Any, Exact}
+            exact[k] = first(v) # first works for numbers too
+        elseif v isa Pair{<:Any, Relaxed}
+            relaxed[k] = first(v)
+        end
+    end
+    return Dict(k => v for (k,v) in exact), Dict(k=>v for (k,v) in relaxed)
+end
 
 """
 AlignNinToNout <: AbstractJuMPΔSizeStrategy

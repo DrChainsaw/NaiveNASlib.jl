@@ -191,9 +191,9 @@ end
 
 Return an array of vertices which will be affected if `v` changes size in direction `d`.
 """
-all_in_Δsize_graph(vs::AbstractDict{<:AbstractVertex}, d::Direction) where N = all_in_Δsize_graph(keys(vs), d)
-all_in_Δsize_graph(vs::NTuple{N, Pair{<:AbstractVertex}}, d::Direction) where N = all_in_Δsize_graph(first.(vs), d)
-all_in_Δsize_graph(vs, d::Direction) where N = unique(mapreduce(v -> all_in_Δsize_graph(v, d), vcat, vs; init=AbstractVertex[]))
+all_in_Δsize_graph(vs::AbstractDict{<:AbstractVertex}, d::Direction) = all_in_Δsize_graph(keys(vs), d)
+all_in_Δsize_graph(vs::Tuple{Vararg{Pair{<:AbstractVertex}}}, d::Direction) = all_in_Δsize_graph(first.(vs), d)
+all_in_Δsize_graph(vs, d::Direction) = unique(mapreduce(v -> all_in_Δsize_graph(v, d), vcat, vs; init=AbstractVertex[]))
 
 function all_in_Δsize_graph(v::AbstractVertex, d::Direction, visited=[])
     (v, d) in visited && return visited

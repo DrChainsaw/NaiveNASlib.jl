@@ -423,15 +423,6 @@ function sizeconstraint!(case::ScalarSize, s::ΔNout{Exact}, v, data)
     end
 end
 
-function sizeconstraint!(case::ScalarSize, s::ΔNin{Exact}, v, data)
-    if v in s.vertices
-        Δ = s.Δs[s.vertices .== v][1]
-        @constraint(data.model, data.noutdict[v] == nout(v) + Δ)
-    else
-        sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), v, data)
-    end
-end
-
 """
     ninconstraint!(case, s, v, data)
 
@@ -477,7 +468,6 @@ function objective!(::ScalarSize, s, vertices, data)
 end
 
 objective!(case::ScalarSize, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, s.Δs, vertices, data)
-#objective!(case::ScalarSize, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
 
 function noutrelax!(case, Δs, vertices, data)
     def_obj = objective!(case, DefaultJuMPΔSizeStrategy(), setdiff(vertices, keys(Δs)), data)

@@ -12,6 +12,48 @@
     cc(ins...; name) = conc(ins...; dims=1, traitdecoration=tf(name), outwrap=concindmem(ins))
     nc(name) = traitconf(nt(name))
 
+    @testset "Split relaxed exact" begin
+        import NaiveNASlib: split_exact_relaxed
+
+        @test (:a => relaxed(3)) == (:a => 3 => Relaxed())
+
+        @test split_exact_relaxed((:a=>2, :b=>3=>Relaxed(), :c=>4=>Exact()),) == (Dict(:a => 2, :c => 4), Dict(:b => 3))
+        @test split_exact_relaxed((Dict(:a=>2, :b=>3=>Relaxed(), :c=>4=>Exact())),) == (Dict(:a => 2, :c => 4), Dict(:b => 3))
+    end
+
+    @testset "Make ΔNout" begin
+        import NaiveNASlib: Exact, Relaxed
+        @testset "All Exact" begin
+            res = ΔNout(:a => 2, :b => 3 => Exact())
+            @test res isa ΔNout{Exact} 
+            @test res.Δs == Dict(:a => 2, :b => 3)           
+        end
+
+        @testset "All Relaxed" begin
+            res = ΔNout(:a => 2 => Relaxed(), :b => relaxed(3))
+            @test res isa ΔNout{Relaxed} 
+            @test res.Δs == Dict(:a => 2, :b => 3)           
+        end
+
+        @testset "Mix" begin
+            import NaiveNASlib: ΔNoutMix
+            res = ΔNout(:a => 2, :b => relaxed(3), :c => 4, :d => relaxed(5))
+            @test res isa ΔNoutMix
+            @test res.exact.Δs == Dict(:a => 2, :c => 4)
+            @test res.relax.Δs == Dict(:b => 3, :d => 5)
+        end
+    end
+
+    @testset "Join extraced inds" begin
+        import NaiveNASlib: join_extracted_inds     
+
+        @test join_extracted_inds([2,3,4,5], [0,0,0,0]) == [2,3,4,5]
+        @test join_extracted_inds([2,3,4,5], [1,0,0,0,0,0,1]) == [2,-1,3,4,5,-1]
+        @test join_extracted_inds([2,3,4,5], [1,2,3,4]) == [2,-1,3,-1,-1,4,-1,-1,-1,5,-1,-1,-1,-1,]
+        @test join_extracted_inds([2], [2,4,0]) == [2,-1,-1,-1,-1,-1,-1]
+        @test join_extracted_inds([], [3,0]) == [-1,-1,-1]
+    end
+
     @testset "SelectDirection" begin
 
         mutable struct TestProbe <: AbstractΔSizeStrategy
@@ -54,66 +96,84 @@
 
         @testset "Δnout$(use_fun ? " with value function" : "")" for use_fun in (false, true)
             f = use_fun ? (v -> (1:nout(v)),) : ()
-            @testset "Single Δnout" begin
+            @testset "Single Δnout$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1, 3)
+                @test Δnout(f..., v1, wrap(3))
                 @test nout.((v1, v2)) == (8, 4)
             end
 
-            @testset "Single Δnout pair" begin
+            @testset "Single Δnout pair$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1=>3)
+                @test Δnout(f..., v1=>wrap(3))
                 @test nout.((v1, v2)) == (8, 4)
             end
 
-            @testset "Single Δnout Dict" begin
+            @testset "Single Δnout Dict$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., Dict(v1=>3))
+                @test Δnout(f..., Dict(v1=>wrap(3)))
                 @test nout.((v1, v2)) == (8, 4)
             end
 
-            @testset "Multi Δnout pair" begin
+            @testset "Multi Δnout pair$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1=>3, v2=>2)
+                @test Δnout(f..., v1=>wrap(3), v2=>wrap(2))
                 @test nout.((v1, v2)) == (8, 6)
             end
 
-            @testset "Multi Δnout Dict" begin
+            @testset "Multi Δnout Dict$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., Dict(v1=>3, v2=>2))
+                @test Δnout(f..., Dict(v1=>wrap(3), v2=>wrap(2)))
+                @test nout.((v1, v2)) == (8, 6)
+            end
+
+            @testset "Multi Δnout pair mix" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., v1=>3, v2=>relaxed(2))
+                @test nout.((v1, v2)) == (8, 6)
+            end
+
+            @testset "Multi Δnout Dict mix" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., Dict(v1=>3, v2=>relaxed(2)))
                 @test nout.((v1, v2)) == (8, 6)
             end
         end
 
         @testset "Δnin$(use_fun ? " with value function" : "")" for use_fun in (false, true)
             f = use_fun ? (v -> (1:nout(v)),) : ()
-            @testset "Single Δnin" begin
+            @testset "Single Δnin$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., v1, 3)
+                @test Δnin(f..., v1, wrap(3))
                 @test nin.((v1, v2)) == ([6], [5])
             end
 
-            @testset "Single Δnin pair" begin
+            @testset "Single Δnin pair$(wrap === identity ? "" : " $(repr(wrap))")" for wrap in 
+            (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., v1=>3)
+                @test Δnin(f..., v1=>wrap(3))
                 @test nin.((v1, v2)) == ([6], [5])
             end
 
-            @testset "Single Δnin Dict" begin
+            @testset "Single Δnin Dict$(wrap === identity ? "" : " $(repr(wrap))")" for wrap in 
+            (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., Dict(v1=>3))
+                @test Δnin(f..., Dict(v1=>wrap(3)))
                 @test nin.((v1, v2)) == ([6], [5])
             end
 
-            @testset "Multi Δnin pair" begin
+            @testset "Multi Δnin pair mix $(repr(wrap1)) and $(repr(wrap2)) " for wrap1 in 
+            (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed), wrap2 in 
+            (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., v1=>3, v2=>2)
+                @test Δnin(f..., v1=>wrap1(3), v2=>wrap2(2))
                 @test nin.((v1, v2)) == ([6], [7])
             end
 
-            @testset "Multi Δnin Dict" begin
+            @testset "Multi Δnin Dict $(repr(wrap1)) and $(repr(wrap2)) " for wrap1 in 
+                (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed), wrap2 in 
+                (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., Dict(v1=>3, v2=>2))
+                @test Δnin(f..., Dict(v1=>wrap1(3), v2=>wrap2(2)))
                 @test nin.((v1, v2)) == ([6], [7])
             end
         end
@@ -326,12 +386,12 @@
 
         genstrat(::Type{ΔNout{Exact}}, g) = ΔNoutExact(g.outputs[1], -7)
         genstrat(::Type{ΔNout{Relaxed}}, g) = ΔNoutRelaxed(g.outputs[1], -7)
-        genstrat(::Type{ΔNin{Exact}}, g) = ΔNinExact(g.outputs[1], (-7, missing))
+        genstrat(::typeof(ΔNinExact), g) = ΔNinExact(g.outputs[1], (-7, missing))
         
         @testset "$basestrat" for basestrat in (
             ΔNout{Exact},
             ΔNout{Relaxed},
-            ΔNin{Exact},
+            ΔNinExact,
         )
             g_exp, g_act = graphgen(), graphgen()
             s_exp = genstrat(basestrat, g_exp)

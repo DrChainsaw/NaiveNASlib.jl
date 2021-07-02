@@ -7,15 +7,17 @@ Treat vertices as having parameters which represents neurons when formulating th
 struct NeuronIndices end
 
 # Just another name for Δsize with the corresponding direction
+Δnin(v::AbstractVertex, Δ, Δs...) = Δsize(Input(), v => (Δ, Δs...))
+Δnout(v::AbstractVertex, Δ) = Δsize(Output(), v=>Δ)
 Δnin(args...) = Δsize(Input(), args...)
 Δnout(args...) = Δsize(Output(), args...)
-Δnin(ps::Pair...) = Δsize(Input(), ps...)
-Δnout(ps::Pair...) = Δsize(Output(), ps...)
+Δnin(ps::Pair{<:AbstractVertex}...) = Δsize(Input(), ps...)
+Δnout(ps::Pair{<:AbstractVertex}...) = Δsize(Output(), ps...)
 
-Δnin(valuefun, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Input(), v, Δ, Δs...)
-Δnout(valuefun, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Output(), v, Δ)
-Δnin(valuefun, p::Pair, ps::Pair...) = Δsize(valuefun, Input(), p, ps...)
-Δnout(valuefun, p::Pair, ps::Pair...) = Δsize(valuefun, Output(), p, ps...)
+Δnin(valuefun, v::AbstractVertex, Δ, Δs...) = Δsize(valuefun, Input(), v => (Δ, Δs...))
+Δnout(valuefun, v::AbstractVertex, Δ) = Δsize(valuefun, Output(), v=>Δ)
+Δnin(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize(valuefun, Input(), p, ps...)
+Δnout(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize(valuefun, Output(), p, ps...)
 Δnin(valuefun, d::AbstractDict) = Δsize(valuefun, Input(), d)
 Δnout(valuefun, d::AbstractDict) = Δsize(valuefun, Output(), d)
 
@@ -67,15 +69,13 @@ default_outvalue(t, f) = 1
 
 Change size of `v` by `Δ` in direction `d`.
 """
-Δsize(d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(ΔNinExact(v, Δs), all_in_Δsize_graph(v, d))
-Δsize(d::Output, v::AbstractVertex, Δ::Integer) = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
-Δsize(d::Input, args...) = Δsize(ΔNinExact(args...), all_in_Δsize_graph(args, d))
-Δsize(d::Output, args...) = Δsize(ΔNoutExact(args...), all_in_Δsize_graph(args, d))
+Δsize(d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(ΔNin(v, Δs), all_in_Δsize_graph(v, d))
+Δsize(d::Output, v::AbstractVertex, Δ::Integer) = Δsize(ΔNout(v, Δ), all_in_Δsize_graph(v, d))
+Δsize(d::Input, args...) = Δsize(ΔNin(args...), all_in_Δsize_graph(args, d))
+Δsize(d::Output, args...) = Δsize(ΔNout(args...), all_in_Δsize_graph(args, d))
 
-Δsize(f, d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(f, ΔNinExact(v, Δs), all_in_Δsize_graph(v, d))
-Δsize(f, d::Output, v, Δ::Integer) = Δsize(f, ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
-Δsize(f, d::Input, args...) = Δsize(f, ΔNinExact(args...), all_in_Δsize_graph(args, d))
-Δsize(f, d::Output, args...) = Δsize(f, ΔNoutExact(args...), all_in_Δsize_graph(args, d))
+Δsize(f, d::Input, args...) = Δsize(f, ΔNin(args...), all_in_Δsize_graph(args, d))
+Δsize(f, d::Output, args...) = Δsize(f, ΔNout(args...), all_in_Δsize_graph(args, d))
 
 Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, Δsizetype(vs), s, vs)
 Δsize(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(Δsizetype(vs), s, vs)
@@ -115,7 +115,6 @@ end
 Δdirection(::AbstractΔSizeStrategy) = Both()
 Δdirection(s::LogΔSizeExec) = Δdirection(s.andthen)
 Δdirection(::ΔNout) = Output()
-Δdirection(::ΔNin) = Input()
 
 Δsize(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(default_outvalue, case,s , vs)
 function Δsize(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
@@ -297,7 +296,7 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     @objective(model, Max, objexpr)
 
     JuMP.optimize!(model)
-
+    
     !accept(case, s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
@@ -352,8 +351,8 @@ end
 
 sizeconstraint!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = sizeconstraint!(case, base(s), v, data)
 sizeconstraint!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data) = sizeconstraint!(ScalarSize(), DefaultJuMPΔSizeStrategy(), v, data)
+sizeconstraint!(case::NeuronIndices, s::ΔNoutMix, v, data) = sizeconstraint!(case, s.exact, v, data)
 sizeconstraint!(::NeuronIndices, s::ΔNout{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
-sizeconstraint!(::NeuronIndices, s::ΔNin{Exact}, v, data) = sizeconstraint!(ScalarSize(), s, v, data)
 
 inoutconstraint!(case, s::DecoratingJuMPΔSizeStrategy, v, data) = inoutconstraint!(case, base(s), v, data) 
 inoutconstraint!(case, s, v, data) = inoutconstraint!(case, s, trait(v), v, data) 
@@ -392,11 +391,14 @@ end
 # Minus sign because we maximize objective function in case NeuronIndices
 sizeobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) = -objective!(case, s, vertices, data)
 
+objective!(case::NeuronIndices, s::ΔNoutMix, vertices, data) = objective!(case, s.relax, vertices, data)
 objective!(case::NeuronIndices, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, s.Δs, vertices, data)
-#objective!(case::NeuronIndices, s::ΔNin{Relaxed}, vertices, data) = noutrelax!(case, s.vertices, s.Δs, vertices, data)
 
 objective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vertices, data) = objective!(case, base(s), vertices, data) 
 function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, data) 
+    # Or else the problem becomes infeasible
+    isempty(vertices) && return @expression(data.model, 0)
+    
     scale = map(v -> max(0, maximum(data.valuefun(v))), vertices)
     noutvars = map(v -> data.noutdict[v], vertices)
     sizetargets = map(v -> nout(v) - count(<(0), data.valuefun(v)), vertices)
