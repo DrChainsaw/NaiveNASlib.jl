@@ -7,11 +7,18 @@ Treat vertices as having parameters which represents neurons when formulating th
 struct NeuronIndices end
 
 # Just another name for Δsize with the corresponding direction
-Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Output(), v, Δ)
-Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Input(), v, Δs...)
+Δnin(args...) = Δsize(Input(), args...)
+Δnout(args...) = Δsize(Output(), args...)
+Δnin(ps::Pair...) = Δsize(Input(), ps...)
+Δnout(ps::Pair...) = Δsize(Output(), ps...)
 
-Δnout(valuefun::Function, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Output(), v, Δ)
-Δnin(valuefun::Function, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Input(), v, Δ, Δs...)
+Δnin(valuefun, v::AbstractVertex, Δ::Maybe{<:Integer}, Δs::Maybe{<:Integer}...) = Δsize(valuefun, Input(), v, Δ, Δs...)
+Δnout(valuefun, v::AbstractVertex, Δ::Integer) = Δsize(valuefun, Output(), v, Δ)
+Δnin(valuefun, p::Pair, ps::Pair...) = Δsize(valuefun, Input(), p, ps...)
+Δnout(valuefun, p::Pair, ps::Pair...) = Δsize(valuefun, Output(), p, ps...)
+Δnin(valuefun, d::AbstractDict) = Δsize(valuefun, Input(), d)
+Δnout(valuefun, d::AbstractDict) = Δsize(valuefun, Output(), d)
+
 
 Δsizetype(vs::AbstractVector{<:AbstractVertex}) = partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true)
 Δsizetype(v::AbstractVertex, seen=Set()) = v in seen ? nothing : Δsizetype(trait(v), v, push!(seen, v))
@@ -60,11 +67,15 @@ default_outvalue(t, f) = 1
 
 Change size of `v` by `Δ` in direction `d`.
 """
-Δsize(d::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_Δsize_graph(v, d))
-Δsize(d::Output, v, Δ::T) where T <: Integer = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
+Δsize(d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(ΔNinExact(v, Δs), all_in_Δsize_graph(v, d))
+Δsize(d::Output, v::AbstractVertex, Δ::Integer) = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
+Δsize(d::Input, args...) = Δsize(ΔNinExact(args...), all_in_Δsize_graph(args, d))
+Δsize(d::Output, args...) = Δsize(ΔNoutExact(args...), all_in_Δsize_graph(args, d))
 
-Δsize(f, ::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(f, ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_graph(v))
-Δsize(f, ::Output, v, Δ::T) where T <: Integer = Δsize(f, ΔNoutExact(v, Δ), all_in_graph(v))
+Δsize(f, d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(f, ΔNinExact(v, Δs), all_in_Δsize_graph(v, d))
+Δsize(f, d::Output, v, Δ::Integer) = Δsize(f, ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
+Δsize(f, d::Input, args...) = Δsize(f, ΔNinExact(args...), all_in_Δsize_graph(args, d))
+Δsize(f, d::Output, args...) = Δsize(f, ΔNoutExact(args...), all_in_Δsize_graph(args, d))
 
 Δsize(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(valuefun, Δsizetype(vs), s, vs)
 Δsize(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize(Δsizetype(vs), s, vs)

@@ -43,6 +43,82 @@
         @test tp.vs == Set([v1, v2, v3])
     end
 
+    @testset "Argument plumbing" begin
+        function graphgen() 
+            inpt = iv(3)
+            v0 = av(inpt, 3, "v0")
+            v1 = av(v0, 5, "v1")
+            v2 = av(v1, 4, "v2")
+            return v1, v2
+        end
+
+        @testset "Δnout$(use_fun ? " with value function" : "")" for use_fun in (false, true)
+            f = use_fun ? (v -> (1:nout(v)),) : ()
+            @testset "Single Δnout" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., v1, 3)
+                @test nout.((v1, v2)) == (8, 4)
+            end
+
+            @testset "Single Δnout pair" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., v1=>3)
+                @test nout.((v1, v2)) == (8, 4)
+            end
+
+            @testset "Single Δnout Dict" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., Dict(v1=>3))
+                @test nout.((v1, v2)) == (8, 4)
+            end
+
+            @testset "Multi Δnout pair" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., v1=>3, v2=>2)
+                @test nout.((v1, v2)) == (8, 6)
+            end
+
+            @testset "Multi Δnout Dict" begin
+                v1,v2 = graphgen()
+                @test Δnout(f..., Dict(v1=>3, v2=>2))
+                @test nout.((v1, v2)) == (8, 6)
+            end
+        end
+
+        @testset "Δnin$(use_fun ? " with value function" : "")" for use_fun in (false, true)
+            f = use_fun ? (v -> (1:nout(v)),) : ()
+            @testset "Single Δnin" begin
+                v1,v2 = graphgen()
+                @test Δnin(f..., v1, 3)
+                @test nin.((v1, v2)) == ([6], [5])
+            end
+
+            @testset "Single Δnin pair" begin
+                v1,v2 = graphgen()
+                @test Δnin(f..., v1=>3)
+                @test nin.((v1, v2)) == ([6], [5])
+            end
+
+            @testset "Single Δnin Dict" begin
+                v1,v2 = graphgen()
+                @test Δnin(f..., Dict(v1=>3))
+                @test nin.((v1, v2)) == ([6], [5])
+            end
+
+            @testset "Multi Δnin pair" begin
+                v1,v2 = graphgen()
+                @test Δnin(f..., v1=>3, v2=>2)
+                @test nin.((v1, v2)) == ([6], [7])
+            end
+
+            @testset "Multi Δnin Dict" begin
+                v1,v2 = graphgen()
+                @test Δnin(f..., Dict(v1=>3, v2=>2))
+                @test nin.((v1, v2)) == ([6], [7])
+            end
+        end
+    end
+
     @testset "Absorb 2 Absorb" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
@@ -250,7 +326,7 @@
 
         genstrat(::Type{ΔNout{Exact}}, g) = ΔNoutExact(g.outputs[1], -7)
         genstrat(::Type{ΔNout{Relaxed}}, g) = ΔNoutRelaxed(g.outputs[1], -7)
-        genstrat(::Type{ΔNin{Exact}}, g) = ΔNinExact(g.outputs[1], [-7, missing])
+        genstrat(::Type{ΔNin{Exact}}, g) = ΔNinExact(g.outputs[1], (-7, missing))
         
         @testset "$basestrat" for basestrat in (
             ΔNout{Exact},
@@ -309,16 +385,15 @@
         g = CompGraph(inpt, v3)
         @test size(g(ones(3))) == (nout(v3),)
 
-        # TODO: Test support for Δnout(v3 => -5, v1 => 1)
-        @test Δnout(v -> 1:nout(v), v3, -5)
-        @test Δnout(v -> 1:nout(v), v1, 3)
+        # TODO: Add v3 => relaxed(-5) API
+        @test @test_logs (:warn, r"Could not change nout of") Δnout(v -> 1:nout(v), v3 => -5, v1 => 3, v2 => 0)
 
         @test nin(v3) == [nout(v1), nout(v2)] == [4, 7]
         @test nout(v3) == sum(nin(v3)) == 11
 
         # Not so good, we threw away a few too many neurons when first decreasing and then increasing the size. Thats why there should be a way to do both in one go.
-        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1, -1, -1, -1], [1, 2, 3, 4, 5, 6, 7]]
-        @test lastouts(v3) == lastins(v4) == [1, -1, -1, -1, 2, 3, 4, 5, 6, 7, 8] 
+        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1, 2, 3, -1], [4, 5, 6, 7, 8, 9, 10]]
+        @test lastouts(v3) == lastins(v4) == [1, 2, 3, -1, 7, 8, 9, 10, 11, 12, 13] 
 
         @test size(g(ones(3))) == (nout(v3),)
     end
