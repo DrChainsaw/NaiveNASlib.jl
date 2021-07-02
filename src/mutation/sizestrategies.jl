@@ -67,6 +67,7 @@ LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeF
 LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoop()) = LogΔSizeExec(v -> msg, level, andthen)
 LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(name(v)) failed! $nextstr", level, andthen)
 base(s::LogΔSizeExec) = s.andthen
+fallback(s::LogΔSizeExec) = base(s)
 
 
 """
@@ -99,20 +100,27 @@ struct ΔNout{T, V, F} <: AbstractJuMPΔSizeStrategy
     fallback::F
 end
 ΔNoutExact(args...; fallback=default_noutfallback(ΔNoutRelaxed,"nout", args)) = ΔNout{Exact}(args...;fallback)
-ΔNoutRelaxed(args...;fallback=ΔSizeFailError("Could not change nout of $(Δnout_err_info(args...))!!")) = ΔNout{Relaxed}(args...;fallback)
+ΔNoutRelaxed(args...;fallback=default_noutfallback("nout", args)) = ΔNout{Relaxed}(args...;fallback)
 ΔNout{T}(v::AbstractVertex, Δ::Integer; fallback) where T = ΔNout{T}(v=>Int(Δ); fallback)
 ΔNout{T}(args...; fallback) where T = ΔNout{T}(Dict(args...); fallback)
+function ΔNout{T}(Δs::AbstractDict; fallback) where T 
+    @assert all(v -> v isa Int, values(Δs)) string("All values must be of type Int. Got ", values(Δs))
+    return ΔNout{T}(Dict(k=>v for (k,v) in Δs); fallback)
+end
 ΔNout{T}(Δs::AbstractDict{V, Int}; fallback) where {T,V} = ΔNout{T,V,typeof(fallback)}(Dict(Δs), fallback)
 fallback(s::ΔNout) = s.fallback
 
-Δnout_err_info(v, Δ::Maybe{Int}...) = "$v by $(join(Δ, ","))"
-Δnout_err_info(v, Δ::Tuple{Vararg{Maybe{Int}}}) = Δnout_err_info(v, Δ...)
+Δnout_err_info(v, Δ::Union{<:Maybe{Int}, <:Pair}...) = "$v by $(join(first(Δ), ", ", " and "))"
+Δnout_err_info(v, Δ::Tuple) = Δnout_err_info(v, Δ...)
 Δnout_err_info(ps::Pair...) = join(map(p ->Δnout_err_info(p...), ps), ", ", " and ")
 Δnout_err_info(d::AbstractDict) = join((Δnout_err_info(k, v) for (k,v) in d), ", ", " and ")
 
 function default_noutfallback(nextfallback, dirstr, args) 
     LogΔSizeExec(v -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "! Relaxing constraints..."), Logging.Warn, nextfallback(args...))
 end
+
+default_noutfallback(dirstr, args) = ΔSizeFailError(string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "!!"))
+
 
 """
 ΔNin{T} <: AbstractJuMPΔSizeStrategy
@@ -131,7 +139,7 @@ If `T == Relaxed`, size change will be added as an objective to the model which 
 If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
 """
 ΔNinExact(args...; fallback=default_noutfallback(ΔNinRelaxed, "nin", args)) = ΔNin(Exact(), args...; fallback)
-ΔNinRelaxed(args...; fallback=ΔSizeFailError("Could not change nin of $(Δnout_err_info(args...))!!")) = ΔNin(Relaxed(), args...;fallback)
+ΔNinRelaxed(args...; fallback=default_noutfallback("nout", args)) = ΔNin(Relaxed(), args...;fallback)
 ΔNin(::T, args...; fallback) where T<:Union{Relaxed, Exact} = ΔNout{T}(Δnin2Δnout(args...); fallback)
 
 Δnin2Δnout(d::AbstractDict) = reduce(merge!, (Δnin2Δnout(k,v) for (k,v) in d); init=Dict())
@@ -154,13 +162,20 @@ fallback(s::ΔNoutMix) = s.fallback
 relaxed(i::Int) = i => Relaxed()
 relaxed(t::Tuple{Vararg{Int}}) = t => Relaxed()
 
-ΔNin(args...) = ΔNout(Δnin2Δnout(args...)) # To support mixed cases, e.g. Δnin(v => (2, relaxed(4)))
+function ΔNin(args...) 
+    exact,relaxed = split_exact_relaxed(Δnin2Δnout(args...)) # To support mixed cases, e.g. Δnin(v => (2, relaxed(4)))
+    fallback = default_noutfallback((args...) -> ΔNoutRelaxed(merge(exact, relaxed); fallback=default_noutfallback("nin", args)), "nin", args)
+    return ΔNout(exact, relaxed, fallback)
+end
 function ΔNout(args...) 
     exact, relaxed = split_exact_relaxed(args)
-    isempty(relaxed) && return ΔNoutExact(exact)
-    isempty(exact) && return ΔNoutRelaxed(relaxed)
-    fallback = default_noutfallback(ΔNoutRelaxed, "nout", merge(exact, relaxed))
-    return ΔNoutMix(ΔNoutExact(exact;fallback), ΔNoutRelaxed(relaxed;fallback), fallback)
+    return ΔNout(exact, relaxed)
+end
+
+function ΔNout(exact::Dict, relaxed::Dict, fb = default_noutfallback(ΔNoutRelaxed, "nout", merge(exact,relaxed)))
+    isempty(relaxed) && return ΔNoutExact(exact;fallback=fb)
+    isempty(exact) && return ΔNoutRelaxed(relaxed; fallback=fallback(fb))
+    return ΔNoutMix(ΔNoutExact(exact;fallback=fb), ΔNoutRelaxed(relaxed;fallback=fb), fb)
 end
 
 split_exact_relaxed(p::Tuple{AbstractVertex, Any}) = split_exact_relaxed(tuple(Pair(p...)))
@@ -175,7 +190,7 @@ function split_exact_relaxed(args::Union{AbstractDict, Tuple{Vararg{Pair}}})
             relaxed[k] = first(v)
         end
     end
-    return Dict(k => v for (k,v) in exact), Dict(k=>v for (k,v) in relaxed)
+    return exact, relaxed
 end
 
 """

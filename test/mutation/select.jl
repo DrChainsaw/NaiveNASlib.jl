@@ -315,6 +315,26 @@
         @test size(g(ones(3))) == (nout(v3),)
     end
 
+    @testset "SizeInvariant exact Δnout infeasible" begin
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2 = av(v1, 4, "v2")
+        v3 = "v3" >> v1 + v2
+
+        @test @test_logs (:warn, r"Could not change nout of") Δnout(v1 => -1, v2 =>0)
+        @test nout(v3) == nout(v2) == nout(v1) == 3
+    end
+
+    @testset "SizeInvariant exact Δnin infeasible" begin
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2 = av(v1, 4, "v2")
+        v3 = "v3" >> v1 + v2
+
+        @test @test_logs (:warn, r"Could not change nin of") Δnin(v3 => (-1, 0))
+        @test nout(v3) == nout(v2) == nout(v1) == 3
+    end
+
     @testset "SizeStack one immutable" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
