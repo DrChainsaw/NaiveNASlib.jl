@@ -234,7 +234,7 @@
 
         @test size(g(ones(3, 3))) == (nout(v4), 3)
 
-        @test Δnin(v4, -2, 3)
+        @test Δnin(v4, relaxed(-2), 3)
 
         @test nout(v1) == 6
         @test nout(v2) == 6
@@ -280,7 +280,7 @@
 
         @test size(g(ones(3))) == (nout(v6),)
 
-        @test Δnin(v -> 1:nout(v), v6, -2, -2)
+        @test Δnin(v -> 1:nout(v), v6, -2, relaxed(-2))
 
         @test nout(v1) == 8
         @test nout(v2) == 3
@@ -445,15 +445,13 @@
         g = CompGraph(inpt, v3)
         @test size(g(ones(3))) == (nout(v3),)
 
-        # TODO: Add v3 => relaxed(-5) API
-        @test @test_logs (:warn, r"Could not change nout of") Δnout(v -> 1:nout(v), v3 => -5, v1 => 3, v2 => 0)
+        @test Δnout(v -> 1:nout(v), v3 => relaxed(-5), v1 => 2, v2 => relaxed(0))
 
-        @test nin(v3) == [nout(v1), nout(v2)] == [4, 7]
-        @test nout(v3) == sum(nin(v3)) == 11
+        @test nin(v3) == [nout(v1), nout(v2)] == [5, 7]
+        @test nout(v3) == sum(nin(v3)) == 12
 
-        # Not so good, we threw away a few too many neurons when first decreasing and then increasing the size. Thats why there should be a way to do both in one go.
-        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1, 2, 3, -1], [4, 5, 6, 7, 8, 9, 10]]
-        @test lastouts(v3) == lastins(v4) == [1, 2, 3, -1, 7, 8, 9, 10, 11, 12, 13] 
+        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1,2,3,-1,-1], [4,5,6,7,8,9,10]]
+        @test lastouts(v3) == lastins(v4) == [1,2,3,-1,-1,7,8,9,10,11,12,13] 
 
         @test size(g(ones(3))) == (nout(v3),)
     end

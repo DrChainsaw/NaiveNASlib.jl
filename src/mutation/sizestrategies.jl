@@ -111,7 +111,7 @@ fallback(s::ΔNout) = s.fallback
 Δnout_err_info(d::AbstractDict) = join((Δnout_err_info(k, v) for (k,v) in d), ", ", " and ")
 
 function default_noutfallback(nextfallback, dirstr, args) 
-    LogΔSizeExec("Could not change $dirstr of $(Δnout_err_info(args...))! Relaxing constraints...", Logging.Warn, nextfallback(args...))
+    LogΔSizeExec(v -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "! Relaxing constraints..."), Logging.Warn, nextfallback(args...))
 end
 
 """
@@ -151,19 +151,16 @@ struct ΔNoutMix{VE, VR, F} <: AbstractJuMPΔSizeStrategy
 end
 fallback(s::ΔNoutMix) = s.fallback
 
-ΔNout(args...) = makeΔNout(ΔNoutExact, ΔNoutRelaxed, "nout", args...)
-ΔNin(args...) = ΔNout(Δnin2Δnout(args...))
-
-
 relaxed(i::Int) = i => Relaxed()
 relaxed(t::Tuple{Vararg{Int}}) = t => Relaxed()
 
-function makeΔNout(fexact, frelaxed, dirstr, args...) 
+ΔNin(args...) = ΔNout(Δnin2Δnout(args...)) # To support mixed cases, e.g. Δnin(v => (2, relaxed(4)))
+function ΔNout(args...) 
     exact, relaxed = split_exact_relaxed(args)
-    isempty(relaxed) && return fexact(exact)
-    isempty(exact) && return frelaxed(relaxed)
-    fallback = default_noutfallback(frelaxed, dirstr, merge(exact, relaxed))
-    return ΔNoutMix(fexact(exact;fallback), frelaxed(relaxed;fallback), fallback)
+    isempty(relaxed) && return ΔNoutExact(exact)
+    isempty(exact) && return ΔNoutRelaxed(relaxed)
+    fallback = default_noutfallback(ΔNoutRelaxed, "nout", merge(exact, relaxed))
+    return ΔNoutMix(ΔNoutExact(exact;fallback), ΔNoutRelaxed(relaxed;fallback), fallback)
 end
 
 split_exact_relaxed(p::Tuple{AbstractVertex, Any}) = split_exact_relaxed(tuple(Pair(p...)))
