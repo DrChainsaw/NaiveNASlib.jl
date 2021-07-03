@@ -58,9 +58,9 @@ import InteractiveUtils:subtypes
             sv = OutputsVertex(CompVertex(hcat, iv, cv))
             NaiveNASlib.init!(sv, base(sv))
 
-            @test showstr(show, iv) == "InputVertex(1), outputs=[CompVertex(identity), CompVertex(hcat)]"
-            @test showstr(show, cv) == "CompVertex(identity), inputs=[InputVertex(1)], outputs=[CompVertex(hcat)]"
-            @test showstr(show, sv) == "CompVertex(hcat), inputs=[InputVertex(1), CompVertex(identity)], outputs=[]"
+            @test showstr(show, iv) == "InputVertex(1, outputs=[CompVertex(identity), CompVertex(hcat)])"
+            @test showstr(show, cv) == "CompVertex(identity, inputs=[InputVertex(1)], outputs=[CompVertex(hcat)])"
+            @test showstr(show, sv) == "CompVertex(hcat, inputs=[InputVertex(1), CompVertex(identity)], outputs=[])"
         end
 
         @testset "InputSizeVertex" begin
@@ -70,20 +70,21 @@ import InteractiveUtils:subtypes
 
         @testset "NamedTrait" begin
 
-            v1 = MutationVertex(CompVertex(identity, InputSizeVertex("input1", 3)),  NoOp(), NamedTrait(SizeInvariant(), "mv"))
+            v1 = MutationVertex(CompVertex(identity, InputSizeVertex("input1", 3)), NamedTrait(SizeInvariant(), "mv"))
 
             @test showstr(show_less, v1) == "mv"
 
-            v2 = MutationVertex(CompVertex(+, v1, InputSizeVertex("input2", 3)), NoOp(), NamedTrait(SizeInvariant(), "sv"))
+            v2 = MutationVertex(CompVertex(+, v1, InputSizeVertex("input2", 3)), NamedTrait(SizeInvariant(), "sv"))
 
-            @test showstr(show, v2) == "MutationVertex(CompVertex(+), inputs=[mv, input2], outputs=[], NoOp(), NamedTrait(SizeInvariant(), \"sv\"))"
+            @test showstr(show, v2) == "MutationVertex(CompVertex(+, inputs=[mv, input2], outputs=[]), NamedTrait(SizeInvariant(), \"sv\"))"
         end
 
         @testset "Info strings" begin
+
             v1 = InputSizeVertex("v1", 3)
-            v2 = MutationVertex(CompVertex(identity, v1), IoSize(nout(v1), 5), NamedTrait(SizeAbsorb(), "v2"))
-            v3 = MutationVertex(CompVertex(identity, v1,v2), IoSize([3, 5], 8), NamedTrait(SizeStack(), "v3"))
-            v4 = MutationVertex(CompVertex(identity, v3), IoSize(nout(v3), nout(v3)), NamedTrait(SizeInvariant(), "v4"))
+            v2 = absorbvertex(MatMul(3, 5), v1, traitdecoration=t->NamedTrait(t, "v2"))
+            v3 = conc(v1, v2; dims=2, traitdecoration=t->NamedTrait(t, "v3"))
+            v4 = invariantvertex(identity, v3; traitdecoration = t-> NamedTrait(t, "v4"))
 
             @test infostr(NameInfoStr(), v1) == "v1"
             @test infostr(NameInfoStr(), v2) == "v2"
@@ -125,6 +126,5 @@ import InteractiveUtils:subtypes
             @test infostr(FullInfoStr(), v3) == "v3, inputs=[v1, v2], outputs=[v4], nin=[3, 5], nout=[8], SizeStack()"
             @test infostr(FullInfoStr(), v4) == "v4, inputs=[v3], outputs=[], nin=[8], nout=[8], SizeInvariant()"
         end
-
     end
 end

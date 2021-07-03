@@ -73,36 +73,13 @@ import LightGraphs:adjacency_matrix,is_cyclic
         v3 = conc(ins[1], v1, dims=1)
         v4 = v3 - v2
         v5 = ins[1] / v1
-        v6 = absorbvertex(identity, 4, v5)
+        v6 = absorbvertex(identity, v5)
         graph = CompGraph(ins, [v4, v6])
 
         gcopy = copy(graph)
 
         @test issame(graph, gcopy)
         @test graph(3,4,10) == gcopy(3,4,10)
-
-        newop(x...; cf=clone) = clone(x...; cf=cf)
-        newop(v::MutationVertex, ins...; cf=clone) = MutationVertex(cf(v.base, ins..., cf=cf), newop(trait(v), v), cf(v.trait, cf=cf))
-        newop(::MutationTrait, v::MutationVertex) = clone(op(v))
-        newop(::SizeAbsorb, v::MutationVertex) = IoIndices(nin(v), nout(v))
-        graph_inds = copy(graph, newop)
-
-        @test !issame(graph_inds, graph)
-        @test graph(3,4,10) == graph_inds(3,4,10)
-
-        # Nothing should have changed with original
-        function testop(v) end
-        testop(v::MutationVertex) = testop(trait(v), v)
-        function testop(::MutationTrait, v) end
-        testop(::SizeAbsorb, v) = @test op(v) isa IoChange
-        foreach(testop, mapreduce(flatten, vcat, graph.outputs))
-
-        # But new graph shall use IoIndices
-        function testop2(v) end
-        testop2(v::MutationVertex) = testop2(trait(v), v)
-        function testop2(::MutationTrait, v) end
-        testop2(::SizeAbsorb, v) = @test op(v) isa IoIndices
-        foreach(testop2, mapreduce(flatten, vcat, graph_inds.outputs))
     end
 
     @testset "Graph add trait" begin
@@ -111,7 +88,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
         end
 
         inver = inputvertex("in", 3)
-        v1 = absorbvertex(+, 5, inver)
+        v1 = absorbvertex(+, inver)
         v2 = conc(inver, v1, dims=1)
         graph = CompGraph(inver, v2)
 
@@ -128,7 +105,7 @@ import LightGraphs:adjacency_matrix,is_cyclic
 
     @testset "Graph rename" begin
         v0 = inputvertex("in", 3)
-        v1 = absorbvertex(+, 5, v0, traitdecoration = t -> NamedTrait(t, "v1"))
+        v1 = absorbvertex(+, v0, traitdecoration = t -> NamedTrait(t, "v1"))
         v2 = conc(v0, v1, dims=1, traitdecoration = t -> NamedTrait(t, "v2"))
         graph = CompGraph(v0, v2)
 

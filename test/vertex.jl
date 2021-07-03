@@ -1,14 +1,13 @@
-import NaiveNASlib
-import InteractiveUtils:subtypes
-using Test
-
 @testset "Basic vertex tests" begin
 
     @testset "Method contracts $subtype" for subtype in implementations(AbstractVertex)
         @test hasmethod(inputs, (subtype,))
         @test hasmethod(clone, (subtype, Vararg{AbstractVertex}))
+        @test hasmethod(nin, (subtype,))
+        @test hasmethod(nout, (subtype,))
+        @test hasmethod(name, (subtype,))
+        @test hasmethod(NaiveNASlib.nameorrepr, (subtype,))
     end
-
 
     @testset "InputVertex tests" begin
         iv1 = InputVertex(1)
@@ -56,18 +55,17 @@ using Test
 
         @testset "Show CompVertex" begin
             cv = CompVertex(+, InputVertex.(1:2))
-            @test showstr(show, cv) == "CompVertex(+), inputs=[InputVertex(1), InputVertex(2)]"
+            @test showstr(show, cv) == "CompVertex(+, inputs=[InputVertex(1), InputVertex(2)])"
         end
 
         @testset "Info string CompVertex" begin
             cv = CompVertex(+, InputVertex.(["input1", "input2"]))
 
-            @test infostr(RawInfoStr(), cv) == "CompVertex(+), inputs=[input1, input2]"
+            @test infostr(RawInfoStr(), cv) == "CompVertex(+, inputs=[input1, input2])"
             @test infostr(NameInfoStr(), cv) == "CompVertex"
             @test infostr(MutationTraitInfoStr(), cv) == "Immutable()"
             @test infostr(InputsInfoStr(), cv) == "[input1, input2]"
             @test infostr(NameAndInputsInfoStr(), cv) == "CompVertex, inputs=[input1, input2]"
         end
-
     end
 end

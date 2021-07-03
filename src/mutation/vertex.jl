@@ -104,16 +104,23 @@ Avbstract trait which wraps another trait. The wrapped trait of a `DecoratingTra
 """
 abstract type DecoratingTrait <: MutationTrait end
 
-struct NamedTrait{S} <: DecoratingTrait
-    base::MutationTrait
+struct NamedTrait{T<:MutationTrait, S} <: DecoratingTrait
+    base::T
     name::S
 end
 base(t::NamedTrait) = t.base
 clone(t::NamedTrait; cf=clone) = NamedTrait(cf(base(t), cf=cf), cf(t.name, cf=cf))
+function Base.show(io::IO, t::NamedTrait) 
+    print(io, "NamedTrait(")
+    show(io, t.base)
+    print(io, ", ")
+    show(io, t.name)
+    print(io, ')')
+end
 
-struct SizeChangeLogger{T<:MutationTrait} <: DecoratingTrait
+struct SizeChangeLogger{I<: InfoStr, T<:MutationTrait} <: DecoratingTrait
     level::LogLevel
-    infostr::InfoStr
+    infostr::I
     base::T
 end
 SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
@@ -167,13 +174,26 @@ outputs(v::MutationVertex) = outputs(base(v))
 # Stuff for displaying information about vertices
 
 show_less(io::IO, v::InputSizeVertex) = show_less(io, base(v))
-show_less(io::IO, v::MutationVertex) = print(io, name(v))
 show_less(io::IO, v::OutputsVertex) = show_less(io, base(v))
 
-function Base.show(io::IO, v::OutputsVertex)
-     show(io, base(v))
+show_less(io::IO, v::MutationVertex) = show_less(io, trait(v), v)
+show_less(io::IO, t::DecoratingTrait, v::AbstractVertex) = show_less(io, base(t), v)
+show_less(io::IO, t::NamedTrait, ::AbstractVertex) = print(io, t.name)
+show_less(io::IO, ::MutationTrait, v::AbstractVertex) = show_less(io, base(v))
+
+function Base.show(io::IO, v::OutputsVertex; close=')')
+     show(io, base(v); close="")
      print(io, ", outputs=")
      show(io, outputs(v))
+     print(io, close)
+ end
+
+ function Base.show(io::IO, v::MutationVertex; close=')')
+    print(io, "MutationVertex(")
+    show(io, base(v))
+    print(io, ", ")
+    show(io, trait(v))
+    print(io, close)
  end
 
 # Stuff for logging

@@ -64,7 +64,7 @@ struct InputVertex{N} <: AbstractVertex
     name::N
 end
 clone(v::InputVertex, ins::AbstractVertex...;cf=clone) = isempty(ins) ? InputVertex(cf(v.name,cf=cf)) : error("Input vertex got inputs: $(ins)!")
-inputs(v::InputVertex)::AbstractArray{AbstractVertex,1} = []
+inputs(::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 
 """
@@ -90,6 +90,7 @@ struct CompVertex{F} <: AbstractVertex
     computation::F
     inputs::Vector{AbstractVertex} # Untyped because we might add other vertices to it
 end
+CompVertex(c, ins::AbstractArray{<:AbstractVertex}) = CompVertex(c, collect(AbstractVertex, ins))
 CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(AbstractVertex, ins))
 clone(v::CompVertex, ins::AbstractVertex...;cf=clone) = CompVertex(cf(v.computation, cf=cf), ins...)
 inputs(v::CompVertex) = v.inputs
@@ -98,7 +99,7 @@ inputs(v::CompVertex) = v.inputs
 ## Stuff for displaying information about vertices
 
 # To avoid too verbose console output
-function Base.show(io::IO, vs::Array{AbstractVertex,1})
+function Base.show(io::IO, vs::AbstractVector{<:AbstractVertex})
     print(io, "[")
     for (i, v) in enumerate(vs)
         show_less(io, v)
@@ -106,28 +107,29 @@ function Base.show(io::IO, vs::Array{AbstractVertex,1})
     end
     print(io, "]")
 end
-show_less(io::IO, v::AbstractVertex) = summary(io, v)
+show_less(io::IO, v::AbstractVertex; close=')') = summary(io, v)
+show_less(io::IO, v::InputVertex; close=')') = show_less(io, v, v.name; close)
+show_less(io::IO, ::InputVertex, name::String; close=')') = print(io, name)
+show_less(io::IO, ::InputVertex, name; close=')') = print(io, "InputVertex(", name, close)
 
-show_less(io::IO, v::InputVertex) = show_less(io, v, v.name)
-show_less(io::IO, v::InputVertex, name::String) = print(io, name)
-show_less(io::IO, v::InputVertex, name) = print(io, "InputVertex($(v.name))")
-
-function show_less(io::IO, v::CompVertex)
-    summary(io, v)
-    print(io, "(")
+function show_less(io::IO, v::CompVertex; close=')')
+    print(io, "CompVertex(")
     show(io, v.computation)
-    print(io, ")")
+    print(io, close)
 end
 
-function Base.show(io::IO, v::CompVertex)
-    show_less(io, v)
+Base.show(io::IO, v::InputVertex; close=')') = print(io, "InputVertex(", v.name, close)
+function Base.show(io::IO, v::CompVertex; close=')')
+    print(io, "CompVertex(")
+    show(io, v.computation)
     print(io, ", inputs=")
     show(io, inputs(v))
+    print(io, close)
 end
 
 # Stuff for logging
 
-name(v::AbstractVertex) = summary(v)
+name(v::AbstractVertex) = string(nameof(typeof(v)))
 name(v::InputVertex) = v.name
 
 # Don't call the mental hospital about the stuff below just yet!

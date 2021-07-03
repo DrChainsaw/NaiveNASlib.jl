@@ -14,8 +14,7 @@ include("testutil.jl")
         include("prettyprint.jl")
 
         @info "Testing mutation"
-
-        include("mutation/op.jl")
+        
         include("mutation/vertex.jl")
         include("mutation/graph.jl")
 
