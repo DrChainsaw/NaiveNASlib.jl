@@ -33,6 +33,16 @@ More concretely: If `s` is a `DecoratingJuMPΔSizeStrategy` then `base(s)` will 
 abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
 """
+    ΔSizeFail <: Exception
+
+Size change could not be solved.
+"""
+struct ΔSizeFailError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::ΔSizeFailError) = print(io, "ΔSizeFailError: ", e.msg)
+
+"""
     ThrowΔSizeFailError <: AbstractJuMPΔSizeStrategy
     ThrowΔSizeFailError(msg::String)
 
@@ -66,7 +76,7 @@ struct LogΔSizeExec{F, S} <: DecoratingJuMPΔSizeStrategy
     andthen::S
 end
 LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeFailNoOp())
-LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoop()) = LogΔSizeExec(v -> msg, level, andthen)
+LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoOp()) = LogΔSizeExec(v -> msg, level, andthen)
 LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(nameorrepr(v)) failed! $nextstr", level, andthen)
 base(s::LogΔSizeExec) = s.andthen
 fallback(s::LogΔSizeExec) = base(s)
@@ -81,7 +91,6 @@ struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
 struct Exact end
 struct Relaxed end
-
 
 """
     ΔNout <: AbstractJuMPΔSizeStrategy
@@ -168,7 +177,7 @@ $(generic_Δnout_docstring_examples("ΔNoutRelaxed"))
 """
 ΔNoutRelaxed(args...;fallback=default_noutfallback("nout", args)) = ΔNout{Relaxed}(args...;fallback)
 
-Δnout_err_info(v, Δ::Union{<:Maybe{Int}, <:Pair}...) = "$(nameorrepr(v)) by $(join(first(Δ), ", ", " and "))"
+Δnout_err_info(v, Δ::Union{<:Maybe{Int}, <:Pair}...) = "$(nameorrepr(v)) by $(join(first.(Δ), ", ", " and "))"
 Δnout_err_info(v, Δ::Tuple) = Δnout_err_info(v, Δ...)
 Δnout_err_info(ps::Pair...) = join(map(p ->Δnout_err_info(p...), ps), ", ", " and ")
 Δnout_err_info(d::AbstractDict) = join((Δnout_err_info(k, v) for (k,v) in d), ", ", " and ")
@@ -210,7 +219,9 @@ $(generic_Δnin_docstring_examples("ΔNinRelaxed"))
 Δnin2Δnout(v::AbstractVertex, Δs) = Δnin2Δnout(v, tuple(Δs))
 Δnin2Δnout(v::AbstractVertex, Δs::Pair{<:Tuple, <:Union{Relaxed, Exact}}) = Dict(k => (v => last(Δs)) for (k,v) in Δnin2Δnout(v, first(Δs))) 
 function Δnin2Δnout(v::AbstractVertex, Δs::Tuple)
-    @assert length(Δs) == length(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $(nameorrepr(v)). Tip: Use missing to indicate that no special requirement is used for an input"
+    @assert length(Δs) == length(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $(nameorrepr(v)) with $(length(inputs(v))) inputs. 
+    $(length(Δs) < length(inputs(v)) ? "Tip: Use missing to indicate that no special requirement shall be used for an input" : "")"
+    
     inds = findall(!ismissing, Δs)
     return Dict(inputs(v)[i] => Δs[i] for i in inds)
 end

@@ -20,14 +20,6 @@ end
 issame(g1::CompGraph, g2::CompGraph, visited=AbstractVertex[]) = issame(g1.outputs, g2.outputs, visited)
 issame(d1, d2, visited=AbstractVertex[]) = d1 == d2
 
-issame(s1::MutationOp, s2::MutationOp, visited=AbstractVertex[]) = false
-function issame(s1::T, s2::T, visited=AbstractVertex[]) where T<:MutationOp
-    for n in fieldnames(typeof(s1))
-        issame(getfield(s1, n), getfield(s2, n), visited) || return false
-    end
-    return true
-end
-
 function showstr(f, v)
     buffer = IOBuffer()
     f(buffer, v)
@@ -64,6 +56,27 @@ function NaiveNASlib.Δsize(im::IndMem, ins::AbstractVector, outs::AbstractVecto
     im.lastouts = outs
     nothing
 end
+
+mutable struct SizeDummy
+    nin::Vector{Int}
+    nout::Int
+end
+SizeDummy(insize::Integer, outsize::Integer) = SizeDummy([insize], outsize)
+
+NaiveNASlib.minΔninfactor(::SizeDummy) = 1
+NaiveNASlib.minΔnoutfactor(::SizeDummy) = 1
+
+function NaiveNASlib.Δsize(sd::SizeDummy, ins::AbstractVector{<:Integer}, out::Integer)
+    sd.nin .= ins
+    sd.nout = out
+    nothing
+end
+NaiveNASlib.nout(sd::SizeDummy) = sd.nout
+NaiveNASlib.nin(sd::SizeDummy) = sd.nin
+
+NaiveNASlib.Δsizetype(::SizeDummy) = NaiveNASlib.ScalarSize() 
+
+issame(sd1::SizeDummy, sd2::SizeDummy, visited=AbstractVertex[]) = nout(sd1) == nout(sd2) && nin(sd1) == nin(sd2)
 
 mutable struct MatMul{M<:AbstractMatrix}
     W::M

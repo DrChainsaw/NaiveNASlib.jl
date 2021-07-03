@@ -176,13 +176,16 @@ Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` re
 """
 function Δsize(case::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
 
+    Δnins = [any(length.(ins[vi]) .!= nin(vi)) for vi in vs]
+    Δnouts = [length(outs[vi]) != nout(vi) for vi in vs]
+
     for vi in vs
         Δsize(case, OnlyFor(), vi, ins[vi], outs[vi])
     end
 
-    for vi in vs
-        after_Δnin(vi, ins[vi]...)
-        after_Δnout(vi, outs[vi])
+    for (i, vi) in enumerate(vs)
+        after_Δnin(vi, ins[vi], Δnins[i])
+        after_Δnout(vi, outs[vi], Δnouts[i])
     end
 end
 
@@ -260,16 +263,6 @@ function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:Ab
     @logmsg s.level s.msgfun(vertices[1])
     return solve_outputs_selection(base(s), vertices, valuefun)
 end
-
-"""
-    ΔSizeFail <: Exception
-
-Size change could not be solved.
-"""
-struct ΔSizeFailError <: Exception
-    msg::String
-end
-Base.showerror(io::IO, e::ΔSizeFailError) = print(io, e.msg)
 
 solve_outputs_selection(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun) = throw(ΔSizeFailError(s.msgfun(vertices)))
 

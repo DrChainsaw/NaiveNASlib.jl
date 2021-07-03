@@ -1,6 +1,4 @@
 
-#TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
-# all MutationVertex has state?
 nin(t, ::InputSizeVertex) = []
 nin(v::AbstractVertex) = nin(trait(v), v)
 nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
@@ -190,11 +188,12 @@ struct ScalarSize end
 
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
-function Δsize(::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
+function Δsize(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
-        Δsize(nins, nouts, vertices)
+        Δsize(case, nins, nouts, vertices)
     end
+    return execute
 end
 
 """
@@ -203,102 +202,79 @@ end
 Set output size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
 Set input size of all keys `vi` in `nins` to `nins[vi]`.
 """
-function Δsize(nins::AbstractDict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+function Δsize(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
+
     Δnouts = nouts .- nout.(vertices)
+    Δnins = [coalesce.(get(() -> nin(vi), nins, vi), nin(vi)) .- nin(vi) for vi in vertices]
 
     for (i, vi) in enumerate(vertices)
-        ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
-        Δnin(OnlyFor(), vi, ninΔs...)
-        Δnout(OnlyFor(), vi, Δnouts[i])
+        insizes = get(() -> nin(vi), nins, vi)
+        insizes = coalesce.(insizes, nin(vi))
+        Δsize(case, OnlyFor(), vi, insizes, nouts[i])
     end
 
     for (i, vi) in enumerate(vertices)
-        ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
-        after_Δnin(vi, ninΔs...)
-        after_Δnout(vi, Δnouts[i])
+        after_Δnin(vi, Δnins[i], any(!=(0), Δnins[i]))
+        after_Δnout(vi, Δnouts[i], Δnouts[i] != 0)
     end
 end
 
-function Δnin(s::OnlyFor, v, Δs::Maybe{<:Integer}...)
-    any(skipmissing(Δs) .!= 0) || return
-    Δnin(s, trait(v), v, Δs)
+Δsize(case::ScalarSize, s::OnlyFor, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize(case, s, base(v), insizes, outsize)
+Δsize(::ScalarSize, ::OnlyFor, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize(v.computation, insizes, outsize)
+function Δsize(f, ins::AbstractVector{<:Integer}, outs::Integer) end
+
+function Δsize(::ScalarSize, ::OnlyFor, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer) 
+    if !all(isempty, skipmissing(ins))
+        throw(ArgumentError("Try to change input size of InputVertex $(name(v)) to $insizes"))
+    end 
+    if outsize != nout(v)
+        throw(ArgumentError("Try to change output size of InputVertex $(name(v)) to $outsize"))
+    end
 end
-Δnin(s::AbstractΔSizeStrategy, t::DecoratingTrait, v, Δs) = Δnin(s, base(t), v, Δs)
-function Δnin(s::AbstractΔSizeStrategy, t::SizeChangeLogger, v, Δs)
 
-    @logmsg t.level "Change nin of $(infostr(t, v)) by $(join(compressed_string.(Δs), ", "))"
-    Δnin(s, base(t), v, Δs)
+after_Δnin(v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
+after_Δnin(t::DecoratingTrait, v, Δs, changed) = after_Δnin(base(t), v, Δs, changed)
+function after_Δnin(t::SizeChangeValidation, v, Δs, changed) 
+    after_Δnin(base(t), v, Δs, changed)
+    validate_Δnin(v, Δs)
 end
-Δnin(::OnlyFor, ::MutationSizeTrait, v, Δs) = Δnin(op(v), Δs...)
-
-function Δnout(s::OnlyFor, v, Δ::Integer)
-    Δ == 0 && return
-    Δnout(s, trait(v), v, Δ)
+function after_Δnin(t::SizeChangeLogger, v, Δs, changed) 
+    if changed
+        @logmsg t.level "Change nin of $(infostr(t, v)) by $(join(compressed_string.(Δs), ", ", " and "))"
+    end
+    after_Δnin(base(t), v, Δs, changed)
 end
-Δnout(s::AbstractΔSizeStrategy, t::DecoratingTrait, v, Δ) = Δnout(s, base(t), v, Δ)
-function Δnout(s::AbstractΔSizeStrategy, t::SizeChangeLogger, v, Δ)
-    @logmsg t.level "Change nout of $(infostr(t, v)) by $(compressed_string(Δ))"
-    Δnout(s, base(t), v, Δ)
+function after_Δnin(t, v, Δs, changed) end
+
+after_Δnout(v, Δ, changed) = after_Δnout(trait(v), v, Δ, changed)
+after_Δnout(t::DecoratingTrait, v, Δ, changed) = after_Δnout(base(t), v, Δ, changed)
+function after_Δnout(t::SizeChangeValidation, v, Δ, changed) 
+    after_Δnout(base(t), v, Δ, changed)
+    validate_Δnout(v, Δ)
 end
-Δnout(::OnlyFor, ::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
+function after_Δnout(t::SizeChangeLogger, v, Δ, changed)
+    if changed
+        @logmsg t.level "Change nout of $(infostr(t, v)) by $(compressed_string(Δ))"
+    end
+    after_Δnout(base(t), v, Δ, changed)
+end
+function after_Δnout(t, v, Δ, changed) end
 
-
-after_Δnin(v, Δs...) = after_Δnin(trait(v), v, Δs)
-after_Δnin(t::DecoratingTrait, v, Δs) = after_Δnin(base(t), v, Δs)
-after_Δnin(t::SizeChangeValidation, v, Δs) = validate_Δnin(v, Δs, () -> after_Δnin(base(t), v, Δs))
-function after_Δnin(t, v, Δs) end
-
-after_Δnout(v, Δ) = after_Δnout(trait(v), v, Δ)
-after_Δnout(t::DecoratingTrait, v, Δ) = after_Δnout(base(t), v, Δ)
-after_Δnout(t::SizeChangeValidation, v, Δ) = validate_Δnout(v, Δ, () -> after_Δnout(base(t), v, Δ))
-function after_Δnout(t, v, Δ) end
-
-
-sizeΔ(Δ::Integer) = Δ
-sizeΔ(Δ::AbstractArray) = length(Δ)
-function validate_Δnin(v::AbstractVertex, Δ, Δfun, validvisit = true)
-
-    # Yeah, this is checking more than one thing. Cba to have three different structs and methods for validation
+function validate_Δnin(v::AbstractVertex, Δ)
     length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
-
-
-
-    if validvisit
-        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
-        Δninfactor = minΔninfactor_only_for(base(v))
-        any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
-    end
-
-    Δfun()
-
-    if validvisit
-        nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
-    end
+    nout.(inputs(v)) == nin(v) || throw(ΔSizeFailError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")) 
 end
 
-function validate_Δnout(v::AbstractVertex, Δ, Δfun, validvisit=true)
-
-    if validvisit
-        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
-        Δnoutfactor = minΔnoutfactor_only_for(base(v))
-        sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
-    end
-
-    Δfun()
-
-    if validvisit
-        nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
-
-        nin_of_outputs == [nout(v)] || throw(ArgumentError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
-    end
+function validate_Δnout(v::AbstractVertex, Δ)
+    nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
+    nin_of_outputs == [nout(v)] || throw(ΔSizeFailError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
 end
 
-
-newsizes(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
-newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)
+newsizes(s::ThrowΔSizeFailError, vs::AbstractVector{<:AbstractVertex}) = throw(ΔSizeFailError(s.msgfun(vs)))
+newsizes(::ΔSizeFailNoOp, vs::AbstractVector{<:AbstractVertex}) = false, Dict(v => nin(v) for v in vs), nout.(vs)
 function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
     @logmsg s.level s.msgfun(vertices[1])
-    return newsizes(s.andthen, vertices)
+    return newsizes(base(s), vertices)
 end
 
 """
@@ -324,7 +300,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
 
     JuMP.optimize!(model)
 
-    if accept(ScalarSize(), s, model)
+    if accept(case, s, model)
         return true, ninsAndNouts(s, vertices, noutvars)...
     end
     return newsizes(fallback(s), vertices)
@@ -399,7 +375,7 @@ Add constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-function vertexconstraints!(case, s::AbstractJuMPΔSizeStrategy, v, data)
+function vertexconstraints!(case::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data)
     ninconstraint!(s, v, data)
     compconstraint!(case, s, v, (data..., vertex=v))
     sizeconstraint!(case, s, v, data)
@@ -456,7 +432,7 @@ function compconstraint!(case, s, f, data) end
 
 Add the objective for `noutvars` using strategy `s`.
 """
-sizeobjective!(s::AbstractJuMPΔSizeStrategy, vertices, data) = @objective(model, Min, objective!(ScalarSize(), s, vertices, data))
+sizeobjective!(case::ScalarSize, s::AbstractJuMPΔSizeStrategy, vertices, data) = @objective(data.model, Min, objective!(case, s, vertices, data))
 
 function objective!(::ScalarSize, s, vertices, data)
     model = data.model
