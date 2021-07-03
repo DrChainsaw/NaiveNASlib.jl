@@ -1,7 +1,7 @@
 
 
 """
-AbstractΔSizeStrategy
+    AbstractΔSizeStrategy
 
 Abstract base type for strategies for how to change the size.
 
@@ -17,7 +17,7 @@ Change size only for the provided vertex.
 struct OnlyFor <: AbstractΔSizeStrategy end
 
 """
-AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
+    AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
 
 Abstract type for strategies to change or align the sizes of vertices using JuMP.
 """
@@ -33,28 +33,30 @@ More concretely: If `s` is a `DecoratingJuMPΔSizeStrategy` then `base(s)` will 
 abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
 """
-ΔSizeFailError <: AbstractJuMPΔSizeStrategy
-ΔSizeFailError(msg::String)
+    ThrowΔSizeFailError <: AbstractJuMPΔSizeStrategy
+    ThrowΔSizeFailError(msg::String)
 
 Throws an `ErrorException` with message `msg`.
 """
-struct ΔSizeFailError <: AbstractJuMPΔSizeStrategy
-    msg::String
+struct ThrowΔSizeFailError{F} <: AbstractJuMPΔSizeStrategy
+    msgfun::F
 end
+ThrowΔSizeFailError(msg::AbstractString) = ThrowΔSizeFailError(vs -> msg)
+ThrowΔSizeFailError() = ThrowΔSizeFailError(vs -> string("Could not change size of vertices ", join(nameorrepr.(vs), ", ", " and "),"!")) 
 
 """
-ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
-ΔSizeFailNoOp()
+    ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
+    ΔSizeFailNoOp()
 
 Does not perform any action.
 """
 struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
 
 """
-LogΔSizeExec <: AbstractJuMPΔSizeStrategy
-LogΔSizeExec(msgfun)
-LogΔSizeExec(msgfun, level::Logging.LogLevel)
-LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrategy)
+    LogΔSizeExec <: AbstractJuMPΔSizeStrategy
+    LogΔSizeExec(msgfun)
+    LogΔSizeExec(msgfun, level::Logging.LogLevel)
+    LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrategy)
 
 Logs `msgfun(v)` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen` for vertex `v`.
 """
@@ -65,13 +67,13 @@ struct LogΔSizeExec{F, S} <: DecoratingJuMPΔSizeStrategy
 end
 LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeFailNoOp())
 LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoop()) = LogΔSizeExec(v -> msg, level, andthen)
-LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(name(v)) failed! $nextstr", level, andthen)
+LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(nameorrepr(v)) failed! $nextstr", level, andthen)
 base(s::LogΔSizeExec) = s.andthen
 fallback(s::LogΔSizeExec) = base(s)
 
 
 """
-DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
+    DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
 
 Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
 """
@@ -82,10 +84,10 @@ struct Relaxed end
 
 
 """
-ΔNout{T} <: AbstractJuMPΔSizeStrategy
-ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
-ΔNoutExact(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
-ΔNoutRelaxed(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNout <: AbstractJuMPΔSizeStrategy
+    ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
+    ΔNoutExact(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNoutRelaxed(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
 
 Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
 
@@ -93,7 +95,7 @@ If `T == Exact`, size change will be added as a constraint to the model which me
 
 If `T == Relaxed`, size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`. In addition, a constraint that `nout(vertex)` must change is also added.
 
-If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
+If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ThrowΔSizeFailError` if `T==Relaxed`).
 """
 struct ΔNout{T, V, F} <: AbstractJuMPΔSizeStrategy
     Δs::Dict{V, Int}
@@ -110,7 +112,7 @@ end
 ΔNout{T}(Δs::AbstractDict{V, Int}; fallback) where {T,V} = ΔNout{T,V,typeof(fallback)}(Dict(Δs), fallback)
 fallback(s::ΔNout) = s.fallback
 
-Δnout_err_info(v, Δ::Union{<:Maybe{Int}, <:Pair}...) = "$v by $(join(first(Δ), ", ", " and "))"
+Δnout_err_info(v, Δ::Union{<:Maybe{Int}, <:Pair}...) = "$(nameorrepr(v)) by $(join(first(Δ), ", ", " and "))"
 Δnout_err_info(v, Δ::Tuple) = Δnout_err_info(v, Δ...)
 Δnout_err_info(ps::Pair...) = join(map(p ->Δnout_err_info(p...), ps), ", ", " and ")
 Δnout_err_info(d::AbstractDict) = join((Δnout_err_info(k, v) for (k,v) in d), ", ", " and ")
@@ -119,14 +121,14 @@ function default_noutfallback(nextfallback, dirstr, args)
     LogΔSizeExec(v -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "! Relaxing constraints..."), Logging.Warn, nextfallback(args...))
 end
 
-default_noutfallback(dirstr, args) = ΔSizeFailError(string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "!!"))
+default_noutfallback(dirstr, args) = ThrowΔSizeFailError(string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "!!"))
 
 
 """
-ΔNin{T} <: AbstractJuMPΔSizeStrategy
-ΔNin{T}(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
-ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
-ΔNinRelaxed(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
+    ΔNin{T} <: AbstractJuMPΔSizeStrategy
+    ΔNin{T}(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
+    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
+    ΔNinRelaxed(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
 
 Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
 
@@ -136,7 +138,7 @@ If `T == Exact`, size change will be added as a constraint to the model which me
 
 If `T == Relaxed`, size change will be added as an objective to the model which means that `nin(vertex)` might not change by exactly `Δs`. In addition, a constraint that `nin(vertex)` must change is also added.
 
-If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
+If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ThrowΔSizeFailError` if `T==Relaxed`).
 """
 ΔNinExact(args...; fallback=default_noutfallback(ΔNinRelaxed, "nin", args)) = ΔNin(Exact(), args...; fallback)
 ΔNinRelaxed(args...; fallback=default_noutfallback("nout", args)) = ΔNin(Relaxed(), args...;fallback)
@@ -147,7 +149,7 @@ If the operation fails, it will be retried with the `fallback` strategy (default
 Δnin2Δnout(v::AbstractVertex, Δs) = Δnin2Δnout(v, tuple(Δs))
 Δnin2Δnout(v::AbstractVertex, Δs::Pair{<:Tuple, <:Union{Relaxed, Exact}}) = Dict(k => (v => last(Δs)) for (k,v) in Δnin2Δnout(v, first(Δs))) 
 function Δnin2Δnout(v::AbstractVertex, Δs::Tuple)
-    @assert length(Δs) == length(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
+    @assert length(Δs) == length(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $(nameorrepr(v))."
     inds = findall(!ismissing, Δs)
     return Dict(inputs(v)[i] => Δs[i] for i in inds)
 end
@@ -196,33 +198,33 @@ function split_exact_relaxed(args::Union{AbstractDict{V}, Tuple{Vararg{Pair{V}}}
 end
 
 """
-AlignNinToNout <: AbstractJuMPΔSizeStrategy
-AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
+    AlignNinToNout <: DecoratingJuMPΔSizeStrategy
+    AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
 
 Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+If it fails, the operation will be retried with the `fallback` strategy (default `ThrowΔSizeFailError`).
 """
 struct AlignNinToNout{S, F} <: DecoratingJuMPΔSizeStrategy
     nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
     vstrat::S
     fallback::F
 end
-AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
+AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ThrowΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
 AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, Vector{JuMP.VariableRef}}(), vstrat, fallback)
 fallback(s::AlignNinToNout) = s.fallback
 base(s::AlignNinToNout) = s.vstrat
 
 """
-AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
-AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=ΔSizeFailError())
-AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer},vstrat=AlignNinToNout(), fallback=ΔSizeFailError())
+    AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
+    AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=ThrowΔSizeFailError())
+    AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer},vstrat=AlignNinToNout(), fallback=ThrowΔSizeFailError())
 
 Same as [`AlignNinToNout`](@ref) with an additional constraint that `nin(s.vin)[s.ininds] == nout(s.vout)` where `s` is a `AlignNinToNoutVertices`.
 
 Useful in the context of removing vertices and/or edges.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
+If it fails, the operation will be retried with the `fallback` strategy (default `ThrowΔSizeFailError`).
 """
 struct AlignNinToNoutVertices{V1,V2,F} <: DecoratingJuMPΔSizeStrategy
     vin::V1
@@ -237,28 +239,28 @@ AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, innerstrat::Ab
 fallback(s::AlignNinToNoutVertices) = s.fallback
 base(s::AlignNinToNoutVertices) = s.vstrat
 
-failtoalign(vin, vout) = ΔSizeFailError("Could not align nout of $vin to nin of $(vout)!!")
+failtoalign(vin, vout) = ThrowΔSizeFailError(vs -> string("Could not align nout of ", nameorrepr(vin), " to nin of ", nameorrepr(vout), "!!"))
 
 """
     SelectDirection <: AbstractΔSizeStrategy
     SelectDirection()
     SelectDirection(s::AbstractΔSizeStrategy)
 
-Select indices for a vertex using `AbstractΔSizeStrategy s` (default `OutSelect{Exact}`) in only the direction(s) in which the vertex has changed size.
+Select indices for a vertex using `AbstractΔSizeStrategy s` (default `DefaultJuMPSelectionStrategy`) in only the direction(s) in which the vertex has changed size.
 
 Intended use it to reduce the number of constraints for a `AbstractJuMPΔSizeStrategy` as only the parts of the graph which are changed will be considered.
 """
 struct SelectDirection{S} <: AbstractΔSizeStrategy
     strategy::S
 end
-SelectDirection() = SelectDirection(OutSelectExact())
+SelectDirection() = SelectDirection(DefaultJuMPΔSizeStrategy())
 
 """
     TruncateInIndsToValid{S} <: AbstractΔSizeStrategy
     TruncateInIndsToValid()
     TruncateInIndsToValid(s::S)
 
-Ensures that all selected input indices are within range of existing input indices after applying `s` (default `OutSelectExact`).
+Ensures that all selected input indices are within range of existing input indices after applying `s` (default `DefaultJuMPSelectionStrategy`).
 
 Not needed in normal cases, but certain structural mutations (e.g create_edge!) may cause this to happen due to how constraints are (not) created when original sizes do not align in conjunction with how result of selection is interpreted.
 

@@ -266,10 +266,10 @@
             v0 = inpt(3)
             v1 = av(5, v0, "v1")
 
-            @test_throws ErrorException Δsize(ΔNout{Exact}(v0, 2, ΔSizeFailError("Success?!")), [v0, v1])
+            @test_throws ErrorException Δsize(ΔNout{Exact}(v0, 2, ThrowΔSizeFailError("Success?!")), [v0, v1])
             @test [nout(v0)] == nin(v1) == [3]
 
-            @test_throws ErrorException Δsize(ΔNin{Exact}(v1, [-2], ΔSizeFailError("Success?!")), [v1, v0])
+            @test_throws ErrorException Δsize(ΔNin{Exact}(v1, [-2], ThrowΔSizeFailError("Success?!")), [v1, v0])
             @test [nout(v0)] == nin(v1) == [3]
         end
     end
@@ -708,11 +708,11 @@
             v2 = av(5,2, v1, name="v2")
             import NaiveNASlib:Exact, Relaxed
 
-            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 2, ΔSizeFailError("")), all_in_graph(v1))
-            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 3, ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 2, ThrowΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNout{Exact}(v1, 3, ThrowΔSizeFailError("")), all_in_graph(v1))
 
-            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [2], ΔSizeFailError("")), all_in_graph(v1))
-            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [3], ΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [2], ThrowΔSizeFailError("")), all_in_graph(v1))
+            @test_throws ErrorException newsizes(ΔNin{Exact}(v2, [3], ThrowΔSizeFailError("")), all_in_graph(v1))
 
             @test newsizes(ΔNout{Exact}(v1, 2, ΔSizeFailNoOp()), all_in_graph(v1))[1] == false
             @test newsizes(ΔNin{Exact}(v2, [2], ΔSizeFailNoOp()), all_in_graph(v2))[1] == false

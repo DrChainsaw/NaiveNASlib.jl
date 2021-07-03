@@ -294,7 +294,7 @@ function validate_Δnout(v::AbstractVertex, Δ, Δfun, validvisit=true)
 end
 
 
-newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
+newsizes(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
 newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)
 function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
     @logmsg s.level s.msgfun(vertices[1])

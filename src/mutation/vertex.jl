@@ -185,6 +185,14 @@ name(t::MutationTrait, v) = summary(v) * "::" * summary(t)
 name(t::NamedTrait, v) = t.name
 name(t::DecoratingTrait, v) = name(base(t), v)
 
+nameorrepr(v) = repr(v)
+nameorrepr(v::InputSizeVertex) = nameorrepr(base(v))
+nameorrepr(v::InputVertex) = name(v)
+nameorrepr(v::MutationVertex) = nameorrepr(trait(v), v)
+nameorrepr(t::DecoratingTrait, v) = nameorrepr(base(t), v)
+nameorrepr(t::NamedTrait, v) = t.name
+nameorrepr(::MutationTrait, v) = repr(v)
+
 struct MutationTraitInfoStr <: InfoStr  end
 struct MutationSizeTraitInfoStr <: InfoStr  end
 struct NinInfoStr <: InfoStr  end

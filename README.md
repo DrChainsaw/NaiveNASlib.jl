@@ -377,7 +377,7 @@ joined = conc(scalarmult(layer1, 2), scalarmult(layer1, 3), dims=2)
 verts = all_in_graph(joined)
 
 # Strategy to try to change it by one and throw an error when not successful
-exactOrFail = ΔNout{Exact}(joined, 1, ΔSizeFailError("Size change failed!!"))
+exactOrFail = ΔNout{Exact}(joined, 1, ThrowΔSizeFailError("Size change failed!!"))
 
 # Note that we now call Δsize instead of Δnout as the direction is given by the strategy
 @test_throws ErrorException Δsize(exactOrFail, verts)
@@ -394,7 +394,7 @@ exactOrNoop = ΔNout{Exact}(joined, 1, ΔSizeFailNoOp())
 @test nout(joined) == 2*nout(layer1) == 8
 
 # In many cases it is ok to not get the exact change which was requested
-relaxedOrFail = ΔNout{Relaxed}(joined, 1, ΔSizeFailError("This should not happen!!"))
+relaxedOrFail = ΔNout{Relaxed}(joined, 1, ThrowΔSizeFailError("This should not happen!!"))
 
 Δsize(relaxedOrFail, verts)
 
@@ -404,7 +404,7 @@ relaxedOrFail = ΔNout{Relaxed}(joined, 1, ΔSizeFailError("This should not happ
 # Logging when fallback is applied is also possible
 using Logging
 # Yeah, this is not easy on the eyes, but it gets the job done...
-exactOrLogThenRelax = ΔNout{Exact}(joined, 1, LogΔSizeExec(Logging.Info, "Exact failed, relaxing", ΔNout{Relaxed}(joined, 1, ΔSizeFailError("This should not happen!!"))))
+exactOrLogThenRelax = ΔNout{Exact}(joined, 1, LogΔSizeExec(Logging.Info, "Exact failed, relaxing", ΔNout{Relaxed}(joined, 1, ThrowΔSizeFailError("This should not happen!!"))))
 
 @test_logs (:info, "Exact failed, relaxing") Δsize(exactOrLogThenRelax, verts)
 

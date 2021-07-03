@@ -3,6 +3,8 @@
     NeuronIndices
 
 Treat vertices as having parameters which represents neurons when formulating the size change problem.
+
+This means that individual indices will be aligned so that the function to the largest extent possible is the same after resizing.
 """
 struct NeuronIndices end
 
@@ -254,15 +256,25 @@ end
 parselect(::Missing, args...;kwargs...) = missing
 
 
-function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex}, valuefun)
     @logmsg s.level s.msgfun(vertices[1])
-    return solve_outputs_selection(s.andthen, vertices, valuefun)
+    return solve_outputs_selection(base(s), vertices, valuefun)
 end
 
-solve_outputs_selection(::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function) = error("Size change failed for vertex $(name.(vertices))")
+"""
+    ΔSizeFail <: Exception
+
+Size change could not be solved.
+"""
+struct ΔSizeFailError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::ΔSizeFailError) = print(io, e.msg)
+
+solve_outputs_selection(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun) = throw(ΔSizeFailError(s.msgfun(vertices)))
 
 """
-    solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+    solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)
 
 Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input neuron indices and `noutdict[vi]` are new output neuron indices for each vertex `vi` in `vertices`.
 
@@ -270,7 +282,7 @@ The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ 
 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
-function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun::Function)
+function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)
     model = selectmodel(NeuronIndices(), s, vertices, values)
     case = NeuronIndices()
     # The binary variables `outselectvars` tells us which existing output indices to select
@@ -296,7 +308,7 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     @objective(model, Max, objexpr)
 
     JuMP.optimize!(model)
-    
+
     !accept(case, s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...

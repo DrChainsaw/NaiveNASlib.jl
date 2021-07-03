@@ -54,35 +54,26 @@
         @test join_extracted_inds([], [3,0]) == [-1,-1,-1]
     end
 
-    @testset "SelectDirection" begin
-
-        mutable struct TestProbe <: AbstractΔSizeStrategy
-            vs
-            d
-            function TestProbe(v, d)
-                tp = new(nothing, d)
-                Δsize(v -> error("Shall not be called!"), SelectDirection(tp), v)
-                return tp
-            end
-        end
-        NaiveNASlib.Δsize(vfun, s::TestProbe, d, v::AbstractVertex) = s.vs = Set(all_in_Δsize_graph(v, d))
-        NaiveNASlib.Δdirection(t::TestProbe) = t.d
-
-        v1 = av(iv(3), 5, "v1")
+    @testset "Absorb 2 Absorb" begin
+        inpt = iv(3)
+        v1 = av(inpt, 5, "v1")
         v2 = av(v1, 4, "v2")
-        v3 = av(v2, 3, "v3")
 
-        tp = TestProbe(v2, nothing)
-        @test tp.vs === nothing
+        g = CompGraph(inpt, v2)
 
-        tp = TestProbe(v2, Input())
-        @test tp.vs == Set([v2, v1])
+        @test Δnout(v -> 1:nout(v), v1, -2)
 
-        tp = TestProbe(v2, Output())
-        @test tp.vs == Set([v2, v3])
+        @test lastouts(v1) == lastins(v2) == [3,4,5]
+        @test size(g(ones(3))) == (nout(v2),)
 
-        tp = TestProbe(v2, Both())
-        @test tp.vs == Set([v1, v2, v3])
+        @test Δnout(v1, 3)
+
+        @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
+        @test size(g(ones(3))) == (nout(v2),)
+
+        @test Δnin(v2, -2)
+        @test lastouts(v1) == lastins(v2) == [3,4,5,6]
+        @test size(g(ones(3))) == (nout(v2),)
     end
 
     @testset "Argument plumbing" begin
@@ -179,34 +170,13 @@
         end
     end
 
-    @testset "Absorb 2 Absorb" begin
-        inpt = iv(3)
-        v1 = av(inpt, 5, "v1")
-        v2 = av(v1, 4, "v2")
-
-        g = CompGraph(inpt, v2)
-
-        @test Δnout(v -> 1:nout(v), v1, -2)
-
-        @test lastouts(v1) == lastins(v2) == [3,4,5]
-        @test size(g(ones(3))) == (nout(v2),)
-
-        @test Δnout(v1, 3)
-
-        @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
-        @test size(g(ones(3))) == (nout(v2),)
-
-        @test Δnin(v2, -2)
-        @test lastouts(v1) == lastins(v2) == [3,4,5,6]
-        @test size(g(ones(3))) == (nout(v2),)
-    end
-
     @testset "Absorb 2 Absorb fail" begin
+        import NaiveNASlib: ΔSizeFailError
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
         v2 = av(v1, 4, "v2")
 
-        @test_throws ErrorException Δsize(v -> 1:nout_org(v), ΔSizeFailError("Success!?"), v1)
+        @test_throws ΔSizeFailError Δsize(v -> 1:nout_org(v), ThrowΔSizeFailError("Success!?"), v1)
     end
 
     @testset "SizeStack duplicate" begin
@@ -637,5 +607,36 @@
 
         Δnout(v1, 3)
         @test ccouts == lastins(v2) == [2, 4, -1, -1, -1, -1, -1]
+    end
+
+    @testset "SelectDirection" begin
+
+        mutable struct TestProbe <: AbstractΔSizeStrategy
+            vs
+            d
+            function TestProbe(v, d)
+                tp = new(nothing, d)
+                Δsize(v -> error("Shall not be called!"), SelectDirection(tp), v)
+                return tp
+            end
+        end
+        NaiveNASlib.Δsize(vfun, s::TestProbe, d, v::AbstractVertex) = s.vs = Set(all_in_Δsize_graph(v, d))
+        NaiveNASlib.Δdirection(t::TestProbe) = t.d
+
+        v1 = av(iv(3), 5, "v1")
+        v2 = av(v1, 4, "v2")
+        v3 = av(v2, 3, "v3")
+
+        tp = TestProbe(v2, nothing)
+        @test tp.vs === nothing
+
+        tp = TestProbe(v2, Input())
+        @test tp.vs == Set([v2, v1])
+
+        tp = TestProbe(v2, Output())
+        @test tp.vs == Set([v2, v3])
+
+        tp = TestProbe(v2, Both())
+        @test tp.vs == Set([v1, v2, v3])
     end
 end
