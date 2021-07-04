@@ -319,9 +319,14 @@ end
 selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, values) = selectmodel(case, base(s), v, values) 
 selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
 
-function vertexconstraints!(::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
+function vertexconstraints!(case::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
      @constraint(data.model, data.outselectvars[v] .== 1)
      @constraint(data.model, data.outinsertvars[v] .== 0)
+     for (vi, outsize) in zip(inputs(v), nin(v))
+        @constraint(data.model, data.noutdict[vi] == outsize)
+     end
+     # This is needed e.g. to apply (impossible) size constraints incase someone wants to change the input size of an output vertex
+     vertexconstraints!(case ,s, v, data)
 end
 
 # ScalarSize constraints happen to be good here, but we must ensure that vertexconstraints!(::NeuronIndices,...) gets called instead of vertexconstraints!(::ScalarSize,...)
@@ -349,7 +354,7 @@ Assume `select` is a set of binary variables where `select[i] = 1` means select 
 An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1]` because this results in the instruction to use existing output neurons `1 and 2` and then insert a new neuron at position `4`. 
 In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method contrains `model` so that this solution is infeasible.
 """
-function noinsertgaps!(model, select, insert, maxinsert=length(select) * 10)
+function noinsertgaps!(model, select, insert, maxinsert=max(length(select) * 10, 200)) # TODO: get maxinsert from strategy instead
     insert_nogap = @variable(model, [1:length(insert)], Bin)
 
     @constraint(model, sum(insert) <= maxinsert)
@@ -369,36 +374,48 @@ sizeconstraint!(::NeuronIndices, s::ΔNout{Exact}, v, data) = sizeconstraint!(Sc
 
 inoutconstraint!(case, s::DecoratingJuMPΔSizeStrategy, v, data) = inoutconstraint!(case, base(s), v, data) 
 inoutconstraint!(case, s, v, data) = inoutconstraint!(case, s, trait(v), v, data) 
-inoutconstraint!(case, s, t::DecoratingTrait, v, data) = inoutconstraint!(case, s, base(t), v, data) 
+inoutconstraint!(case::NeuronIndices, s, t::DecoratingTrait, v, data) = inoutconstraint!(case, s, base(t), v, data) 
 
 
-function inoutconstraint!(::NeuronIndices, s, ::SizeAbsorb, v, data) end
+function inoutconstraint!(::NeuronIndices, s, ::MutationTrait, v, data) end
 function inoutconstraint!(case::NeuronIndices, s, t::SizeTransparent, v, data)
-    inoutconstraint!(case, s, t, v, data.model, data.outselectvars)
-    inoutconstraint!(case, s, t, v, data.model, data.outinsertvars)
+    onemismatch  = inoutconstraint!(case, s, t, v, data.model, data.outselectvars)
+    onemismatch |= inoutconstraint!(case, s, t, v, data.model, data.outinsertvars)
+    
+    # We need to ensure that total sizes align if there was a mismatch
+    if onemismatch
+        ninconstraint!(case, s, v, data)
+    end
 end
 
-function inoutconstraint!(::NeuronIndices, s, ::SizeStack, v, model, vardict::Dict)
+function inoutconstraint!(::NeuronIndices, s, t::SizeStack, v, model, vardict::Dict)
     offs = 1
     var = vardict[v]
+    onemismatch = false
     for (i, vi) in enumerate(inputs(v))
         var_i = vardict[vi]
         # Sizes mismatch when vertex/edge was removed (or edge added)
-        if nout_org(vi) == nin_org(v)[i] && offs+length(var_i)-1 <= length(var)
+        if nout(vi) == nin(v)[i] && offs+length(var_i)-1 <= length(var)
             @constraint(model, var_i .== var[offs:offs+length(var_i)-1])
+        else
+            onemismatch = true
         end
         offs += length(var_i)
     end
+    return onemismatch
 end
 
 function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict::Dict)
     var = vardict[v]
+    onemismatch = false
     for vi in inputs(v)
         # Sizes mismatch when vertex/edge was removed (or edge added)
-        nout_org(vi) == nout_org(v) || continue
+        onemismatch = nout(vi) != nout(v) 
+        onemismatch && continue
         var_i = vardict[vi]
         @constraint(model, var_i .== var)
     end
+    return onemismatch
 end
 
 # Minus sign because we maximize objective function in case NeuronIndices

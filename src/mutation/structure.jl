@@ -50,10 +50,21 @@ Note that this means that graphs will most likely be left corrupted state if use
 struct FailAlignSizeNoOp <: AbstractAlignSizeStrategy end
 
 """
+    SizeAlignFailError <: Exception
+
+Sizes could not be aligned.
+"""
+struct SizeAlignFailError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::SizeAlignFailError) = print(io, "SizeAlignFailError: ", e.msg)
+
+
+"""
     FailAlignSizeError <: AbstractAlignSizeStrategy
     FailAlignSizeError()
 
-Throws an error.
+Throws SizeAlignFailError.
 """
 struct FailAlignSizeError <: AbstractAlignSizeStrategy end
 
@@ -218,7 +229,13 @@ function remove!(v::MutationVertex, strategy=RemoveStrategy())
     remove!(v, inputs, outputs, strategy.reconnect)
     remove!(v, outputs, inputs, strategy.reconnect)
 
-    return postalignsizes(strategy.align, v)
+    # Note, success from prealignsizes strategies is implicit as we return if it fails
+    success = postalignsizes(strategy.align, v)
+    
+    if !success
+
+    end
+    return success
 end
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
@@ -229,7 +246,7 @@ function remove!(v::MutationVertex, f1::Function, f2::Function, s::AbstractConne
         inds = findall(vx -> vx == v, f1_f2_v)
         deleteat!(f1_f2_v, inds)
         # Connect f2 of v to f2 of v1, e.g connect the inputs to v as inputs to v1 if f2 == inputs
-        connect!(f1_v, f1_f2_v, inds, f2(v), s)
+        connect!(s, f1_f2_v, inds, f2(v))
     end
 end
 
@@ -240,27 +257,24 @@ end
 Does connection of `items` to `to` at position `inds` depending on the given strategy.
 """
 #Not sure broadcasting insert! like this is supposed to work, but it does...
-connect!(v, to, inds, items, ::ConnectAll) = insert!.([to], inds, items)
-function connect!(v, to, inds, items, ::ConnectNone)
-    # Stupid generic function forces me to check this...
-    # ... and no, it is not easy to understand what is going on here...
-    if to == inputs(v) && !isempty(inds)
-        rem_input!.(op.(v), inds...)
-    end
-end
+connect!(::ConnectAll, to, inds, items) = insert!.(Ref(to), inds, items)
+function connect!(::ConnectNone, args...) end
 
-tot_nin(v) = tot_nin(trait(v), v)
+tot_nin(v::AbstractVertex) = tot_nin(trait(v), v)
 tot_nin(t::DecoratingTrait, v) = tot_nin(base(t), v)
-tot_nin(::MutationTrait, v) = nin(v)[]
 tot_nin(::SizeInvariant, v) = length(unique(nin(v))) == 1 ? unique(nin(v))[] : nothing
 tot_nin(::SizeTransparent, v) = sum(nin(v))
+tot_nin(t::MutationTrait, v) = tot_nin(t, base(v))
+tot_nin(::MutationTrait, v::CompVertex) = tot_nin(v.computation)
+tot_nin(::MutationTrait, v::InputSizeVertex) = nothing
+tot_nin(f) = nin(f)[1]
 
 # Boilerplate
 prealignsizes(s::AbstractAlignSizeStrategy, v, will_rm::Function) = prealignsizes(s, v, v, will_rm)
 prealignsizes(s::AbstractAlignSizeStrategy, vin, vout, will_rm) = true
 
 # Failure cases
-prealignsizes(::FailAlignSizeError, vin, vout, will_rm) = error("Could not align sizes of $(vin) and $(vout)!")
+prealignsizes(::FailAlignSizeError, vin, vout, will_rm) = throw(SizeAlignFailError("Could not align sizes of $(nameorrepr(vin)) and $(nameorrepr(vout))!"))
 function prealignsizes(s::FailAlignSizeWarn, vin, vout, will_rm)
     @warn s.msgfun(vin, vout)
     return prealignsizes(s.andthen, vin, vout, will_rm)
@@ -344,7 +358,7 @@ postalignsizes(s::AbstractAlignSizeStrategy, vin, vout, pos) = true
 
 # Failure cases
 postalignsizes(::FailAlignSizeNoOp, vin, vout, pos) = false
-postalignsizes(::FailAlignSizeError, vin, vout, pos) = error("Could not align sizes of $(vin) and $(vout)!")
+postalignsizes(::FailAlignSizeError, vin, vout, pos) = throw(SizeAlignFailError("Could not align sizes of $(nameorrepr(vin)) and $(nameorrepr(vout))!"))
 function postalignsizes(s::FailAlignSizeWarn, vin, vout, pos)
     @warn s.msgfun(vin, vout)
     return postalignsizes(s.andthen, vin, vout, pos)

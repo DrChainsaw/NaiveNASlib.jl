@@ -33,7 +33,7 @@ More concretely: If `s` is a `DecoratingJuMPΔSizeStrategy` then `base(s)` will 
 abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
 """
-    ΔSizeFail <: Exception
+    ΔSizeFailError <: Exception
 
 Size change could not be solved.
 """

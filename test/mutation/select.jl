@@ -13,7 +13,7 @@
     nc(name) = traitconf(nt(name))
 
     @testset "Split relaxed exact" begin
-        import NaiveNASlib: split_exact_relaxed, Relaxed
+        import NaiveNASlib: split_exact_relaxed, Relaxed, Exact
 
         @test (:a => relaxed(3)) == (:a => 3 => Relaxed())
 

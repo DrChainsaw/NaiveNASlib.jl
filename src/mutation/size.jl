@@ -1,18 +1,19 @@
 
-nin(t, ::InputSizeVertex) = []
+
 nin(v::AbstractVertex) = nin(trait(v), v)
 nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
-nin(t::SizeAbsorb, v::AbstractVertex) = nin(t, base(v))
-nin(::SizeAbsorb, v::CompVertex) = nin(v.computation)
+nin(t::MutationTrait, v::AbstractVertex) = nin(t, base(v))
+nin(::MutationTrait, v::CompVertex) = nin(v.computation)
+nin(::MutationTrait, ::InputSizeVertex) = []
 
 # SizeTransparent does not need mutation state to keep track of sizes
 nin(::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
 
 nout(v::AbstractVertex) = nout(trait(v), v)
 nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
-nout(t::SizeAbsorb, v::AbstractVertex) = nout(t, base(v))
-nout(::SizeAbsorb, v::CompVertex) = nout(v.computation)
-nout(t, v::InputSizeVertex) = v.size
+nout(t::MutationTrait, v::AbstractVertex) = nout(t, base(v))
+nout(::MutationTrait, v::CompVertex) = nout(v.computation)
+nout(::MutationTrait, v::InputSizeVertex) = v.size
 
 # SizeTransparent might not care about size
 nout(::SizeInvariant, v::AbstractVertex) = isempty(nin(v)) ? 0 : nin(v)[1]
@@ -301,7 +302,7 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     JuMP.optimize!(model)
 
     if accept(case, s, model)
-        return true, ninsAndNouts(s, vertices, noutvars)...
+        return true, ninsandnouts(s, vertices, noutvars)...
     end
     return newsizes(fallback(s), vertices)
 end
@@ -339,8 +340,9 @@ end
 
 # This must be applied to immutable vertices as well
 function vertexconstraints!(currcase::ScalarSize, v::AbstractVertex, s::AlignNinToNout, data, case=currcase)
-    vertexconstraints!(currcase, v, s.vstrat, data)
+    vertexconstraints!(case, v, s.vstrat, data)
     # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
+    # ninvar shall be used to set new nin sizes after problem is solved
     for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
         ninvar = @variable(data.model, integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
@@ -376,7 +378,7 @@ Add constraints for `AbstractVertex v` using strategy `s`.
 Extra info like the model and variables is provided in `data`.
 """
 function vertexconstraints!(case::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data)
-    ninconstraint!(s, v, data)
+    ninconstraint!(case, s, v, data)
     compconstraint!(case, s, v, (data..., vertex=v))
     sizeconstraint!(case, s, v, data)
 end
@@ -406,13 +408,11 @@ Add input size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-ninconstraint!(s, v, data) = ninconstraint!(s, trait(v), v, data)
-ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, data)
-function ninconstraint!(s, ::MutationTrait, v, data) end
-ninconstraint!(s, ::SizeStack, v, data) = @constraint(data.model, sum(getall(data.noutdict, inputs(v))) == data.noutdict[v])
-ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, getall(data.noutdict, unique(inputs(v))) .== data.noutdict[v])
-
-
+ninconstraint!(case, s, v, data) = ninconstraint!(case, s, trait(v), v, data)
+ninconstraint!(case, s, t::DecoratingTrait, v, data) = ninconstraint!(case, s, base(t), v, data)
+function ninconstraint!(case, s, ::MutationTrait, v, data) end
+ninconstraint!(case, s, ::SizeStack, v, data) = @constraint(data.model, sum(getall(data.noutdict, inputs(v))) == data.noutdict[v])
+ninconstraint!(case, s, ::SizeInvariant, v, data) = @constraint(data.model, getall(data.noutdict, unique(inputs(v))) .== data.noutdict[v])
 
 """
     compconstraint!(case, s, v, data)
@@ -465,7 +465,7 @@ function noutrelax!(case, Δs, vertices, data)
     return @expression(model, def_obj + 1e6*sum(Δnout_obj))
 end
 
-function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
+function ninsandnouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
     nouts = round.(Int, JuMP.value.(noutvars))
     mapnout(i::Integer) = nouts[i]
     mapnout(i::Nothing) = missing
@@ -474,13 +474,13 @@ function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
     return nins, nouts
 end
 
-function ninsAndNouts(s::AlignNinToNout, vs, noutvars)
+function ninsandnouts(s::AlignNinToNout, vs, noutvars)
     nouts = round.(Int, JuMP.value.(noutvars))
     nins = Dict(key => round.(Int, JuMP.value.(value)) for (key, value) in s.nindict)
     return nins,nouts
 end
 
-ninsAndNouts(s::AlignNinToNoutVertices, vs, noutvars) = ninsAndNouts(s.vstrat, vs, noutvars)
+ninsandnouts(s::AlignNinToNoutVertices, vs, noutvars) = ninsandnouts(s.vstrat, vs, noutvars)
 
 # TODO: Remove since only used for debugging. If only it wasn't so bloody cumbersome to just list the constraints in a JuMP model....
 nconstraints(model) = mapreduce(tt -> JuMP.num_constraints.(model,tt...), +,  filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model)), init=0)

@@ -9,7 +9,7 @@
     sv(in, ins...; name="sv") = conc(in, ins..., dims=2, traitdecoration = tf(name), outwrap=f -> IndMem(f, ins, sum(nout, ins)))
     sv(in; name="sv") = vertex(IndMem(identity, in, nout(in)), tf(name)(SizeStack()), in)
     iv(ins...; name="iv") = +(VertexConf(tf(name), f -> IndMem(f, ins, nout(ins[1]))) >> ins[1], ins[2:end]...)
-    imu(in, outsize; name="imu") = immutablevertex(identity, outsize, in, traitdecoration= tf(name))
+    imu(in, outsize; name="imu") = immutablevertex(MatMul(nout(in), outsize), in, traitdecoration= tf(name))
 
     @testset "Edge mutation" begin
         @testset "Edge removal" begin
@@ -676,14 +676,16 @@
         end
 
         @testset "With size constraints" begin
-
-            struct SizeConstraintNoDecrease
-                constraint
-                nodecrease
+            import JuMP
+            mutable struct SizeConstraintNoDecrease
+                constraint::Int
+                nodecrease::Bool
+                nin::Int
+                nout::Int
              end
             NaiveNASlib.minΔnoutfactor(c::SizeConstraintNoDecrease) = c.constraint
             NaiveNASlib.minΔninfactor(c::SizeConstraintNoDecrease) = c.constraint
-            function NaiveNASlib.compconstraint!(s, c::SizeConstraintNoDecrease, data)
+            function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, ::AbstractJuMPΔSizeStrategy, c::SizeConstraintNoDecrease, data)
                 model = data.model
                 v = data.vertex
 
@@ -700,8 +702,18 @@
                     JuMP.@constraint(data.model, data.noutdict[data.vertex] >= nout(data.vertex))
                 end
             end
+            NaiveNASlib.nin(c::SizeConstraintNoDecrease) = [c.nin]
+            NaiveNASlib.nout(c::SizeConstraintNoDecrease) = c.nout
+            function NaiveNASlib.Δsize(c::SizeConstraintNoDecrease, ins::AbstractVector, outs::AbstractVector)
+                if !ismissing(ins[1])
+                    c.nin = length(ins[1])
+                end
+                c.nout =length(outs)
+                nothing
+            end
+
             # Can't have kwarg due to https://github.com/JuliaLang/julia/issues/32350
-            av(in, outsize, constr, name="avs", nodecr=true) = av(in, outsize, name=name, comp = SizeConstraintNoDecrease(constr, nodecr))
+            av(in, outsize, constr, name="avs", nodecr=true) = av(in, outsize, name=name, comp = SizeConstraintNoDecrease(constr, nodecr, nout(in), outsize))
 
             @testset "Edge addition" begin
 
@@ -716,7 +728,7 @@
                     @test inputs(v3) == [v1]
                     @test minΔninfactor(v3) == 70
 
-                    create_edge!(v2, v3)
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [28, 15]
@@ -732,7 +744,7 @@
                     @test inputs(v2) == [v1]
                     @test minΔninfactor(v2) == 10
 
-                    create_edge!(v0, v2)
+                    @test create_edge!(v0, v2)
                     @test inputs(v2) == [v1, v0]
 
                     @test nin(v2) == [nout(v1), nout(v0)] == [10, 3]
@@ -748,9 +760,8 @@
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
-
-                    create_edge!(v2, v3)
+   
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [2, 6]
@@ -768,14 +779,14 @@
                     @test inputs(v4) == [v1, v2]
                     @test ismissing(minΔnoutfactor(v4))
 
-                    create_edge!(v3, v4)
+                    @test create_edge!(v3, v4)
                     @test inputs(v4) == [v1, v2, v3]
 
                     @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [5, 8, 5]
                     @test [nout(v4)] == nin(v5) == [18]
                 end
 
-                @testset "Fail for impossible size constraint" begin
+                @testset "Fail for impossible size constraint" begin                   
                     v0 = inpt(3, "v0")
                     v1 = av(v0, 8, 3, "v1")
                     v2 = av(v0, 11, 2, "v2")
@@ -783,9 +794,7 @@
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
-
-                    @test_throws ErrorException create_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3)
                 end
 
                 @testset "Warn for impossible size constraint and revert" begin
@@ -799,7 +808,7 @@
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
+                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -816,7 +825,7 @@
                     @test inputs(v3) == [v1]
                     @test minΔninfactor(v3) == 70
 
-                    create_edge!(v2, v3)
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [78, 78]
@@ -832,7 +841,7 @@
                     @test inputs(v2) == [v1]
                     @test minΔninfactor(v2) == 6
 
-                    create_edge!(v0, v2)
+                    @test create_edge!(v0, v2)
                     @test inputs(v2) == [v1, v0]
 
                     @test nin(v2) == [nout(v1), nout(v0)] == [3, 3]
@@ -850,7 +859,7 @@
                     @test inputs(v3) == [v1]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    create_edge!(v2, v3)
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [8, 8]
@@ -868,7 +877,7 @@
                     @test inputs(v4) == [v1, v2]
                     @test ismissing(minΔnoutfactor(v4))
 
-                    create_edge!(v3, v4)
+                    @test create_edge!(v3, v4)
                     @test inputs(v4) == [v1, v2, v3]
 
                     @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [10, 10, 10]
@@ -885,7 +894,7 @@
                     @test inputs(v3) == [v1]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_throws ErrorException create_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3)
                 end
 
                 @testset "Warn for impossible size constraint and ignore" begin
@@ -899,7 +908,7 @@
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
+                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -920,7 +929,7 @@
                     @test inputs(v3) == [v1, v2]
                     @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [14]
 
-                    remove_edge!(v2, v3)
+                    @test remove_edge!(v2, v3)
                     @test inputs(v3) == [v1]
 
                     @test nin(v4) == nin(v3) == [nout(v1)] == [8]
@@ -935,7 +944,7 @@
 
                     @test inputs(v2) == [v0, v1]
 
-                    remove_edge!(v1, v2)
+                    @test remove_edge!(v1, v2)
                     @test inputs(v2) == [v0]
 
                     @test nin(v2) == [nout(v0)] == [3]
@@ -953,7 +962,7 @@
                     @test inputs(v3) == [v1,v2]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    remove_edge!(v2, v3)
+                    @test remove_edge!(v2, v3)
                     @test inputs(v3) == [v1]
 
                     @test nin(v3) == [nout(v1)] == [18]
@@ -972,7 +981,7 @@
                     @test [nout(v4)] == nin(v5) == [23]
                     @test ismissing(minΔnoutfactor(v4))
 
-                    remove_edge!(v1, v4)
+                    @test remove_edge!(v1, v4)
                     @test inputs(v4) == [v2, v3]
 
                     @test nin(v4) == [nout(v2), nout(v3)] == [18, 5]
@@ -989,7 +998,7 @@
                     @test inputs(v3) == [v1, v2]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_throws ErrorException remove_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError remove_edge!(v2, v3)
                 end
 
                 @testset "Warn for impossible size constraint and revert" begin
@@ -1004,7 +1013,7 @@
                     @test [nout(v3)] == nin(v4) == [19]
                     @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
+                    @test @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
 
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
@@ -1025,7 +1034,7 @@
             @test inputs(v2) != outputs(v1)
             graph = CompGraph(v0, v2)
 
-            @test graph(3) == 3
+            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
 
             insert!(v1, v -> av(v, nout(v), name="vnew1"))
 
@@ -1033,7 +1042,7 @@
             vnew1 = inputs(v2)[]
             @test [nout(v1)] == nin(vnew1) == [nout(vnew1)] == nin(v2) == [5]
 
-            @test graph(3) == 3
+            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
 
             @test inputs(vnew1) == [v1]
             @test outputs(vnew1) == [v2]
@@ -1047,8 +1056,7 @@
 
             @test [nout(vnew1)] == nin(vnew2) == [nout(vnew3)] == nin(v2) == [5]
 
-            @test graph(3) == 3
-
+            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
         end
 
         @testset "Add to one of many inputs" begin
@@ -1086,12 +1094,15 @@
 
     @testset "Vertex removal" begin
 
-        @testset "Fail noop" begin
+        @testset "Fail noop $(nameof(typeof(strategy)))" for strategy in (
+            FailAlignSizeNoOp(),
+            PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp()),
+        )
             v0 = inpt(3, "v0")
             v1 = av(v0, 5, name="v1")
             v2 = av(v1, 4, name="v2")
 
-            @test remove!(v1, RemoveStrategy(FailAlignSizeNoOp())) == false
+            @test remove!(v1, RemoveStrategy(strategy)) == false
 
             @test name.(inputs(v2)) == [name(v1)]
             @test name.(outputs(v1)) == [name(v2)]
@@ -1103,14 +1114,14 @@
             v2 = av(v1, 4, name="v2")
             v3 = av(v2, 6, name="v3")
 
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v3) == [v1]
             @test outputs(v1) == [v3]
             @test nin(v3) == [nout(v1)] == [5]
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v3
-            remove!(v1)
+            @test remove!(v1)
             @test inputs(v3) == [v0]
             @test outputs(v0) == [v3]
             @test nin(v3) == [nout(v0)] == [3]
