@@ -28,9 +28,8 @@ include("testutil.jl")
 
 	include("mutation/structure.jl")
 
-	#@info "Testing sugar"
-	@warn "Testing sugar disbled!"
-	#include("mutation/sugar.jl")
+	@info "Testing sugar"
+	include("mutation/sugar.jl")
 
 	#@info "Testing README examples"
 	@warn "Testing README examples disabled!"

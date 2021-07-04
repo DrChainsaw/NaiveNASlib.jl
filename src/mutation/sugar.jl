@@ -150,7 +150,10 @@ outwrapconf(o) = VertexConf(outwrap=o)
 VertexConf(;traitdecoration = identity, outwrap = identity)= VertexConf(traitdecoration, outwrap)
 
 # Common wiring for all elementwise operations
-elemwise(op, conf::VertexConf, vs::AbstractVertex...) = vertex(conf.outwrap((x...) -> op.(x...)), conf.traitdecoration(SizeInvariant()), vs...)
+function elemwise(op, conf::VertexConf, vs::AbstractVertex...)
+    all(vi -> nout(vi) == nout(vs[1]), vs) || throw(DimensionMismatch("nout of all vertices input to elementwise vertex must be equal! Got $(nout.(vs))"))
+    vertex(conf.outwrap((x...) -> op.(x...)), conf.traitdecoration(SizeInvariant()), vs...)
+end
 
 
 """
