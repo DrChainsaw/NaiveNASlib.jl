@@ -201,7 +201,7 @@ function Base.show(io::IO, v::OutputsVertex; close=')')
 name(v::InputSizeVertex) = name(base(v))
 name(v::OutputsVertex) = name(base(v))
 name(v::MutationVertex) = name(trait(v), v)
-name(t::MutationTrait, v) = summary(v) * "::" * summary(t)
+name(t::MutationTrait, ::V) where V = string(nameof(V),  "::", summary(t))
 name(t::NamedTrait, v) = t.name
 name(t::DecoratingTrait, v) = name(base(t), v)
 

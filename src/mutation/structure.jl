@@ -439,7 +439,7 @@ Note that the connection `vin` -> `vnew₁` as well as all connections `vnewₚ 
 The function `outselect` can be used to select a subset of outputs to replace (default all).
 
 """
-function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Function=identity)
+function Base.insert!(vin::AbstractVertex, factory, outselect=identity)
 
     prevouts = copy(outselect(outputs(vin)))
     deleteat!(outputs(vin), findall(vx -> vx in prevouts, outputs(vin)))
@@ -450,6 +450,7 @@ function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Functio
         inputs(vout)[inds] .= vnew
         push!(outputs(vnew), vout)
     end
+    return true # TODO: Check sizes and try to align if not ok?
 end
 
 """
