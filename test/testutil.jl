@@ -1,6 +1,7 @@
 
+import InteractiveUtils
 function implementations(T::Type)
-    return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, subtypes(T), init=[])
+    return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, InteractiveUtils.subtypes(T), init=[])
 end
 
 issame(v1::AbstractVertex, v2::AbstractVertex, visited=AbstractVertex[]) = false

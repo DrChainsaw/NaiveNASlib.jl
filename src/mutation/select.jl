@@ -313,7 +313,6 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     !accept(case, s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
-
 end
 
 selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, values) = selectmodel(case, base(s), v, values) 

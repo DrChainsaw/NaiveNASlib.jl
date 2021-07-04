@@ -1,4 +1,4 @@
-
+import JuMP
 @testset "Selection" begin
 
     # Helper methods

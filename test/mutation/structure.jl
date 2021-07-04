@@ -1,4 +1,4 @@
-
+import JuMP
 @testset "Structure tests" begin
 
     #Helper functions
@@ -628,7 +628,7 @@
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
                 # IndMem of v3 is updated before edge is added
                 @test lastins(v3) == lastouts.([v1,v1]) == [1:3, 1:3]
-                @test lastouts(v2) == [1,2,5]
+                @test lastouts(v2) == [1,3,5]
                 @test [lastins(v4)] == [lastouts(v3)] == [1:3]
             end
 
@@ -676,7 +676,6 @@
         end
 
         @testset "With size constraints" begin
-            import JuMP
             mutable struct SizeConstraintNoDecrease
                 constraint::Int
                 nodecrease::Bool
@@ -1346,7 +1345,7 @@
         end
 
         @testset "Size constraints" begin
-
+            JuMP = NaiveNASlib.JuMP
             struct SizeConstraint{T}
                 constraint::Int
                 w::T
@@ -1365,7 +1364,7 @@
             NaiveNASlib.Δsizetype(c::SizeConstraint) = NaiveNASlib.Δsizetype(c.w)
             NaiveNASlib.nout(c::SizeConstraint) = nout(c.w)
             NaiveNASlib.nin(c::SizeConstraint) = nin(c.w)
-            NaiveNASlib.Δsize(c::SizeConstraint, insize::AbstractVector{<:Integer}, outsize::Integer) = Δsize(c.w, insize, outsize)
+            NaiveNASlib.Δsize(c::SizeConstraint, insize::AbstractVector, outsize::AbstractVector) = Δsize(c.w, insize, outsize)
 
             @testset "Incompatible size constraints" begin
 
@@ -1378,24 +1377,24 @@
 
                 # Impossible to increase v1 by 5 due to SizeConstraint(3)
                 # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
-                # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
+                # However, if we increase v1 by 2*2 and increase v3 by 3*3 we will hit home!
                 # Fallback to AlignBoth which does just that
                 @test remove!(v2)
-                @test nin(v3) == [nout(v1)] == [8]
+                @test nin(v3) == [nout(v1)] == [14]
             end
 
             @testset "Incompatible size constraints transparent vertex" begin
 
-                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
                 v2 = sv(v1, name = "v2")
-                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
+                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
 
                 @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
                 @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
 
                 # Size is already aligned due to transparent. Just test that this
                 # does not muck things up
-                remove!(v2, RemoveStrategy(AlignSizeBoth()))
+                @test remove!(v2, RemoveStrategy(AlignSizeBoth()))
                 @test nin(v3) == [nout(v1)] == [10]
             end
         end
@@ -1410,28 +1409,28 @@
                 v5 = iv(v4, v1, name="v5")
                 v6 = av(v5, 4, name="v6")
 
-                remove!(v4)
+                @test remove!(v4)
                 @test inputs(v5) == [v3, v1]
                 @test nin(v5) == [nout(v3), nout(v1)] == [10, 10]
                 @test nin(v6) == [nout(v5)] == [10]
 
-                remove!(v3)
+                @test remove!(v3)
                 @test inputs(v5) == [v2, v1]
                 @test nin(v5) == [nout(v2), nout(v1)] == [10, 10]
                 @test nin(v6) == [nout(v5)] == [10]
 
-                remove!(v2)
+                @test remove!(v2)
                 @test inputs(v5) == [v1, v1]
                 @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
                 @test nin(v6) == [nout(v5)] == [10]
 
                 v7 = av(v6, 13, name="v7")
-                remove!(v6)
+                @test remove!(v6)
                 @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
                 @test nin(v7) == [nout(v5)] == [10]
 
                 v8 = av(v7, 3, name="v8")
-                remove!(v7)
+                @test remove!(v7)
                 @test nin(v5) == [nout(v1), nout(v1)] == [13, 13]
                 @test nin(v7) == [nout(v5)] == [13]
             end
@@ -1445,7 +1444,7 @@
                 v4 = av(v3, 12, name="v4")
                 v5 = av(v4, 7, name="v5")
 
-                remove!(v4)
+                @test remove!(v4)
                 @test inputs(v5) == [v3]
                 @test outputs(v3) == [v5]
 
@@ -1461,7 +1460,7 @@
                 v6 = iv(v3, v4, name="v6")
                 v7 = av(v6, 2, name="v7")
 
-                remove!(v5)
+                @test remove!(v5)
                 @test inputs(v6) == [v3, v4]
                 @test nin(v6) == [nout(v3), nout(v4)] == [3, 3]
             end
@@ -1477,7 +1476,7 @@
                 v4 = iv(v3, name="v4")
                 v5 = av(v4, 12, name="v5")
 
-                remove!(v2)
+                @test remove!(v2)
                 @test inputs(p1) == inputs(p2₁) == [v1]
                 @test nin(p1) == nin(p2₁) == [nout(v1)] == [5]
             end
@@ -1490,7 +1489,7 @@
                 v5 = iv(v4, name="v5")
                 v6 = "v6" >> v5 + v2
 
-                remove!(v4, RemoveStrategy(CheckNoSizeCycle()))
+                @test remove!(v4, RemoveStrategy(CheckNoSizeCycle()))
                 @test inputs(v5) == [v3]
                 @test nin(v5) == [nout(v3)] == [5]
             end
@@ -1505,7 +1504,7 @@
                 v5 = "v5" >> v4 + v2
 
                 # Evilness: Removing p1 would create a "size transparent loop" where nout(v4) = nout(v4) + nout(p2)
-                @test_logs (:warn, "Can not remove vertex $(p1)! Size cycle detected!") remove!(p1)
+                @test @test_logs (:warn, "Can not remove vertex $(p1)! Size cycle detected!") remove!(p1) == false
                 @test inputs(v4) == [p1, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5
@@ -1521,7 +1520,7 @@
                 v4 = sv(p1b,p2, name="v4")
                 v5 = "v5" >> v4 + v2
 
-                remove!(p1b)
+                @test remove!(p1b)
                 @test inputs(v4) == [p1a, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5
@@ -1537,7 +1536,7 @@
                 v4 = sv(p1b,p2, name="v4")
                 v5 = "v5" >> v4 + v2
 
-                remove!(p1a)
+                @test remove!(p1a)
                 @test inputs(v4) == [p1b, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5

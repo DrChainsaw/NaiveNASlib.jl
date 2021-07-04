@@ -1,3 +1,5 @@
+import JuMP
+
 @testset "Size mutations" begin
 
     inpt(size, id="in") = inputvertex(id, size)
@@ -408,9 +410,7 @@
         end
     end
 
-
     @testset "Size Mutation possibilities" begin
-        import JuMP
         # Helpers
         struct SizeConstraint{T}
             constraint::Int
