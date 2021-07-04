@@ -226,6 +226,8 @@ to all its `outputs`.
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v, vx -> vx == v) || return false
 
+    undo_fun = create_remove_undo(strategy.align, strategy.reconnect, v)
+
     remove!(v, inputs, outputs, strategy.reconnect)
     remove!(v, outputs, inputs, strategy.reconnect)
 
@@ -233,10 +235,33 @@ function remove!(v::MutationVertex, strategy=RemoveStrategy())
     success = postalignsizes(strategy.align, v)
     
     if !success
-
+        undo_fun()
     end
     return success
 end
+
+function create_remove_undo(sa, sc, v)
+    previns = copy(inputs(v))
+    prevouts = copy(outputs(v))
+    previnsouts = Dict(v => copy(outputs(v)) for v in previns)
+    prevoutsins = Dict(v => copy(inputs(v)) for v in prevouts)
+    return function()
+        set_inputs!(v => previns)
+        set_outputs!(v => prevouts)
+        foreach(set_outputs!, previnsouts)
+        foreach(set_inputs!, prevoutsins)
+    end
+end
+
+function set_inputs!((v, newins)::Pair)
+    empty!(inputs(v))
+    append!(inputs(v), newins)
+end
+function set_outputs!((v, newouts)::Pair)
+    empty!(outputs(v))
+    append!(outputs(v), newouts) 
+end
+
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
 ## anything useful unless f1=inputs and f2=outputs or vise versa.
@@ -305,7 +330,7 @@ end
 
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     expected = nout(vin) + s.Δoutsize
-    Δsize(ΔNout{Exact}(vin, s.Δoutsize, ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
+    Δsize(ΔNout{Exact}(vin, s.Δoutsize;fallback=ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
     return nout(vin) == expected
 end
 

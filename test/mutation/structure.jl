@@ -1137,13 +1137,13 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [4,3,6]
             @test nin(v5) == [nout(v4)] == [3+4+6]
 
             #Now lets try without connecting the inputs to v4
-            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [3, 6]
             @test nin(v5) == [nout(v4)] == [3+6]
@@ -1159,13 +1159,13 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [4,7,6]
             @test nin(v5) == [nout(v4)] == [4+7+6]
 
             #Now lets try without connecting the inputs to v4
-            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [7, 6]
             @test nin(v5) == [nout(v4)] == [7+6]
@@ -1181,14 +1181,14 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [3,3,3]
             @test nin(v5) == [nout(v4)] == [3]
 
             #Now lets try without connecting the inputs to v4
             # NoSizeChange is just to avoid touching the input vertex
-            remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [3, 3]
             @test nin(v5) == [nout(v4)] == [3]
@@ -1204,14 +1204,14 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [7,7,7]
             @test nin(v5) == [nout(v4)] == [7]
 
             #Now lets try without connecting the inputs to v4
             # NoSizeChange is just to avoid touching the input vertex
-            remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [7, 7]
             @test nin(v5) == [nout(v4)] == [7]
@@ -1224,13 +1224,13 @@
             v3 = sv(v1,v2,v2,v1, name="v3")
             v4 = av(v3, 7, name="v4")
 
-            remove!(v1)
+            @test remove!(v1)
             @test inputs(v3) == [v0, v2, v2, v0]
             @test nin(v3) == [nout(v0), nout(v2), nout(v2), nout(v0)] == [3,5,5,3]
             @test nin(v4) == [nout(v3)] == [3+5+5+3]
 
             #Now lets try without connecting the inputs to v3
-            remove!(v2, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v2))))
+            @test remove!(v2, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v2))))
             @test inputs(v3) == [v0, v0]
             @test nin(v3) == [nout(v0), nout(v0)] == [3,3]
             @test nin(v4) == [nout(v3)] == [3+3]
@@ -1243,14 +1243,14 @@
             v3 = iv(v1,v2,v2,v1, name="v3")
             v4 = av(v3, 7, name="v4")
 
-            remove!(v1)
+            @test remove!(v1)
             @test inputs(v3) == [v0, v2, v2, v0]
             @test nin(v3) == [nout(v0), nout(v2), nout(v2), nout(v0)] == [3,3,3,3]
             @test nin(v4) == [nout(v3)] == [3]
 
             #Now lets try without connecting the inputs to v3
             # NoSizeChange is just to avoid touching the input vertex
-            remove!(v2, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test remove!(v2, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v3) == [v0, v0]
             @test nin(v3) == [nout(v0), nout(v0)] == [3,3]
             @test nin(v4) == [nout(v3)] == [3]
@@ -1264,17 +1264,17 @@
             v4 = av(v1, 7)
             v5 = av(v2, 8)
 
-            remove!(v2)
+            @test remove!(v2)
             @test outputs(v1) == [v5, v3, v4]
             @test nin(v5) == nin(v3) == nin(v4) == [nout(v1)] == [5]
 
             # Test that it is possible to remove vertex without any outputs
-            remove!(v3)
+            @test remove!(v3)
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [6]
         end
 
-        @testset "Remove one of many outputs PostAlignJuMP" begin
+        @testset "Remove one of many outputs PostAlign" begin
             v0 = inpt(3)
             v1 = av(v0, 4, name="v1")
             v2 = av(v1, 5, name="v2")
@@ -1282,12 +1282,12 @@
             v4 = av(v1, 7, name="v4")
             v5 = av(v2, 8, name="v5")
 
-            remove!(v2, RemoveStrategy(PostAlignJuMP()))
+            @test remove!(v2, RemoveStrategy(PostAlign()))
             @test outputs(v1) == [v5, v3, v4]
             @test nin(v5) == nin(v3) == nin(v4) == [nout(v1)] == [4]
 
             # Test that it is possible to remove vertex without any outputs
-            remove!(v3, RemoveStrategy(PostAlignJuMP()))
+            @test remove!(v3, RemoveStrategy(PostAlign()))
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [4]
         end
@@ -1299,7 +1299,7 @@
             v3 = av(v2, 5)
 
             #Danger! Must realize that size of v1 can not be changed!
-            remove!(v2)
+            @test remove!(v2)
             @test outputs(v1) == [v3]
             @test inputs(v3) == [v1]
             @test nin(v3) == [nout(v1)] == [3]
@@ -1318,7 +1318,7 @@
             @test minΔnoutfactor_only_for.(inputs(v2)) == [3]
 
             # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is obviously a senseless construct)
-            remove!(v2)
+            @test remove!(v2)
             @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
         end
 
@@ -1327,7 +1327,7 @@
             v2 = av(v1, 5, name="v2")
             v3 = imu(v2, 4, name="v3")
 
-            @test_throws ErrorException remove!(v2)
+            @test_throws NaiveNASlib.SizeAlignFailError remove!(v2)
         end
 
         @testset "Warn for impossible removal and ignore" begin
@@ -1335,7 +1335,7 @@
             v2 = av(v1, 5, name="v2")
             v3 = imu(v2, 4, name="v3")
 
-            @test_logs (:warn, r"Could not align sizes") remove!(v2, RemoveStrategy(AlignSizeBoth(FailAlignSizeWarn())))
+            @test @test_logs (:warn, r"Could not align sizes") remove!(v2, RemoveStrategy(AlignSizeBoth(;fallback=FailAlignSizeWarn()))) == false
 
             @test outputs(v1) == [v2]
             @test inputs(v2) == [v1]
@@ -1347,15 +1347,31 @@
 
         @testset "Size constraints" begin
 
-            struct SizeConstraint constraint; end
+            struct SizeConstraint{T}
+                constraint::Int
+                w::T
+            end
+
             NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
             NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+            function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, s, c::SizeConstraint, data)
+                fv_out = JuMP.@variable(data.model, integer=true)
+                JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
+    
+                ins = filter(vin -> vin in keys(data.noutdict), inputs(data.vertex))
+                fv_in = JuMP.@variable(data.model, [1:length(ins)], integer=true)
+                JuMP.@constraint(data.model, [i=1:length(ins)], c.constraint * fv_in[i] ==  nout(ins[i]) - data.noutdict[ins[i]])
+            end
+            NaiveNASlib.Δsizetype(c::SizeConstraint) = NaiveNASlib.Δsizetype(c.w)
+            NaiveNASlib.nout(c::SizeConstraint) = nout(c.w)
+            NaiveNASlib.nin(c::SizeConstraint) = nin(c.w)
+            NaiveNASlib.Δsize(c::SizeConstraint, insize::AbstractVector{<:Integer}, outsize::Integer) = Δsize(c.w, insize, outsize)
 
             @testset "Incompatible size constraints" begin
 
-                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
                 v2 = av(v1, 5, name = "v2")
-                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
+                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
 
                 @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
                 @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
@@ -1364,7 +1380,7 @@
                 # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
                 # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
                 # Fallback to AlignBoth which does just that
-                remove!(v2)
+                @test remove!(v2)
                 @test nin(v3) == [nout(v1)] == [8]
             end
 
