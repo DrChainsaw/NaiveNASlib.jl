@@ -68,21 +68,7 @@ struct FailAlignSizeWarn{S, F} <: AbstractAlignSizeStrategy
     andthen::S
     msgfun::F
 end
-FailAlignSizeWarn(;andthen=FailAlignSizeRevert(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
-
-"""
-    FailAlignSizeRevert <: AbstractAlignSizeStrategy
-    FailAlignSizeRevert()
-
-Reverts new/removed edges (if any).
-
-In other words, `create_edge!` and `remove_edge!` with `strategy = FailAlignSizeRevert` is a noop.
-
-Note: Only works if input vertex is only input once to output vertex due to lazy coding.
-For example, if `vout` has inputs `[v1,v2,v1]` and `remove_edge!(v1, vout, startegy=FailAlignSizeRevert)` is called, funtion will exit with graph in invalid state.
-Same if `vout` has inputs `[v1,v2]` and `create_edge!(v1,vout)` is called.
-"""
-struct FailAlignSizeRevert <: AbstractAlignSizeStrategy end
+FailAlignSizeWarn(;andthen=FailAlignSizeNoOp(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
 
 """
     AlignSizeBoth <: AbstractAlignSizeStrategy
@@ -279,7 +265,6 @@ function prealignsizes(s::FailAlignSizeWarn, vin, vout, will_rm)
     @warn s.msgfun(vin, vout)
     return prealignsizes(s.andthen, vin, vout, will_rm)
 end
-prealignsizes(::FailAlignSizeRevert, vin, vout, will_rm) = false # No action needed?
 prealignsizes(::FailAlignSizeNoOp, vin, vout, will_rm) = false
 
 # Actual actions
@@ -364,17 +349,6 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout, pos)
     @warn s.msgfun(vin, vout)
     return postalignsizes(s.andthen, vin, vout, pos)
 end
-function postalignsizes(::FailAlignSizeRevert, vin, vout, pos)
-    n = sum(inputs(vout) .== vin)
-    @assert n <= 1 "Case when vin is input to vout multiple times not implemented!"
-
-    if n == 1
-        remove_edge!(vin, vout, strategy=NoSizeChange())
-    else #if n == 0, but n > 1 not implemented
-        create_edge!(vin, vout, pos=pos, strategy=NoSizeChange())
-    end
-    return false
-end
 
 function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, pos)
     is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout, pos)
@@ -453,7 +427,15 @@ function create_edge!(from::AbstractVertex, to::AbstractVertex; pos = length(inp
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
 
-    postalignsizes(strategy, from, to, pos)
+    # Note, success from prealignsizes strategies is implicit as we return if it fails
+    success = postalignsizes(strategy, from, to, pos)
+
+    # Revert what we did if failed
+    if !success
+        deleteat!(outputs(from), length(outputs(from)))
+        deleteat!(inputs(to), pos)
+    end
+    return success
 end
 
 default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
@@ -484,7 +466,15 @@ function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy
     deleteat!(inputs(to), in_ind)
     deleteat!(outputs(from), out_ind)
 
-    postalignsizes(strategy, from, to, in_ind)
+    # Note, success from prealignsizes strategies is implicit as we return if it fails
+    success = postalignsizes(strategy, from, to, in_ind)
+
+    # Revert what we did if failed
+    if !success
+        insert!(inputs(to), in_ind, from)
+        insert!(outputs(from), out_ind, to)
+    end
+    return success
 end
 
 default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
@@ -492,4 +482,3 @@ default_remove_edge_strat(t::DecoratingTrait,v) = default_remove_edge_strat(base
 default_remove_edge_strat(::SizeStack,v) = PostAlign()
 default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
-

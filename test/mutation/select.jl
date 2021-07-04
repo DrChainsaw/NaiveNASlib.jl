@@ -13,7 +13,7 @@
     nc(name) = traitconf(nt(name))
 
     @testset "Split relaxed exact" begin
-        import NaiveNASlib: split_exact_relaxed
+        import NaiveNASlib: split_exact_relaxed, Relaxed
 
         @test (:a => relaxed(3)) == (:a => 3 => Relaxed())
 
@@ -30,6 +30,7 @@
         end
 
         @testset "All Relaxed" begin
+            import NaiveNASlib: Exact, Relaxed
             res = ΔNout(:a => 2 => Relaxed(), :b => relaxed(3))
             @test res isa ΔNout{Relaxed} 
             @test res.Δs == Dict(:a => 2, :b => 3)           
@@ -170,13 +171,21 @@
         end
     end
 
-    @testset "Absorb 2 Absorb fail" begin
+    @testset "Absorb 2 Absorb fail error" begin
         import NaiveNASlib: ΔSizeFailError
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
         v2 = av(v1, 4, "v2")
 
-        @test_throws ΔSizeFailError Δsize(v -> 1:nout_org(v), ThrowΔSizeFailError("Success!?"), v1)
+        @test_throws ΔSizeFailError Δsize(v -> 1:nout(v), ThrowΔSizeFailError("Success!?"), v1)
+    end
+
+    @testset "Absorb 2 Absorb fail NoOp" begin
+        inpt = iv(3)
+        v1 = av(inpt, 5, "v1")
+        v2 = av(v1, 4, "v2")
+
+        @test Δsize(v -> 1:nout(v), ΔSizeFailNoOp(), v1) == false
     end
 
     @testset "SizeStack duplicate" begin
@@ -315,8 +324,8 @@
 
         @test Δnout(v1, -3) do v
             # "Tempt" optimizer to not select inputs from inpt
-            v === v2 && return (-nout(inpt):nout_org(v1)-1) 
-            return 1:nout_org(v)
+            v === v2 && return (-nout(inpt):nout(v1)-1) 
+            return 1:nout(v)
         end
 
         @test nin(v2) == [nout(inpt), nout(v1)] == [3, 2]
@@ -608,6 +617,7 @@
             JuMP.@constraint(data.model, var[[1, 3]] .== 0)
         end
         NaiveNASlib.nout(::CompConstraint) = 4
+        NaiveNASlib.nin(::CompConstraint) = 3
         ccouts = nothing
         NaiveNASlib.Δsize(::CompConstraint, ins::AbstractVector, outs::AbstractVector) = ccouts=outs
 

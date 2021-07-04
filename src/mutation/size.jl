@@ -15,8 +15,8 @@ nout(::SizeAbsorb, v::CompVertex) = nout(v.computation)
 nout(t, v::InputSizeVertex) = v.size
 
 # SizeTransparent might not care about size
-nout(::SizeInvariant, v::AbstractVertex) = nin(v)[1]
-nout(::SizeStack, v::AbstractVertex) = sum(nin(v))
+nout(::SizeInvariant, v::AbstractVertex) = isempty(nin(v)) ? 0 : nin(v)[1]
+nout(::SizeStack, v::AbstractVertex) = isempty(nin(v)) ? 0 : sum(nin(v))
 
 # TODO: Remove
 nout_org(v::AbstractVertex) = nout(v)

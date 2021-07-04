@@ -55,10 +55,9 @@ lastouts(f) = missing
 lastouts(im::IndMem) = im.lastouts
 
 function NaiveNASlib.Δsize(im::IndMem, ins::AbstractVector, outs::AbstractVector)
-    Δsize(im.wrapped, ins, outs)
     im.lastins = ins
     im.lastouts = outs
-    nothing
+    Δsize(im.wrapped, ins, outs)
 end
 
 mutable struct SizeDummy

@@ -271,7 +271,8 @@ function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:Ab
     return solve_outputs_selection(base(s), vertices, valuefun)
 end
 
-solve_outputs_selection(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun) = throw(ΔSizeFailError(s.msgfun(vertices)))
+solve_outputs_selection(::ΔSizeFailNoOp, vs::AbstractVector{<:AbstractVertex}, ::Any) = false, Dict(v => [1:n for n in nin(v)] for v in vs), Dict(v => 1:nout(v) for v in vs)
+solve_outputs_selection(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, ::Any) = throw(ΔSizeFailError(s.msgfun(vertices)))
 solve_outputs_selection(s::WithValueFun, vs::AbstractVector{<:AbstractVertex}, ::Any) = solve_outputs_selection(s.strategy, vs, s.valuefun) 
 """
     solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)

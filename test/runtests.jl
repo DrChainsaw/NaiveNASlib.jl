@@ -1,5 +1,4 @@
 using NaiveNASlib
-using Test
 import JuMP
 
 include("testutil.jl")

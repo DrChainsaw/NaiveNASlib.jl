@@ -294,9 +294,9 @@ end
 
 split_exact_relaxed(p::Tuple{AbstractVertex, Any}) = split_exact_relaxed(tuple(Pair(p...)))
 split_exact_relaxed(d::Tuple{Dict}) = split_exact_relaxed(first(d))
-function split_exact_relaxed(args::Union{AbstractDict{V}, Tuple{Vararg{Pair{V}}}}) where V
-    exact=Dict{V, Int}()
-    relaxed=Dict{V, Int}() 
+function split_exact_relaxed(args::Union{AbstractDict, Tuple{Vararg{Pair}}})
+    exact=Dict()
+    relaxed=Dict() 
     for (k, v) in args
         if !isa(v, Pair) || v isa Pair{<:Any, Exact}
             exact[k] = first(v) # first works for numbers too
@@ -310,8 +310,9 @@ function split_exact_relaxed(args::Union{AbstractDict{V}, Tuple{Vararg{Pair{V}}}
 end
 
 """
-    AlignNinToNout <: DecoratingJuMPΔSizeStrategy
-    AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
+    AlignNinToNout{S, F} <: DecoratingJuMPΔSizeStrategy
+    AlignNinToNout(;vstrat::S, fallback::F)
+    AlignNinToNout(vstrat::S, fallback::F) 
 
 Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
 
@@ -330,26 +331,26 @@ fallback(s::AlignNinToNout) = s.fallback
 base(s::AlignNinToNout) = s.vstrat
 
 """
-    AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
-    AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=ThrowΔSizeFailError())
-    AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer},vstrat=AlignNinToNout(), fallback=ThrowΔSizeFailError())
+    AlignNinToNoutVertices{V1,V2,S,F} <: AbstractJuMPΔSizeStrategy
+    AlignNinToNoutVertices(vin::V1, vout::V2, inds; vstrat::S=AlignNinToNout(), fallback::F=ThrowΔSizeFailError())
+    AlignNinToNoutVertices(vin::V1, vout::V2, inds, vstrat::S, fallback::F)
 
 Same as [`AlignNinToNout`](@ref) with an additional constraint that `nin(s.vin)[s.ininds] == nout(s.vout)` where `s` is a `AlignNinToNoutVertices`.
 
-Useful in the context of removing vertices and/or edges.
+Useful in the context of adding edges to vertices to align sizes before the edge has been added.
 
 If it fails, the operation will be retried with the `fallback` strategy (default `ThrowΔSizeFailError`).
 """
-struct AlignNinToNoutVertices{V1,V2,F} <: DecoratingJuMPΔSizeStrategy
+struct AlignNinToNoutVertices{V1,V2,S,F} <: DecoratingJuMPΔSizeStrategy
     vin::V1
     vout::V2
     ininds::Vector{Int}
-    vstrat::AlignNinToNout
+    vstrat::S
     fallback::F
 end
-AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=failToAlign(vin, vout)) = AlignNinToNoutVertices(vin, vout, collect(inds), vstrat, fallback)
-AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, vstrat::AlignNinToNout, fallback::AbstractJuMPΔSizeStrategy=failToAlign(vin,vout)) = AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback)
-AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, innerstrat::AbstractJuMPΔSizeStrategy, fallback=failtoalign(vin, vout)) = AlignNinToNoutVertices(vin, vout, inds, AlignNinToNout(vstrat=innerstrat), fallback)
+AlignNinToNoutVertices(vin, vout, inds; vstrat=AlignNinToNout(), fallback=failtoalign(vin, vout)) = AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback)
+AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback) = AlignNinToNoutVertices(vin, vout, collect(Int, inds), vstrat, fallback)
+
 fallback(s::AlignNinToNoutVertices) = s.fallback
 base(s::AlignNinToNoutVertices) = s.vstrat
 
