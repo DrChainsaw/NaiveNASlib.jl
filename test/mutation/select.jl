@@ -6,9 +6,9 @@
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
     av(in, outsize, name) = absorbvertex(IndMem(MatMul(nout(in), outsize)), in; traitdecoration=tf(name))
-    tv(in, name) = invariantvertex(IndMem(identity, [nout(in)], nout(in)), in; traitdecoration=tf(name))
+    tv(in, name) = invariantvertex(IndMem(identity, in, nout(in)), in; traitdecoration=tf(name))
 
-    concindmem(ins) = f ->  IndMem(f, [nout(v) for v in ins], sum(nout, ins))
+    concindmem(ins) = f ->  IndMem(f, ins, sum(nout, ins))
     cc(ins...; name) = conc(ins...; dims=1, traitdecoration=tf(name), outwrap=concindmem(ins))
     nc(name) = traitconf(nt(name))
 
@@ -589,6 +589,16 @@
         @test lastouts(vnew) == 1:7
         @test lastins(v2) == [[1,2,3,-1,-1,-1,-1], [1,2,3,-1,-1,-1,-1]]
         @test lastouts(v2) == [1,2,3,-1,-1,-1,-1]
+    end
+
+    @testset "WithValueFun" begin
+        inpt = iv(3)
+        v1 = av(inpt, 6, "v1")
+        
+        @test Δsize(WithValueFun(v -> v === v1 ? [-1, 1, -1, 1, -1, 1] : 1:nout(v), DefaultJuMPΔSizeStrategy()), v1)
+
+        @test nout(v1) == 3
+        @test lastouts(v1) == [2,4,6]
     end
 
     @testset "CompConstraint" begin

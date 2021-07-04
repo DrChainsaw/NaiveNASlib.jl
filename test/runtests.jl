@@ -14,7 +14,7 @@ include("testutil.jl")
         include("prettyprint.jl")
 
         @info "Testing mutation"
-        
+
         include("mutation/vertex.jl")
         include("mutation/graph.jl")
 
@@ -24,7 +24,6 @@ include("testutil.jl")
 
         @info "Testing index mutation"
 
-        include("mutation/apply.jl")
         include("mutation/select.jl")
 
         @info "Testing structural mutation"

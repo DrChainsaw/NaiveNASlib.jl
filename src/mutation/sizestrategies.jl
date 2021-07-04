@@ -398,3 +398,20 @@ struct TruncateInIndsToValid{S} <: AbstractΔSizeStrategy
     strategy::S
 end
 TruncateInIndsToValid() = TruncateInIndsToValid(DefaultJuMPΔSizeStrategy())
+
+"""
+    WithValueFun{F, S} <: AbstractΔSizeStrategy
+    WithValueFun(valuefun::F, strategy::S)
+
+Applies neuron indices selection with `strategy` and using `valuefun` to compute the value of neurons indices.
+
+Note that `valuefun` will override any value function supplied in function call. Thus it is possible use 
+`WithValueFun` to change value function e.g. when switching to a fallback strategy.
+"""
+struct WithValueFun{F, S} <: AbstractΔSizeStrategy
+    valuefun::F
+    strategy::S
+end
+WithValueFun(f) = s -> WithValueFun(f ,s) 
+base(s::WithValueFun) = s.strategy
+fallback(s::WithValueFun) = fallback(s.strategy)

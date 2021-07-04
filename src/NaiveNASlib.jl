@@ -23,7 +23,7 @@ export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
 
 # Mutation operations
 #State
-export InvSize, IoSize, InvIndices, IoIndices, NoOp, IoChange, nin, nout, Δnin, Δnout, clone, relaxed, op, in_inds, out_inds, nin_org, nout_org
+export nin, nout, Δnin, Δnout, clone, relaxed
 
 # Mutation vertex
 export base, InputSizeVertex, OutputsVertex, MutationVertex
@@ -34,10 +34,10 @@ export trait, MutationTrait, DecoratingTrait, NamedTrait, Immutable, MutationSiz
 # Size util
 export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor_only_for, findterminating, ΔSizeInfo, ΔninSizeInfo, ΔnoutSizeInfo, ΔSizeGraph, ΔninSizeGraph, ΔnoutSizeGraph, Direction, Input, Output, Both, all_in_graph, all_in_Δsize_graph, Δsize, newsizes, neighbours, fullgraph
 
-export AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, Exact, Relaxed
+export AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout
 
 #Selection util
-export AbstractΔSizeStrategy, LogSelection, LogSelectionFallback, SelectionFail, NoutRevert, SelectDirection, ApplyAfter, AbstractJuMPΔSizeStrategy, DefaultJuMPSelectionStrategy, OutSelect, OutSelectExact, OutSelectRelaxed, TruncateInIndsToValid, Δoutputs, solve_outputs_selection
+export AbstractΔSizeStrategy, SelectDirection, AbstractJuMPΔSizeStrategy, TruncateInIndsToValid, WithValueFun
 
 # Connectivity mutation
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!

@@ -176,7 +176,14 @@ Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` re
 """
 function Δsize(case::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
 
-    Δnins = [any(length.(ins[vi]) .!= nin(vi)) for vi in vs]
+    Δnins = map(vs) do vi
+        vins = ins[vi]
+        ismissing(vins) && return false
+        mapreduce(|, zip(vins, nin(vi)); init=false) do (vin, ninorg)
+            ismissing(vin) && return false
+            return length(vin) != ninorg
+        end
+    end
     Δnouts = [length(outs[vi]) != nout(vi) for vi in vs]
 
     for vi in vs
@@ -265,7 +272,7 @@ function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:Ab
 end
 
 solve_outputs_selection(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, valuefun) = throw(ΔSizeFailError(s.msgfun(vertices)))
-
+solve_outputs_selection(s::WithValueFun, vs::AbstractVector{<:AbstractVertex}, ::Any) = solve_outputs_selection(s.strategy, vs, s.valuefun) 
 """
     solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)
 
