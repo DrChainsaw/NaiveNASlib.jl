@@ -21,6 +21,21 @@ import JuMP
         @test split_exact_relaxed((Dict(:a=>2, :b=>3=>Relaxed(), :c=>4=>Exact())),) == (Dict(:a => 2, :c => 4), Dict(:b => 3))
     end
 
+    @testset "Parselect" begin
+        import NaiveNASlib: parselect
+        mat = reshape(collect(1:3*4), 3, 4)
+
+        @test parselect(mat, 2 => [2,-1,-1,4]; newfun = (args...) -> 0) == [4 0 0 10;5 0 0 11;6 0 0 12]
+        @test parselect(mat, 1 => [-1,1,3]; newfun = (args...) -> 0) == [0 0 0 0;1 4 7 10;3 6 9 12]
+
+        @test parselect(mat, 1 => [2,-1,3,-1], 2 => [-1,1,-1,4]; newfun = (args...) -> 0) == [0 2 0 11;0 0 0 0;0 3 0 12;0 0 0 0]
+
+        dfun = (T, d, s...) ->  d == 1 ? 10 : -10
+
+        @test parselect(ones(2,2), 1 => [-1, 1], 2 => [1 , -1], newfun=dfun) == [10 -10; 1 -10]
+        @test parselect(ones(2,2), 2 => [1 , -1], 1 => [-1, 1], newfun=dfun) == [10 10; 1 -10]
+    end
+
     @testset "Make ΔNout" begin
         import NaiveNASlib: Exact, Relaxed
         @testset "All Exact" begin
