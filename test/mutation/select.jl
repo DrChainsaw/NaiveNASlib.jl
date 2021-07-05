@@ -203,6 +203,16 @@ import JuMP
         @test Δsize!(v -> 1:nout(v), ΔSizeFailNoOp(), v1) == false
     end
 
+    @testset "Fail impossible" begin
+        v0 = iv(3)
+        v1 = tv(v0, "v1")
+        v2 = av(v0, 3, "v2")
+        v3 = "v3" >> v2 + v1
+        @test Δnout!(v0, 1) == false
+        @test_logs (:warn, "Could not change nout of v3 by 1! Relaxing constraints...") @test_throws NaiveNASlib.ΔSizeFailError Δnout!(v3, 1)
+        @test_logs (:warn, "Could not change nin of v3 by 1 and 1! Relaxing constraints...") @test_throws NaiveNASlib.ΔSizeFailError Δnin!(v3, 1, 1)
+    end
+
     @testset "SizeStack duplicate" begin
         inpt = iv(3)
         v1 = av(inpt, 7, "v1")

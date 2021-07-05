@@ -119,6 +119,8 @@ end
 Δdirection(s::LogΔSizeExec) = Δdirection(s.andthen)
 Δdirection(::ΔNout) = Output()
 
+Δsize!(::Nothing, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = false
+
 Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(default_outvalue, case,s , vs)
 function Δsize!(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)

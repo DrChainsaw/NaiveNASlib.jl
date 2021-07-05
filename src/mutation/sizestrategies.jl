@@ -189,7 +189,7 @@ function default_noutfallback(nextfallback, dirstr, args)
     return LogΔSizeExec(msgfun, Logging.Warn, nextfallback(args...))
 end
 
-default_noutfallback(dirstr, args) = ThrowΔSizeFailError(() -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "!!"))
+default_noutfallback(dirstr, args) = ThrowΔSizeFailError(vs -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "!!"))
 
 """
     ΔNinExact(args...; fallback)
