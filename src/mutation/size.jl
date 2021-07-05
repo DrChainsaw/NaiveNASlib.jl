@@ -185,25 +185,25 @@ Treat vertices as having a scalar size when formulating the size change problem.
 struct ScalarSize end
 
 """
-    Δsize(case, s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
+    Δsize!(case, s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
 
 Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
 """
-function Δsize(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
+function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
-        Δsize(case, nins, nouts, vertices)
+        Δsize!(case, nins, nouts, vertices)
     end
     return execute
 end
 
 """
-    Δsize(nins::AbstractDict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+    Δsize!(nins::AbstractDict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
 
 Set output size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
 Set input size of all keys `vi` in `nins` to `nins[vi]`.
 """
-function Δsize(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
+function Δsize!(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
 
     Δnouts = nouts .- nout.(vertices)
     Δnins = [coalesce.(get(() -> nin(vi), nins, vi), nin(vi)) .- nin(vi) for vi in vertices]
@@ -211,7 +211,7 @@ function Δsize(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, ver
     for (i, vi) in enumerate(vertices)
         insizes = get(() -> nin(vi), nins, vi)
         insizes = coalesce.(insizes, nin(vi))
-        Δsize(case, OnlyFor(), vi, insizes, nouts[i])
+        Δsize!(case, OnlyFor(), vi, insizes, nouts[i])
     end
 
     for (i, vi) in enumerate(vertices)
@@ -220,11 +220,11 @@ function Δsize(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, ver
     end
 end
 
-Δsize(case::ScalarSize, s::OnlyFor, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize(case, s, base(v), insizes, outsize)
-Δsize(::ScalarSize, ::OnlyFor, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize(v.computation, insizes, outsize)
-function Δsize(f, ins::AbstractVector{<:Integer}, outs::Integer) end
+Δsize!(case::ScalarSize, s::OnlyFor, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize!(case, s, base(v), insizes, outsize)
+Δsize!(::ScalarSize, ::OnlyFor, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize!(v.computation, insizes, outsize)
+function Δsize!(f, ins::AbstractVector{<:Integer}, outs::Integer) end
 
-function Δsize(::ScalarSize, ::OnlyFor, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer) 
+function Δsize!(::ScalarSize, ::OnlyFor, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer) 
     if !all(isempty, skipmissing(ins))
         throw(ArgumentError("Try to change input size of InputVertex $(name(v)) to $insizes"))
     end 

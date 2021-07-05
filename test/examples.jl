@@ -16,7 +16,7 @@ module TinyNNlib
 
     # We also need to tell NaiveNASlib how to change the size of LinearLayer
     # The Δsize function will receive indices to keep from existing weights as well as where to insert new indices
-    function NaiveNASlib.Δsize(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
+    function NaiveNASlib.Δsize!(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
         # newins is a vector of vectors as vertices may have more than one input, but LinearLayer has only one
         # The function NaiveNASlib.parselect can be used to interpret newins and newouts. 
         # We just need to tell it along which dimensions to apply them.
@@ -186,7 +186,7 @@ end
         # Another popular pruning strategy is to just remove the x% of params with lowest value
         # This can be done by just not putting any size requirements and assign negative value
         graphprune40 = copy(graph);
-        Δsize(graphprune40) do v
+        Δsize!(graphprune40) do v
             # Assign no value to SizeTransparent vertices
             trait(v) isa NaiveNASlib.SizeTransparent && return 0
             value = NaiveNASlib.default_outvalue(v)
@@ -348,7 +348,7 @@ end
                 exact_or_fail = ΔNoutExact(joined => 1; fallback=ThrowΔSizeFailError("Size change failed!!"))
 
                 # Note that we now call Δsize instead of Δnout as the direction is given by the strategy
-                @test_throws NaiveNASlib.ΔSizeFailError Δsize(exact_or_fail, verts)
+                @test_throws NaiveNASlib.ΔSizeFailError Δsize!(exact_or_fail, verts)
 
                 # No change was made
                 @test nout(joined) == 2*nout(layer1) == 8
@@ -356,7 +356,7 @@ end
                 # Try to change by one and fail silently when not successful
                 exact_or_noop = ΔNoutExact(joined=>1;fallback=ΔSizeFailNoOp())
 
-                @test !Δsize(exact_or_noop, verts) 
+                @test !Δsize!(exact_or_noop, verts) 
 
                 # No change was made
                 @test nout(joined) == 2*nout(layer1) == 8
@@ -364,7 +364,7 @@ end
                 # In many cases it is ok to not get the exact change which was requested
                 relaxed_or_fail = ΔNoutRelaxed(joined=>1;fallback=ThrowΔSizeFailError("This should not happen!!"))
 
-                @test Δsize(relaxed_or_fail, verts)
+                @test Δsize!(relaxed_or_fail, verts)
 
                 # Changed by two as this was the smallest possible change
                 @test nout(joined) == 2*nout(layer1) == 10
@@ -374,7 +374,7 @@ end
                 # Yeah, this is not easy on the eyes, but it gets the job done...
                 exact_or_log_then_relax = ΔNoutExact(joined=>1; fallback=LogΔSizeExec("Exact failed, relaxing", Logging.Info, relaxed_or_fail))
 
-                @test_logs (:info, "Exact failed, relaxing") Δsize(exact_or_log_then_relax, verts)
+                @test_logs (:info, "Exact failed, relaxing") Δsize!(exact_or_log_then_relax, verts)
 
                 @test nout(joined) == 2*nout(layer1) == 12
             end

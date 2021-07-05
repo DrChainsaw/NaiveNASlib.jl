@@ -330,7 +330,7 @@ end
 
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     expected = nout(vin) + s.Δoutsize
-    Δsize(ΔNout{Exact}(vin, s.Δoutsize;fallback=ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
+    Δsize!(ΔNout{Exact}(vin, s.Δoutsize;fallback=ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
     return nout(vin) == expected
 end
 
@@ -374,7 +374,7 @@ end
 function prealignsizes(s::AbstractΔSizeStrategy, vin, vout)
     vin_all = all_in_Δsize_graph(vin, Output())
     vout_all = all_in_Δsize_graph(vout, Input())
-    return Δsize(s, union(vin_all, vout_all))
+    return Δsize!(s, union(vin_all, vout_all))
 end
 
 # Boilerplate
@@ -399,7 +399,7 @@ function postalignsizes(s::PostAlign, vin, vout, pos)
     vin_all = all_in_Δsize_graph(vin, Output())
     vout_all = all_in_Δsize_graph(vout, Input())
 
-    success = Δsize(s.sizestrat, union(vin_all, vout_all))
+    success = Δsize!(s.sizestrat, union(vin_all, vout_all))
     if !success
         return postalignsizes(s.fallback, vin, vout, pos)
     end

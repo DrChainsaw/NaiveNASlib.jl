@@ -192,7 +192,7 @@ import JuMP
         v1 = av(inpt, 5, "v1")
         v2 = av(v1, 4, "v2")
 
-        @test_throws ΔSizeFailError Δsize(v -> 1:nout(v), ThrowΔSizeFailError("Success!?"), v1)
+        @test_throws ΔSizeFailError Δsize!(v -> 1:nout(v), ThrowΔSizeFailError("Success!?"), v1)
     end
 
     @testset "Absorb 2 Absorb fail NoOp" begin
@@ -200,7 +200,7 @@ import JuMP
         v1 = av(inpt, 5, "v1")
         v2 = av(v1, 4, "v2")
 
-        @test Δsize(v -> 1:nout(v), ΔSizeFailNoOp(), v1) == false
+        @test Δsize!(v -> 1:nout(v), ΔSizeFailNoOp(), v1) == false
     end
 
     @testset "SizeStack duplicate" begin
@@ -411,8 +411,8 @@ import JuMP
             s_exp = genstrat(basestrat, g_exp)
             s_act = genstrat(basestrat, g_act)
 
-            @test Δsize(v -> 1:nout(v), s_exp, g_exp)
-            @test Δsize(v -> 1:nout(v), DummyDecorator(s_act), g_act)
+            @test Δsize!(v -> 1:nout(v), s_exp, g_exp)
+            @test Δsize!(v -> 1:nout(v), DummyDecorator(s_act), g_act)
 
             @test nout.(vertices(g_exp)) == nout.(vertices(g_act))
         end
@@ -619,7 +619,7 @@ import JuMP
         inpt = iv(3)
         v1 = av(inpt, 6, "v1")
         
-        @test Δsize(WithValueFun(v -> v === v1 ? [-1, 1, -1, 1, -1, 1] : 1:nout(v), DefaultJuMPΔSizeStrategy()), v1)
+        @test Δsize!(WithValueFun(v -> v === v1 ? [-1, 1, -1, 1, -1, 1] : 1:nout(v), DefaultJuMPΔSizeStrategy()), v1)
 
         @test nout(v1) == 3
         @test lastouts(v1) == [2,4,6]
@@ -634,7 +634,7 @@ import JuMP
         NaiveNASlib.nout(::CompConstraint) = 4
         NaiveNASlib.nin(::CompConstraint) = 3
         ccouts = nothing
-        NaiveNASlib.Δsize(::CompConstraint, ins::AbstractVector, outs::AbstractVector) = ccouts=outs
+        NaiveNASlib.Δsize!(::CompConstraint, ins::AbstractVector, outs::AbstractVector) = ccouts=outs
 
         inpt = iv(3)
         v1 = absorbvertex(CompConstraint(), inpt, traitdecoration = tf("v1"))
@@ -651,11 +651,11 @@ import JuMP
             d
             function TestProbe(v, d)
                 tp = new(nothing, d)
-                Δsize(v -> error("Shall not be called!"), SelectDirection(tp), v)
+                Δsize!(v -> error("Shall not be called!"), SelectDirection(tp), v)
                 return tp
             end
         end
-        NaiveNASlib.Δsize(vfun, s::TestProbe, d, v::AbstractVertex) = s.vs = Set(all_in_Δsize_graph(v, d))
+        NaiveNASlib.Δsize!(vfun, s::TestProbe, d, v::AbstractVertex) = s.vs = Set(all_in_Δsize_graph(v, d))
         NaiveNASlib.Δdirection(t::TestProbe) = t.d
 
         v1 = av(iv(3), 5, "v1")

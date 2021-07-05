@@ -55,10 +55,10 @@ lastouts(v::AbstractVertex) = lastouts(computation(v))
 lastouts(f) = missing
 lastouts(im::IndMem) = im.lastouts
 
-function NaiveNASlib.Δsize(im::IndMem, ins::AbstractVector, outs::AbstractVector)
+function NaiveNASlib.Δsize!(im::IndMem, ins::AbstractVector, outs::AbstractVector)
     im.lastins = ins
     im.lastouts = outs
-    Δsize(im.wrapped, ins, outs)
+    Δsize!(im.wrapped, ins, outs)
 end
 
 mutable struct SizeDummy
@@ -70,7 +70,7 @@ SizeDummy(insize::Integer, outsize::Integer) = SizeDummy([insize], outsize)
 NaiveNASlib.minΔninfactor(::SizeDummy) = 1
 NaiveNASlib.minΔnoutfactor(::SizeDummy) = 1
 
-function NaiveNASlib.Δsize(sd::SizeDummy, ins::AbstractVector{<:Integer}, out::Integer)
+function NaiveNASlib.Δsize!(sd::SizeDummy, ins::AbstractVector{<:Integer}, out::Integer)
     sd.nin .= ins
     sd.nout = out
     nothing
@@ -92,7 +92,7 @@ MatMul(nin, nout) = MatMul(reshape(collect(1:nin*nout), nout,nin))
 NaiveNASlib.minΔninfactor(::MatMul) = 1
 NaiveNASlib.minΔnoutfactor(::MatMul) = 1
 
-function NaiveNASlib.Δsize(mm::MatMul, ins::AbstractVector, outs::AbstractVector)
+function NaiveNASlib.Δsize!(mm::MatMul, ins::AbstractVector, outs::AbstractVector)
     mm.W = NaiveNASlib.parselect(mm.W, 1=>outs, 2=>ins[1])
     nothing
 end

@@ -248,7 +248,7 @@ import JuMP
             end
             NaiveNASlib.nout(i::Ignore) = nout(i.f)
             NaiveNASlib.nin(i::Ignore) = nin(i.f)
-            NaiveNASlib.Δsize(::Ignore, ::AbstractVector{<:Integer}, ::Integer) = nothing
+            NaiveNASlib.Δsize!(::Ignore, ::AbstractVector{<:Integer}, ::Integer) = nothing
             NaiveNASlib.Δsizetype(i::Ignore) = NaiveNASlib.Δsizetype(i.f)
 
             v1 = inpt(3, "v1")
@@ -271,10 +271,10 @@ import JuMP
             v0 = inpt(3)
             v1 = av(v0, 5, "v1")
 
-            @test_throws ΔSizeFailError Δsize(ΔNoutExact(v0, 2;fallback=ThrowΔSizeFailError("Success?!")), [v0, v1])
+            @test_throws ΔSizeFailError Δsize!(ΔNoutExact(v0, 2;fallback=ThrowΔSizeFailError("Success?!")), [v0, v1])
             @test [nout(v0)] == nin(v1) == [3]
 
-            @test_throws ΔSizeFailError Δsize(ΔNinExact(v1, -2; fallback=ThrowΔSizeFailError("Success?!")), [v1, v0])
+            @test_throws ΔSizeFailError Δsize!(ΔNinExact(v1, -2; fallback=ThrowΔSizeFailError("Success?!")), [v1, v0])
             @test [nout(v0)] == nin(v1) == [3]
         end
     end
@@ -429,7 +429,7 @@ import JuMP
         NaiveNASlib.Δsizetype(c::SizeConstraint) = NaiveNASlib.Δsizetype(c.w)
         NaiveNASlib.nout(c::SizeConstraint) = nout(c.w)
         NaiveNASlib.nin(c::SizeConstraint) = nin(c.w)
-        NaiveNASlib.Δsize(c::SizeConstraint, insize::AbstractVector{<:Integer}, outsize::Integer) = Δsize(c.w, insize, outsize)
+        NaiveNASlib.Δsize!(c::SizeConstraint, insize::AbstractVector{<:Integer}, outsize::Integer) = Δsize!(c.w, insize, outsize)
         av(size, csize, in... ;name = "av") = absorbvertex(SizeConstraint(csize, SizeDummy(collect(nout.(in)), size)), in..., traitdecoration=tf(name))
 
         @testset "SizeStack multi inputs" begin
@@ -759,7 +759,7 @@ import JuMP
 
             @test @test_logs (:info, "Change nin of v5 by 30 and 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout(v5, 30)
 
-            @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize(NaiveNASlib.NeuronIndices(), ΔNoutExact(v5, 10), v5)
+            @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize!(NaiveNASlib.NeuronIndices(), ΔNoutExact(v5, 10), v5)
         end
 
         @testset "Clone" begin

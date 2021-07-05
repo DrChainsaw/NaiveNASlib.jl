@@ -703,7 +703,7 @@ import JuMP
             end
             NaiveNASlib.nin(c::SizeConstraintNoDecrease) = [c.nin]
             NaiveNASlib.nout(c::SizeConstraintNoDecrease) = c.nout
-            function NaiveNASlib.Δsize(c::SizeConstraintNoDecrease, ins::AbstractVector, outs::AbstractVector)
+            function NaiveNASlib.Δsize!(c::SizeConstraintNoDecrease, ins::AbstractVector, outs::AbstractVector)
                 if !ismissing(ins[1])
                     c.nin = length(ins[1])
                 end
@@ -1364,7 +1364,7 @@ import JuMP
             NaiveNASlib.Δsizetype(c::SizeConstraint) = NaiveNASlib.Δsizetype(c.w)
             NaiveNASlib.nout(c::SizeConstraint) = nout(c.w)
             NaiveNASlib.nin(c::SizeConstraint) = nin(c.w)
-            NaiveNASlib.Δsize(c::SizeConstraint, insize::AbstractVector, outsize::AbstractVector) = Δsize(c.w, insize, outsize)
+            NaiveNASlib.Δsize!(c::SizeConstraint, insize::AbstractVector, outsize::AbstractVector) = Δsize!(c.w, insize, outsize)
 
             @testset "Incompatible size constraints" begin
 
