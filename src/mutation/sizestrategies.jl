@@ -250,7 +250,7 @@ fallback(s::ΔNoutMix) = s.fallback
 
 Return `Δ => Relaxed()` which indicates that `Δ` shall be relaxed when changing size.
 
-See [`Δnout!`](@ref) and [`Δnin`](@ref).
+See [`Δnout!`](@ref) and [`Δnin!`](@ref).
 """
 relaxed(Δ::Integer) = Δ => Relaxed()
 relaxed(Δs::Tuple{Vararg{<:Maybe{Int}}}) = Δs => Relaxed()
@@ -283,7 +283,7 @@ julia> ΔNin(v1 => (relaxed(3), missing, 2), v2 => relaxed(-2, 0))
 ``` 
 """
 function ΔNin(args...) 
-    exact,relaxed = split_exact_relaxed(Δnin2Δnout(args...)) # To support mixed cases, e.g. Δnin(v => (2, relaxed(4)))
+    exact,relaxed = split_exact_relaxed(Δnin2Δnout(args...)) # To support mixed cases, e.g. Δnin!(v => (2, relaxed(4)))
     fallback = default_noutfallback((args...) -> ΔNoutRelaxed(merge(exact, relaxed); fallback=default_noutfallback("nin", args)), "nin", args)
     return ΔNout(exact, relaxed, fallback)
 end

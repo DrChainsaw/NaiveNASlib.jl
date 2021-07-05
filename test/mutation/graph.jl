@@ -130,7 +130,7 @@
             v6 = av(v5, 3, "v6")
 
             g = ΔninSizeGraph(v3)
-            Δnin(v3, 2, 1)
+            Δnin!(v3, 2, 1)
 
             clist = changed(all_in_graph(v0))
             @test Set(clist) == Set(NaiveNASlib.vertexproplist(g, :vertex))

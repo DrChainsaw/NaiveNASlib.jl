@@ -54,7 +54,7 @@ For an edge `e` in graph `g`, the following holds:
 
 If `get_prop(g, e, :direction)` is of type `Output` this means that `Δnout!` of `e.dst` is called after processing `e.src`.
 
-If `get_prop(g, e, :direction)` is of type `Input` this means that `Δnin` of `e.dst` is called after processing `e.src`.
+If `get_prop(g, e, :direction)` is of type `Input` this means that `Δnin!` of `e.dst` is called after processing `e.src`.
 """
 function ΔSizeGraph()
     g = MetaDiGraph(0, :size, -1)
@@ -65,7 +65,7 @@ end
 """
     ΔninSizeGraph(v)
 
-Return a `ΔSizeGraph` for the case when nin of `v` is changed, i.e when Δnin(v, Δ) is called.
+Return a `ΔSizeGraph` for the case when nin of `v` is changed, i.e when Δnin!(v, Δ) is called.
 """
 ΔninSizeGraph(v) = ΔSizeGraph(Input(), v)
 

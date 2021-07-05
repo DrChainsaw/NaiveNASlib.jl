@@ -179,7 +179,7 @@ end
         # It is also possible to change the input direction, but it requires specifying a size change for each input
         graphΔnin = copy(graph);
         v1, v2 = vertices(graphΔnin)[end-1:end];
-        @test Δnin(v1 => (3, relaxed(2), missing), v2 => relaxed((1,2))) # Use missing to signal "don't care"
+        @test Δnin!(v1 => (3, relaxed(2), missing), v2 => relaxed((1,2))) # Use missing to signal "don't care"
         @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
         @test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition
 

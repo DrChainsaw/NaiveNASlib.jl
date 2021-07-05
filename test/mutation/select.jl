@@ -87,7 +87,7 @@ import JuMP
         @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
         @test size(g(ones(3))) == (nout(v2),)
 
-        @test Δnin(v2, -2)
+        @test Δnin!(v2, -2)
         @test lastouts(v1) == lastins(v2) == [3,4,5,6]
         @test size(g(ones(3))) == (nout(v2),)
     end
@@ -146,41 +146,41 @@ import JuMP
             end
         end
 
-        @testset "Δnin$(use_fun ? " with value function" : "")" for use_fun in (false, true)
+        @testset "Δnin!$(use_fun ? " with value function" : "")" for use_fun in (false, true)
             f = use_fun ? (v -> (1:nout(v)),) : ()
-            @testset "Single Δnin$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
+            @testset "Single Δnin!$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., v1, wrap(3))
+                @test Δnin!(f..., v1, wrap(3))
                 @test nin.((v1, v2)) == ([6], [5])
             end
 
-            @testset "Single Δnin pair$(wrap === identity ? "" : " $(repr(wrap))")" for wrap in 
+            @testset "Single Δnin! pair$(wrap === identity ? "" : " $(repr(wrap))")" for wrap in 
             (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., v1=>wrap(3))
+                @test Δnin!(f..., v1=>wrap(3))
                 @test nin.((v1, v2)) == ([6], [5])
             end
 
-            @testset "Single Δnin Dict$(wrap === identity ? "" : " $(repr(wrap))")" for wrap in 
+            @testset "Single Δnin! Dict$(wrap === identity ? "" : " $(repr(wrap))")" for wrap in 
             (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., Dict(v1=>wrap(3)))
+                @test Δnin!(f..., Dict(v1=>wrap(3)))
                 @test nin.((v1, v2)) == ([6], [5])
             end
 
-            @testset "Multi Δnin pair mix $(repr(wrap1)) and $(repr(wrap2)) " for wrap1 in 
+            @testset "Multi Δnin! pair mix $(repr(wrap1)) and $(repr(wrap2)) " for wrap1 in 
             (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed), wrap2 in 
             (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., v1=>wrap1(3), v2=>wrap2(2))
+                @test Δnin!(f..., v1=>wrap1(3), v2=>wrap2(2))
                 @test nin.((v1, v2)) == ([6], [7])
             end
 
-            @testset "Multi Δnin Dict $(repr(wrap1)) and $(repr(wrap2)) " for wrap1 in 
+            @testset "Multi Δnin! Dict $(repr(wrap1)) and $(repr(wrap2)) " for wrap1 in 
                 (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed), wrap2 in 
                 (identity, tuple, relaxed, relaxed ∘ tuple, tuple ∘ relaxed)
                 v1,v2 = graphgen()
-                @test Δnin(f..., Dict(v1=>wrap1(3), v2=>wrap2(2)))
+                @test Δnin!(f..., Dict(v1=>wrap1(3), v2=>wrap2(2)))
                 @test nin.((v1, v2)) == ([6], [7])
             end
         end
@@ -228,14 +228,14 @@ import JuMP
 
         @test size(g(ones(3, 3))) == (nout(v4), 3)
 
-        @test Δnin(v4, relaxed(-2), 3)
+        @test Δnin!(v4, relaxed(-2), 3)
 
         @test nout(v1) == 6
         @test nout(v2) == 6
 
         @test size(g(ones(3))) == (nout(v4),)
 
-        @test Δnin(v4, -2, missing)
+        @test Δnin!(v4, -2, missing)
 
         @test nout(v1) == 4
         @test nout(v2) == 6
@@ -274,7 +274,7 @@ import JuMP
 
         @test size(g(ones(3))) == (nout(v6),)
 
-        @test Δnin(v -> 1:nout(v), v6, -2, relaxed(-2))
+        @test Δnin!(v -> 1:nout(v), v6, -2, relaxed(-2))
 
         @test nout(v1) == 8
         @test nout(v2) == 3
@@ -282,7 +282,7 @@ import JuMP
 
         @test size(g(ones(3))) == (nout(v6),)
 
-        @test Δnin(v -> 1:nout(v), v6, 3, missing)
+        @test Δnin!(v -> 1:nout(v), v6, 3, missing)
 
         @test nout(v1) == 10
         @test nout(v2) == 4
@@ -319,13 +319,13 @@ import JuMP
         @test nout(v3) == nout(v2) == nout(v1) == 3
     end
 
-    @testset "SizeInvariant exact Δnin infeasible" begin
+    @testset "SizeInvariant exact Δnin! infeasible" begin
         inpt = iv(3)
         v1 = av(inpt, 4, "v1")
         v2 = av(v1, 4, "v2")
         v3 = "v3" >> v1 + v2
 
-        @test @test_logs (:warn, r"Could not change nin of") Δnin(v3 => (-1, 0))
+        @test @test_logs (:warn, r"Could not change nin of") Δnin!(v3 => (-1, 0))
         @test nout(v3) == nout(v2) == nout(v1) == 3
     end
 

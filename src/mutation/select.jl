@@ -9,18 +9,18 @@ This means that individual indices will be aligned so that the function to the l
 struct NeuronIndices end
 
 # Just another name for Δsize with the corresponding direction
-Δnin(v::AbstractVertex, Δ, Δs...) = Δsize!(Input(), v => (Δ, Δs...))
+Δnin!(v::AbstractVertex, Δ, Δs...) = Δsize!(Input(), v => (Δ, Δs...))
 Δnout!(v::AbstractVertex, Δ) = Δsize!(Output(), v=>Δ)
-Δnin(args...) = Δsize!(Input(), args...)
+Δnin!(args...) = Δsize!(Input(), args...)
 Δnout!(args...) = Δsize!(Output(), args...)
-Δnin(ps::Pair{<:AbstractVertex}...) = Δsize!(Input(), ps...)
+Δnin!(ps::Pair{<:AbstractVertex}...) = Δsize!(Input(), ps...)
 Δnout!(ps::Pair{<:AbstractVertex}...) = Δsize!(Output(), ps...)
 
-Δnin(valuefun, v::AbstractVertex, Δ, Δs...) = Δsize!(valuefun, Input(), v => (Δ, Δs...))
+Δnin!(valuefun, v::AbstractVertex, Δ, Δs...) = Δsize!(valuefun, Input(), v => (Δ, Δs...))
 Δnout!(valuefun, v::AbstractVertex, Δ) = Δsize!(valuefun, Output(), v=>Δ)
-Δnin(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize!(valuefun, Input(), p, ps...)
+Δnin!(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize!(valuefun, Input(), p, ps...)
 Δnout!(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize!(valuefun, Output(), p, ps...)
-Δnin(valuefun, d::AbstractDict) = Δsize!(valuefun, Input(), d)
+Δnin!(valuefun, d::AbstractDict) = Δsize!(valuefun, Input(), d)
 Δnout!(valuefun, d::AbstractDict) = Δsize!(valuefun, Output(), d)
 
 

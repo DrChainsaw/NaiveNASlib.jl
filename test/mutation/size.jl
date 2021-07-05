@@ -21,10 +21,10 @@ import JuMP
 
             @test outputs.(inputs(v1)) == [[v1]]
 
-            Δnin(v1, 2)
+            Δnin!(v1, 2)
             @test nin(v1) == [4]
 
-            Δnin(v1, -3)
+            Δnin!(v1, -3)
             @test nin(v1) == [1]
 
             Δnout!(v1, -2)
@@ -36,7 +36,7 @@ import JuMP
             @test outputs(v1) == [v2]
             @test inputs(v2) == [v1]
 
-            Δnin(v2, 4)
+            Δnin!(v2, 4)
             @test nout(v1) == nin(v2)[1] == 5
 
             Δnout!(v1, -2)
@@ -50,10 +50,10 @@ import JuMP
             Δnout!(v1, -2)
             @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 1
 
-            Δnin(v3, 3)
+            Δnin!(v3, 3)
             @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 4
 
-            Δnin(v2, -2)
+            Δnin!(v2, -2)
             @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 2
 
             v0c = clone(v0, inputs(v0)[1])
@@ -83,10 +83,10 @@ import JuMP
                 Δnout!(v0, 3)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [5]
 
-                Δnin(v2, -2)
+                Δnin!(v2, -2)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [3]
 
-                Δnin(v1, +1)
+                Δnin!(v1, +1)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [4]
 
                 Δnout!(v1, -1)
@@ -119,11 +119,11 @@ import JuMP
                 Δnout!(v2, -2)
                 @test nin(v4) == [nout(v3)] == [sum(nin(v3))] == [nout(v1) + nout(v2)]  ==  [3]
 
-                Δnin(v4, 3)
+                Δnin!(v4, 3)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == [6]
 
                 Δnout!(v1, 4)
-                Δnin(v4, -8)
+                Δnin!(v4, -8)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == [2]
                 @test nout(v1) == nout(v2) == 1
 
@@ -135,16 +135,16 @@ import JuMP
                 Δnout!(v1, 3)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [5]
 
-                Δnin(v5, -2)
+                Δnin!(v5, -2)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [3]
 
-                Δnin(v4, 3)
+                Δnin!(v4, 3)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [6]
 
-                Δnin(v3, -1, missing)
+                Δnin!(v3, -1, missing)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [5]
 
-                Δnin(v3, missing, 2)
+                Δnin!(v3, missing, 2)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [7]
 
                 Δnout!(v3, -1)
@@ -179,7 +179,7 @@ import JuMP
                 Δnout!(v1, 3)
                 @test [nout(v1)] == nin(v2) == [nout(v2)] == nin(v3) == [5]
 
-                Δnin(v3, -2)
+                Δnin!(v3, -2)
                 @test [nout(v1)] == nin(v2) == [nout(v2)] == nin(v3) == [3]
 
                 v1c = clone(v1, inputs(v1)[])
@@ -208,7 +208,7 @@ import JuMP
                 Δnout!(v2, -2)
                 @test nin(v4)[] == nout(v3) == nin(v3)[1] == nin(v3)[2]  == nout(v1) == nout(v2)  ==  1
 
-                Δnin(v4, 3)
+                Δnin!(v4, 3)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == 4
 
                 #Add another output
@@ -219,7 +219,7 @@ import JuMP
                 Δnout!(v1, -3)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 1
 
-                Δnin(v5, 2)
+                Δnin!(v5, 2)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 3
 
                 Δnout!(v2, 3)
@@ -257,12 +257,12 @@ import JuMP
             v4 = absorbvertex(Ignore(SizeDummy(nout(v3), 5)), v3; traitdecoration=tf("v4"))
 
             @test_throws ΔSizeFailError Δnout!(v2, 2)
-            @test_throws ΔSizeFailError Δnin(v3, -3)
-            @test_throws ΔSizeFailError Δnin(v4, 5)
+            @test_throws ΔSizeFailError Δnin!(v3, -3)
+            @test_throws ΔSizeFailError Δnin!(v4, 5)
             @test_throws ΔSizeFailError Δnout!(v3, -7)
 
             # Too many Δs!
-            @test_throws AssertionError Δnin(v3, 1, 1)
+            @test_throws AssertionError Δnin!(v3, 1, 1)
         end
 
         @testset "Fail mutate immutable" begin
@@ -311,7 +311,7 @@ import JuMP
             #outputs(start) = first vertex in p1, p2 and resout (which has two inputs)
             @test reduce(vcat, nin.(outputs(start))) == [8, 8, 8, 8]
 
-            @test Δnin(out, 2)
+            @test Δnin!(out, 2)
             @test nin(out) == [nout(start)] == [10]
             @test reduce(vcat, nin.(outputs(start))) == [10, 10, 10, 10]
         end
@@ -333,7 +333,7 @@ import JuMP
             @test reduce(vcat, nin.(outputs(split))) == [3, 3]
 
             # Should basically undo the previous mutation
-            @test Δnin(out, +1)
+            @test Δnin!(out, +1)
             @test nin(out) == [nout(start)] == nin(split) == [9]
         end
 
@@ -353,7 +353,7 @@ import JuMP
 
             # Should basically undo the previous mutation
             @test minΔninfactor(out) == 2
-            @test Δnin(out, 2)
+            @test Δnin!(out, 2)
             @test nin(out) == [2nout(start)] == [8]
         end
 
@@ -373,7 +373,7 @@ import JuMP
             @test nin(out) == [nout(start)] == nin(split) == [6]
 
             # Should basically undo the previous mutation
-            @test Δnin(out, +2)
+            @test Δnin!(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
             @test minΔninfactor(out) == 2
@@ -399,7 +399,7 @@ import JuMP
             @test nin(out) == [nout(start)] == nin(split) == [6]
 
             # Should basically undo the previous mutation
-            @test Δnin(out, 2)
+            @test Δnin!(out, 2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
             @test minΔninfactor(out) == 2
@@ -723,12 +723,12 @@ import JuMP
             @test_logs (:warn, r"Could not change nout of .* by 2! Relaxing constraints...") Δnout!(v1, 2)
             @test [nout(v1)] == nin(v2) == [9]
 
-            @test_logs (:warn, r"Could not change nin of .* by -2! Relaxing constraints...") Δnin(v2, -2)
+            @test_logs (:warn, r"Could not change nin of .* by -2! Relaxing constraints...") Δnin!(v2, -2)
             @test [nout(v1)] == nin(v2) == [3]
 
             v3 = cc(v1,v2, name="v3")
 
-            @test_logs (:warn, r"Could not change nin of .* by 2 and 6! Relaxing constraints...") Δnin(v3, 2, 6)
+            @test_logs (:warn, r"Could not change nin of .* by 2 and 6! Relaxing constraints...") Δnin!(v3, 2, 6)
             @test [nout(v1)] == nin(v2) == [9]
             @test nin(v3) == [nout(v1), nout(v2)] == [9, 11]
 
@@ -750,7 +750,7 @@ import JuMP
             v2 = av(v1, 10, name="v2")
             v3 = av(v2, 4, name="v3")
 
-            @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
+            @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3") Δnin!(v3, 3)
 
             @test @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout!(v2, -3)
 
