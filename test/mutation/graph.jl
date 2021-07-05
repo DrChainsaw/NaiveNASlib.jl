@@ -107,7 +107,7 @@
             v7 = cc(v6, v2, name="v7")
 
             g = ΔnoutSizeGraph(v5)
-            Δnout(v5, 2)
+            Δnout!(v5, 2)
 
             clist = changed(all_in_graph(v0))
             glist = NaiveNASlib.vertexproplist(g, :vertex)

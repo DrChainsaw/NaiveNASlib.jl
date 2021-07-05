@@ -77,12 +77,12 @@ import JuMP
 
         g = CompGraph(inpt, v2)
 
-        @test Δnout(v -> 1:nout(v), v1, -2)
+        @test Δnout!(v -> 1:nout(v), v1, -2)
 
         @test lastouts(v1) == lastins(v2) == [3,4,5]
         @test size(g(ones(3))) == (nout(v2),)
 
-        @test Δnout(v1, 3)
+        @test Δnout!(v1, 3)
 
         @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
         @test size(g(ones(3))) == (nout(v2),)
@@ -101,47 +101,47 @@ import JuMP
             return v1, v2
         end
 
-        @testset "Δnout$(use_fun ? " with value function" : "")" for use_fun in (false, true)
+        @testset "Δnout!$(use_fun ? " with value function" : "")" for use_fun in (false, true)
             f = use_fun ? (v -> (1:nout(v)),) : ()
-            @testset "Single Δnout$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
+            @testset "Single Δnout!$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1, wrap(3))
+                @test Δnout!(f..., v1, wrap(3))
                 @test nout.((v1, v2)) == (8, 4)
             end
 
-            @testset "Single Δnout pair$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
+            @testset "Single Δnout! pair$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1=>wrap(3))
+                @test Δnout!(f..., v1=>wrap(3))
                 @test nout.((v1, v2)) == (8, 4)
             end
 
-            @testset "Single Δnout Dict$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
+            @testset "Single Δnout! Dict$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., Dict(v1=>wrap(3)))
+                @test Δnout!(f..., Dict(v1=>wrap(3)))
                 @test nout.((v1, v2)) == (8, 4)
             end
 
-            @testset "Multi Δnout pair$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
+            @testset "Multi Δnout! pair$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1=>wrap(3), v2=>wrap(2))
+                @test Δnout!(f..., v1=>wrap(3), v2=>wrap(2))
                 @test nout.((v1, v2)) == (8, 6)
             end
 
-            @testset "Multi Δnout Dict$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
+            @testset "Multi Δnout! Dict$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
-                @test Δnout(f..., Dict(v1=>wrap(3), v2=>wrap(2)))
+                @test Δnout!(f..., Dict(v1=>wrap(3), v2=>wrap(2)))
                 @test nout.((v1, v2)) == (8, 6)
             end
 
-            @testset "Multi Δnout pair mix" begin
+            @testset "Multi Δnout! pair mix" begin
                 v1,v2 = graphgen()
-                @test Δnout(f..., v1=>3, v2=>relaxed(2))
+                @test Δnout!(f..., v1=>3, v2=>relaxed(2))
                 @test nout.((v1, v2)) == (8, 6)
             end
 
-            @testset "Multi Δnout Dict mix" begin
+            @testset "Multi Δnout! Dict mix" begin
                 v1,v2 = graphgen()
-                @test Δnout(f..., Dict(v1=>3, v2=>relaxed(2)))
+                @test Δnout!(f..., Dict(v1=>3, v2=>relaxed(2)))
                 @test nout.((v1, v2)) == (8, 6)
             end
         end
@@ -214,14 +214,14 @@ import JuMP
         @test size(g(ones(3,2))) == (nout(v4), 2)
 
         @test minΔnoutfactor(v4) == 2
-        @test Δnout(v4, -4)
+        @test Δnout!(v4, -4)
 
         @test nout(v1) == 7
         @test nout(v2) == 2
 
         @test size(g(ones(3))) == (nout(v4),)
 
-        @test Δnout(v4, 6)
+        @test Δnout!(v4, 6)
 
         @test nout(v1) == 11
         @test nout(v2) == 3
@@ -258,7 +258,7 @@ import JuMP
         @test size(g(ones(3))) == (nout(v6),)
 
         @test minΔnoutfactor(v6) == 2
-        @test Δnout(v->1:nout(v), v6, -4)
+        @test Δnout!(v->1:nout(v), v6, -4)
 
         @test nout(v1) == 5
         @test nout(v2) == 2
@@ -266,7 +266,7 @@ import JuMP
 
         @test size(g(ones(3))) == (nout(v6),)
 
-        @test Δnout(v6, 6)
+        @test Δnout!(v6, 6)
 
         @test nout(v1) == 9
         @test nout(v2) == 4
@@ -302,20 +302,20 @@ import JuMP
         g = CompGraph(inpt, v3)
         @test size(g(ones(3))) == (nout(v3),)
 
-        @test @test_logs (:warn, r"Could not change nout of") Δnout(v3, 2)
+        @test @test_logs (:warn, r"Could not change nout of") Δnout!(v3, 2)
 
         @test nout(v3) == 3nout(v1) == 15
 
         @test size(g(ones(3))) == (nout(v3),)
     end
 
-    @testset "SizeInvariant exact Δnout infeasible" begin
+    @testset "SizeInvariant exact Δnout! infeasible" begin
         inpt = iv(3)
         v1 = av(inpt, 4, "v1")
         v2 = av(v1, 4, "v2")
         v3 = "v3" >> v1 + v2
 
-        @test @test_logs (:warn, r"Could not change nout of") Δnout(v1 => -1, v2 =>0)
+        @test @test_logs (:warn, r"Could not change nout of") Δnout!(v1 => -1, v2 =>0)
         @test nout(v3) == nout(v2) == nout(v1) == 3
     end
 
@@ -337,7 +337,7 @@ import JuMP
         g = CompGraph(inpt, v2)
         @test size(g(ones(3))) == (nout(v2),)
 
-        @test Δnout(v1, -3) do v
+        @test Δnout!(v1, -3) do v
             # "Tempt" optimizer to not select inputs from inpt
             v === v2 && return (-nout(inpt):nout(v1)-1) 
             return 1:nout(v)
@@ -365,7 +365,7 @@ import JuMP
         @test size(g(ones(3))) == (nout(v7),)
 
         @test minΔnoutfactor(v7) == 2
-        @test Δnout(v7, -7)
+        @test Δnout!(v7, -7)
 
         @test nout(v1) == 8
         @test nout(v2) == 4
@@ -436,7 +436,7 @@ import JuMP
         oldg = copy(g)
 
         @test minΔnoutfactor(v7) == 1
-        Δnout(v7, 6)
+        Δnout!(v7, 6)
 
         @test nout(v1) == 5
         @test nout(v2) == 6
@@ -459,7 +459,7 @@ import JuMP
         g = CompGraph(inpt, v3)
         @test size(g(ones(3))) == (nout(v3),)
 
-        @test Δnout(v -> 1:nout(v), v3 => relaxed(-5), v1 => 2, v2 => relaxed(0))
+        @test Δnout!(v -> 1:nout(v), v3 => relaxed(-5), v1 => 2, v2 => relaxed(0))
 
         @test nin(v3) == [nout(v1), nout(v2)] == [5, 7]
         @test nout(v3) == sum(nin(v3)) == 12
@@ -499,7 +499,7 @@ import JuMP
         g = CompGraph(inpt, [v1, v9])
         @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
 
-        Δnout(v2, -1)
+        Δnout!(v2, -1)
 
         @test nout(v6) == 4
         @test nout(v7) == 13
@@ -507,7 +507,7 @@ import JuMP
 
         @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
 
-        Δnout(v2, 5)
+        Δnout!(v2, 5)
 
         @test nout(v6) == 4
         @test nout(v7) == 18
@@ -640,7 +640,7 @@ import JuMP
         v1 = absorbvertex(CompConstraint(), inpt, traitdecoration = tf("v1"))
         v2 = av(v1, 5, "v2")
 
-        Δnout(v1, 3)
+        Δnout!(v1, 3)
         @test ccouts == lastins(v2) == [2, 4, -1, -1, -1, -1, -1]
     end
 

@@ -23,7 +23,7 @@ export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
 
 # Mutation operations
 #State
-export nin, nout, Δnin, Δnout, clone, relaxed
+export nin, nout, Δnin, Δnout!, clone, relaxed
 
 # Mutation vertex
 export base, InputSizeVertex, OutputsVertex, MutationVertex

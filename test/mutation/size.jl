@@ -27,7 +27,7 @@ import JuMP
             Δnin(v1, -3)
             @test nin(v1) == [1]
 
-            Δnout(v1, -2)
+            Δnout!(v1, -2)
             @test nout(v1) == 1
 
             # Add one vertex and see that change propagates
@@ -39,7 +39,7 @@ import JuMP
             Δnin(v2, 4)
             @test nout(v1) == nin(v2)[1] == 5
 
-            Δnout(v1, -2)
+            Δnout!(v1, -2)
             @test nout(v1) == nin(v2)[1] == 3
 
             # Fork of v1 into a new vertex
@@ -47,7 +47,7 @@ import JuMP
             @test outputs(v1) == [v2, v3]
             @test inputs(v3) == inputs(v2) == [v1]
 
-            Δnout(v1, -2)
+            Δnout!(v1, -2)
             @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 1
 
             Δnin(v3, 3)
@@ -80,7 +80,7 @@ import JuMP
                 @test outputs(v0) == [v1]
                 @test neighbours(Both(), v1) == [v0, v2]
 
-                Δnout(v0, 3)
+                Δnout!(v0, 3)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [5]
 
                 Δnin(v2, -2)
@@ -89,7 +89,7 @@ import JuMP
                 Δnin(v1, +1)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [4]
 
-                Δnout(v1, -1)
+                Δnout!(v1, -1)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [3]
 
                 v0c = clone(v0, inputs(v0)[])
@@ -116,13 +116,13 @@ import JuMP
 
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == [5]
 
-                Δnout(v2, -2)
+                Δnout!(v2, -2)
                 @test nin(v4) == [nout(v3)] == [sum(nin(v3))] == [nout(v1) + nout(v2)]  ==  [3]
 
                 Δnin(v4, 3)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == [6]
 
-                Δnout(v1, 4)
+                Δnout!(v1, 4)
                 Δnin(v4, -8)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == [2]
                 @test nout(v1) == nout(v2) == 1
@@ -132,7 +132,7 @@ import JuMP
 
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [2]
 
-                Δnout(v1, 3)
+                Δnout!(v1, 3)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [5]
 
                 Δnin(v5, -2)
@@ -147,7 +147,7 @@ import JuMP
                 Δnin(v3, missing, 2)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [7]
 
-                Δnout(v3, -1)
+                Δnout!(v3, -1)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [6]
 
                 v1c = clone(v1, inputs(v1)[])
@@ -176,7 +176,7 @@ import JuMP
                 @test outputs.(inputs(v2)) == [[v2]]
                 @test outputs(v1) == [v2]
 
-                Δnout(v1, 3)
+                Δnout!(v1, 3)
                 @test [nout(v1)] == nin(v2) == [nout(v2)] == nin(v3) == [5]
 
                 Δnin(v3, -2)
@@ -205,7 +205,7 @@ import JuMP
 
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == 3
 
-                Δnout(v2, -2)
+                Δnout!(v2, -2)
                 @test nin(v4)[] == nout(v3) == nin(v3)[1] == nin(v3)[2]  == nout(v1) == nout(v2)  ==  1
 
                 Δnin(v4, 3)
@@ -216,13 +216,13 @@ import JuMP
 
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 4
 
-                Δnout(v1, -3)
+                Δnout!(v1, -3)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 1
 
                 Δnin(v5, 2)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 3
 
-                Δnout(v2, 3)
+                Δnout!(v2, 3)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 6
 
                 v1c = clone(v1, inputs(v1)[])
@@ -256,10 +256,10 @@ import JuMP
             v3 = av(v2, 7, "v3")
             v4 = absorbvertex(Ignore(SizeDummy(nout(v3), 5)), v3; traitdecoration=tf("v4"))
 
-            @test_throws ΔSizeFailError Δnout(v2, 2)
+            @test_throws ΔSizeFailError Δnout!(v2, 2)
             @test_throws ΔSizeFailError Δnin(v3, -3)
             @test_throws ΔSizeFailError Δnin(v4, 5)
-            @test_throws ΔSizeFailError Δnout(v3, -7)
+            @test_throws ΔSizeFailError Δnout!(v3, -7)
 
             # Too many Δs!
             @test_throws AssertionError Δnin(v3, 1, 1)
@@ -304,7 +304,7 @@ import JuMP
             @test nout(resout) == 9
 
             # Propagates to out, start outputs of start and also to p1 as objective is minimized by increasing p1 by 1
-            @test Δnout(p2, -2)
+            @test Δnout!(p2, -2)
             @test nout(p2) == 3
             @test nin(out) == [nout(start)] == [8]
             @test nout(p2) + nout(p1) == 8
@@ -328,7 +328,7 @@ import JuMP
 
             # Propagates to input of first vertex of p2, input of out and start
             # via p1 and resout as well as to input of split
-            @test Δnout(split, -1)
+            @test Δnout!(split, -1)
             @test nin(out) == [nout(start)] == nin(split) == [8]
             @test reduce(vcat, nin.(outputs(split))) == [3, 3]
 
@@ -348,7 +348,7 @@ import JuMP
 
             # Evil action: This will propagate to both p1 and p2 which are in
             # turn both input to the conc before resout.
-            @test Δnout(start, -1)
+            @test Δnout!(start, -1)
             @test nin(out) == [2nout(start)] == [6]
 
             # Should basically undo the previous mutation
@@ -369,7 +369,7 @@ import JuMP
 
             # Evil action: This will propagate to both p1 and p2 which are in
             # turn both input to the conc before resout.
-            @test Δnout(split, -1)
+            @test Δnout!(split, -1)
             @test nin(out) == [nout(start)] == nin(split) == [6]
 
             # Should basically undo the previous mutation
@@ -377,7 +377,7 @@ import JuMP
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
             @test minΔninfactor(out) == 2
-            @test Δnout(start, -2)
+            @test Δnout!(start, -2)
             @test nin(out) == [nout(start)] == [6]
             @test nout(split) == 3
         end
@@ -395,7 +395,7 @@ import JuMP
 
             # Evil action: This will propagate to both p1 and p2 which are in
             # turn both input to the conc before resout.
-            @test Δnout(split, -1)
+            @test Δnout!(split, -1)
             @test nin(out) == [nout(start)] == nin(split) == [6]
 
             # Should basically undo the previous mutation
@@ -403,7 +403,7 @@ import JuMP
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
             @test minΔninfactor(out) == 2
-            @test Δnout(start, -2)
+            @test Δnout!(start, -2)
             @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)] == [6]
             @test nout(split) == 2
             @test nout(p3) == 2
@@ -443,14 +443,14 @@ import JuMP
             @test minΔnoutfactor(cc2) == 12
 
             # Expect only v1 to change as size change is not compatible with v2
-            @test Δnout(cc1, -3)
+            @test Δnout!(cc1, -3)
             @test nin(cc1) == [nout(v1), nout(v2)] == [3, 7]
             @test nin(cc2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [8, 7, 3, 7]
             @test nout(cc1) == sum(nin(cc1))
             @test nout(cc2) == sum(nin(cc2))
 
             # v1 can't change as it is too small already
-            @test Δnout(cc2, -6)
+            @test Δnout!(cc2, -6)
             @test nin(cc1) == [nout(v1), nout(v2)] == [3, 5]
             @test nin(cc2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [6, 5, 3, 5]
             @test nout(cc1) == sum(nin(cc1))
@@ -458,7 +458,7 @@ import JuMP
 
             # Evil action! Must have understanding that change will propagate to cc1 from
             # both v1 and v2
-            @test Δnout(cc2, 9)
+            @test Δnout!(cc2, 9)
             @test nin(cc1) == [nout(v1), nout(v2)] == [6, 7]
             @test nin(cc2) == [nout(v3), nout(v2), nout(v1), nout(v2)] == [8, 7, 6, 7]
             @test nout(cc1) == sum(nin(cc1))
@@ -479,7 +479,7 @@ import JuMP
             @test minΔnoutfactor(cc2) == minΔninfactor(cc2)== 6
             @test minΔnoutfactor(cc3) == minΔninfactor(cc3) == 60 # v2 is input twice through sc2->cc1
 
-            @test Δnout(cc3, -60)
+            @test Δnout!(cc3, -60)
             @test nin(cc1) == nout.(inputs(cc1)) == [86, 91]
             @test nin(cc2) == nout.(inputs(cc2)) == [177, 87]
             @test nin(cc3) == nout.(inputs(cc3)) == [264, 90, 86]
@@ -492,7 +492,7 @@ import JuMP
             @test minΔnoutfactor(cc2) == minΔninfactor(cc2)== 6
             @test minΔnoutfactor(cc3) == minΔninfactor(cc3) == 60
 
-            @test Δnout(v1, 3)
+            @test Δnout!(v1, 3)
             @test nin(cc1) == nout.(inputs(cc1)) == [86, 91]
             @test nin(cc2) == nout.(inputs(cc2)) == [177, 90]
             @test nin(cc3) == nout.(inputs(cc3)) == [267, 90, 86]
@@ -502,7 +502,7 @@ import JuMP
 
             # Evil action! Must have understanding that the change in v2 will propagate
             # to cc3 input 1 through cc1 and cc2
-            @test Δnout(v2, -12)
+            @test Δnout!(v2, -12)
             @test nin(cc1) == nout.(inputs(cc1)) == [74, 103]
             @test nin(cc2) == nout.(inputs(cc2)) == [177, 90]
             @test nin(cc3) == nout.(inputs(cc3)) == [267, 90, 74]
@@ -517,7 +517,7 @@ import JuMP
             ea1 = ea(v1, name="ea1")
             ea2 = ea(ea1, v1, name="ea2")
 
-            @test Δnout(ea2, -2)
+            @test Δnout!(ea2, -2)
 
             @test nout(ea2) == nout(ea1) == nout(v1) == 8
             @test nin(ea2) == [nout(ea1), nout(v1)] == [8, 8]
@@ -535,7 +535,7 @@ import JuMP
             ea2 = ea(cc1, cc2, name="ea2")
             ea3 = ea(ea1, ea2, name="ea3")
 
-            @test Δnout(ea3, -4)
+            @test Δnout!(ea3, -4)
 
             @test nout(ea3) == nout(ea2) == nout(ea1) == nout(cc2) == nout(cc1) == nout(v2) + nout(v1) == 16
             @test nin(ea3) == nin(ea2) == nin(ea3) == [nout(cc1), nout(cc2)] == [16, 16]
@@ -557,19 +557,19 @@ import JuMP
             @test minΔnoutfactor(ea2) == minΔninfactor(ea2) == 1*2*3*5
             @test minΔnoutfactor(ea3) == minΔninfactor(ea3) == 1*2*3*5
 
-            @test Δnout(ea3, -30)
+            @test Δnout!(ea3, -30)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
             @test nout(ea1) == nout(ea2) == nout(ea3) == 70
 
             v5 = av(10, 3, ea3, name="v5")
 
-            @test Δnout(v1, 60)
+            @test Δnout!(v1, 60)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 130
             @test [nout(ea1)] == [nout(ea2)] == [nout(ea3)] == nin(v5) == [130]
 
             # Evil action! Must have understanding that the change in v2 will propagate
             # to ea3 input 1 through ea1 and ea2 and hold off updating it through input 3
-            @test Δnout(v2, -30)
+            @test Δnout!(v2, -30)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 100
             @test [nout(ea1)] == [nout(ea2)] == [nout(ea3)] == nin(v5) == [100]
         end
@@ -586,7 +586,7 @@ import JuMP
             # Evilness: Invariant vertex must change all its inputs and therefore it must take their minΔnoutfactors into account when computing minΔninfactor.
             @test minΔnoutfactor(v4) == 2*2*3*5*7
 
-            @test Δnout(v5, 2*2*3*5*7)
+            @test Δnout!(v5, 2*2*3*5*7)
 
             @test nout(v5) == nout(v4) == nout(v3) == 490
             @test nin(v5) == [nout(v4), nout(v3)] == [490, 490]
@@ -605,7 +605,7 @@ import JuMP
             # Evilness: Infinite recursion without memoization
             @test minΔnoutfactor(v4) == 2*3*5*7
 
-            @test Δnout(v5, 2*3*5*7)
+            @test Δnout!(v5, 2*3*5*7)
 
             @test nout(v5) == nout(v4) == nout(v3) == 230
             @test nin(v5) == [nout(v4), nout(v3)] == nin(v3) == [nout(v1), nout(v2)] == [230, 230]
@@ -621,7 +621,7 @@ import JuMP
             v6 = cc(v5, v2, name="v6")
 
             @test minΔnoutfactor(v6) == 3*2
-            @test Δnout(v6, 12)
+            @test Δnout!(v6, 12)
 
             @test nout(v6) == sum(nin(v6)) == 18
             @test nout(v5) == nin(v5)[] == 12
@@ -649,7 +649,7 @@ import JuMP
                 @test minΔnoutfactor(v2) == expectedΔf / 2 # 2 is size constraint for v1
                 @test minΔnoutfactor(v3) == expectedΔf
 
-                @test Δnout(v2, expectedΔf)
+                @test Δnout!(v2, expectedΔf)
                 @test nout(v3) == nout(v4) == nout(v5) == expectedΔf + 2+3
                 @test nin(v4) == nout.(inputs(v4)) == [expectedΔf + 2+3]
                 @test nin(v5) == nout.(inputs(v5)) == [expectedΔf + 2+3]
@@ -669,7 +669,7 @@ import JuMP
             expectedΔf = 2*2*3*5*7
             @test minΔnoutfactor(v6) == expectedΔf
 
-            @test Δnout(v6, expectedΔf)
+            @test Δnout!(v6, expectedΔf)
             @test nin(v8) == [nout(v7)] == [nout(v6)] == [4+expectedΔf]
 
             @test nin(v6) == [2 + expectedΔf ÷ 2, 2 + expectedΔf ÷ 2]
@@ -693,7 +693,7 @@ import JuMP
 
             @test minΔnoutfactor(v4) == 4
 
-            @test Δnout(v4, 8)
+            @test Δnout!(v4, 8)
 
             @test nout(v4) == 61
             @test nin(v4) == nout.(inputs(v4)) == [28, 14, 14, 5]
@@ -720,7 +720,7 @@ import JuMP
 
             @test (@test_logs (:info, "Giving up") newsizes(ΔNoutExact(v1, 2; fallback=LogΔSizeExec("Giving up")), all_in_graph(v1)))[1] == false
 
-            @test_logs (:warn, r"Could not change nout of .* by 2! Relaxing constraints...") Δnout(v1, 2)
+            @test_logs (:warn, r"Could not change nout of .* by 2! Relaxing constraints...") Δnout!(v1, 2)
             @test [nout(v1)] == nin(v2) == [9]
 
             @test_logs (:warn, r"Could not change nin of .* by -2! Relaxing constraints...") Δnin(v2, -2)
@@ -732,7 +732,7 @@ import JuMP
             @test [nout(v1)] == nin(v2) == [9]
             @test nin(v3) == [nout(v1), nout(v2)] == [9, 11]
 
-            @test_logs (:warn, r"Could not change nout of .* by -3! Relaxing constraints...") Δnout(v3, -3)
+            @test_logs (:warn, r"Could not change nout of .* by -3! Relaxing constraints...") Δnout!(v3, -3)
             @test [nout(v1)] == nin(v2) == [9]
             @test nin(v3) == [nout(v1), nout(v2)] == [9, 9]
         end
@@ -752,12 +752,12 @@ import JuMP
 
             @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3") Δnin(v3, 3)
 
-            @test @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout(v2, -3)
+            @test @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout!(v2, -3)
 
             v4 = av(v1, nout(v3), name="v4")
             v5 = traitconf(traitfun("v5")) >> v3 + v4
 
-            @test @test_logs (:info, "Change nin of v5 by 30 and 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout(v5, 30)
+            @test @test_logs (:info, "Change nin of v5 by 30 and 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout!(v5, 30)
 
             @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize!(NaiveNASlib.NeuronIndices(), ΔNoutExact(v5, 10), v5)
         end

@@ -126,7 +126,7 @@ y2 = layer2(y1);
 @test [nout(layer1)] == nin(layer2) == [4]
 
 # Lets change the output size of layer1:
-@test Δnout(layer1 => -2) # Returns true if successful
+@test Δnout!(layer1 => -2) # Returns true if successful
 
 # And now the weight matrices have changed
 @test [nout(layer1)] == nin(layer2) == [2]
@@ -193,7 +193,7 @@ parentgraph = copy(graph)
 # It is not possible to change the size of out by just 2
 # By default, NaiveNASlib warns when this happens and then tries to make the closest possible change
 # If we don't want the warning, we can tell NaiveNASlib to relax and make the closest possible change right away
-@test Δnout(out => relaxed(2))
+@test Δnout!(out => relaxed(2))
 
 # We didn't touch the input when mutating...
 @test [nout(invertex)] == nin(start) == [6]
@@ -230,12 +230,12 @@ While we still have the complex model in scope, lets show a few more way to chan
 
 # Prefer high indices:
 graphhigh = copy(graph);
-@test Δnout(v -> 1:nout(v), graphhigh.outputs[] => -3)
+@test Δnout!(v -> 1:nout(v), graphhigh.outputs[] => -3)
 @test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]
 
 # Perfer low indices
 graphlow = copy(graph);
-@test Δnout(v -> nout(v):-1:1, graphlow.outputs[] => -3) 
+@test Δnout!(v -> nout(v):-1:1, graphlow.outputs[] => -3) 
 @test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]
 
 # A common approach when doing structured pruning is to prefer neurons with high magnitude.
@@ -245,15 +245,15 @@ import Statistics: mean
 NaiveNASlib.default_outvalue(l::LinearLayer) = mean(abs, l.W, dims=2)
 
 graphhighmag = copy(graph);
-@test Δnout(graphhighmag.outputs[] => -3) 
+@test Δnout!(graphhighmag.outputs[] => -3) 
 @test graphhighmag((ones(6))) == [78, 78, 114, 114, 186, 186]
 
 # In many NAS applications one wants to apply random mutations to the graph
 # When doing so, one might end up in situations like this:
 badgraphdecinc = copy(graph);
 v1, v2 = vertices(badgraphdecinc)[[3, end]]; # Imagine selecting these at random
-@test Δnout(v1 => relaxed(-2))
-@test Δnout(v2 => 6)
+@test Δnout!(v1 => relaxed(-2))
+@test Δnout!(v2 => 6)
 # Now we first deleted a bunch of weights, then we added new :(
 @test badgraphdecinc((ones(6))) ==  [42, 0, 0, 60, 0, 0, 96, 0, 0]
 
@@ -261,7 +261,7 @@ v1, v2 = vertices(badgraphdecinc)[[3, end]]; # Imagine selecting these at random
 # NaiveNASlib try to come up with a decent compromise.
 goodgraphdecinc = copy(graph);
 v1, v2 = vertices(goodgraphdecinc)[[3, end]];
-@test Δnout(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
+@test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
 @test goodgraphdecinc((ones(6))) == [78, 78, 0, 0, 114, 114, 0, 0, 186, 186, 0, 0] 
 
 # It is also possible to change the input direction, but it requires specifying a size change for each input
@@ -323,7 +323,7 @@ graph = CompGraph(invertices, v3)
 # Now, lets decrease v1 by 1 and force merged to retain its size 
 # which in turn forces v2 to grow by 1
 # Give high value to neurons 1 and 3 of v2, same for all others...
-@test Δnout(v2 => -1, merged => 0) do v
+@test Δnout!(v2 => -1, merged => 0) do v
     v == v2 ? [10, 1, 10] : ones(nout(v))
 end
 
@@ -450,7 +450,7 @@ verts = all_in_graph(joined)
 # Strategy to try to change it by one and throw an error when not successful
 exact_or_fail = ΔNoutExact(joined => 1; fallback=ThrowΔSizeFailError("Size change failed!!"))
 
-# Note that we now call Δsize instead of Δnout as the direction is given by the strategy
+# Note that we now call Δsize instead of Δnout! as the direction is given by the strategy
 @test_throws NaiveNASlib.ΔSizeFailError Δsize!(exact_or_fail, verts)
 
 # No change was made
@@ -509,7 +509,7 @@ layer2 = absorbvertex(LinearLayer(nout(layer1), 4), layer1, traitdecoration = t 
 @test_logs(
 (:info, "Change nout of layer1, inputs=[in], outputs=[layer2], nin=[2], nout=[4], SizeAbsorb() by [1, 2, 3, -1]"),
 (:info, "Change nin of layer2 by [1, 2, 3, -1]"), # Note: less verbose compared to layer1 due to NameInfoStr
-Δnout(layer1, 1))
+Δnout!(layer1, 1))
 
 # traitdecoration works exactly the same for conc and invariantvertex as well, no need for an example
 
@@ -523,7 +523,7 @@ add = traitconf(t -> SizeChangeLogger(NamedTrait(t, "layer1 + layer2"))) >> laye
 (:info, "Change nout of layer2 by [1, 2, 3, 4, -1]"),
 (:info, "Change nin of layer1 + layer2, inputs=[layer1, layer2], outputs=[], nin=[5, 5], nout=[5], SizeInvariant() by [1, 2, 3, 4, -1] and [1, 2, 3, 4, -1]"),
 (:info, "Change nout of layer1 + layer2, inputs=[layer1, layer2], outputs=[], nin=[5, 5], nout=[5], SizeInvariant() by [1, 2, 3, 4, -1]"),
-Δnout(layer1, 1))
+Δnout!(layer1, 1))
 
 # When creating own trait wrappers, remember to subtype DecoratingTrait or else there will be pain!
 
@@ -534,7 +534,7 @@ end
 painlayer = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = PainfulTrait)
 
 # Now one must implement a lot of methods for PainfulTrait...
-@test_throws MethodError Δnout(painlayer, 1)
+@test_throws MethodError Δnout!(painlayer, 1)
 
 # Right! Is a subtype of DecoratingTrait
 struct SmoothSailingTrait{T<:MutationTrait} <: DecoratingTrait
@@ -545,7 +545,7 @@ NaiveNASlib.base(t::SmoothSailingTrait) = t.base
 
 smoothlayer = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = SmoothSailingTrait)
 
-@test Δnout(smoothlayer, 1)
+@test Δnout!(smoothlayer, 1)
 @test nout(smoothlayer) == 4
 
 ```
