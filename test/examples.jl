@@ -205,7 +205,7 @@ end
                 return absorbvertex(l, in), l
             end
 
-            # Ok, now lets get down to business!
+            # Make a simple model
             invertices = inputvertex.(["in1", "in2"], [3,4])
             v1, l1 = vertexandlayer(invertices[1], 4)
             v2, l2 = vertexandlayer(invertices[2], 3)

@@ -24,9 +24,15 @@ Main supported operations:
 * Add edges to a vertex
 * Remove edges to a vertex
 
-For each of the above operations, NaiveNASlib makes the necessary changes to neighboring vertices to ensure that the computation graph is consistent w.r.t dimensions of the activations and so it to whatever extent possible represents the same function.
+For each of the above operations, NaiveNASlib makes the necessary changes to neighboring vertices to ensure that the computation graph 
+is consistent w.r.t dimensions of the activations and so it to whatever extent possible represents the same function.
 
-The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what some older frameworks using less modern programming languages used to do. In its defense, the sole reason anyone would use this library to begin with is to not have to create computation graphs themselves.
+For complex models this can explode in complexity to the point where one might just throw in the towel completely. NaiveNASlib comes to
+the rescue so that you can focus on the actual problem. Any failure to produce a valid model after mutation warrants an issue!
+
+The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what 
+some older frameworks using less modern programming languages used to do. In its defense, the main reason anyone would use this 
+library to begin with is to not have to create computation graphs themselves.
 
 Just to get started, lets create a simple graph for the summation of two numbers:
 ```julia
@@ -134,15 +140,15 @@ y2 = layer2(y1);
 
 As can be seen above, the consequence of changing the output size of `layer1` was that the input size of `layer2` also was changed. This is of course required for the computation graph to not throw a dimension error when being executed.
 
-Besides the very simple graph, this mutation was trivial because the sizes of the input and output dimensions of LinearLayer's parameters can change independently as they are the rows and columns of the weight matrix. This is expressed by giving the layers the mutation size trait `SizeAbsorb` in the lingo of NaiveNASlib, meaning that a change in number of input/output neurons does not propagate further in the graph.
+Besides the very simple graph, this mutation was trivial because the sizes of the input and output dimensions of `LinearLayer`'s parameters can change independently as they are the rows and columns of the weight matrix. This is expressed by giving the layers the mutation size trait `SizeAbsorb` in the lingo of NaiveNASlib, meaning that a change in number of input/output neurons does not propagate further in the graph.
 
-However, things quickly get out of hand when using:
+On to the next example! As hinted above, things quickly get out of hand when using:
 
 * Layers which require nin==nout, e.g. batch normalization and pooling.
 * Element wise operations such as activation functions or just element wise arithmetics (e.g `+` used in residual connections).
 * Concatenation of activations.  
 
-Lets do a non-trivial example including all of the above. Lets first create a the model:
+Lets use a non-trivial model including all of the above. Lets first create a the model:
 
 ```julia
 # First a few "normal" layers
@@ -166,15 +172,14 @@ graph = CompGraph(invertex, out)
 ```
 
 Now we have a somewhat complex set of size relations at our hand since the sizes are constrained so that
-  1. start and joined must have the same output size due to element wise addition.
-  2. joined will always have 3 times the output size of split since there are no size absorbing vertices between them.
+  1. `start` and `joined` must have the same output size due to element wise addition.
+  2. `joined` will always have 3 times the output size of `split` since there are no size absorbing vertices between them.
 
 Modifying this graph manually would of course be manageable (albeit a bit cumbersome) if we created the model
 by hand and knew it inside out. 
 
-When things like the above emerges out of a neural architecture search things are less fun though, but NaiveNASlib
-comes to the rescue so that you can focus on the search algorithms. Any failure to produce a valid model after 
-mutation warrants an issue!
+When things like the above emerges out of a neural architecture search things are less fun though and this is where 
+use of NaiveNASlib will really pay off.
 
 ```julia
 # Ok, lets try to change the size of the vertex "out".
@@ -206,7 +211,7 @@ parentgraph = copy(graph)
 @test parentgraph((ones(6))) == [78, 78, 114, 114, 186, 186]
 
 ```
-The core idea of NaiveNASlib is basically to annotate the type of vertex in the graph so that functions know what is the proper way to deal with the neighboring vertices when mutating a vertex.
+The core idea of NaiveNASlib is basically to annotate the type of vertex in the graph so that it knows what is the proper way to deal with the neighboring vertices when mutating a vertex.
 
 This is done through labeling vertices into three major types:
 * `SizeAbsorb`: Assumes `nout(v)` and `nin(v)` may change independently. This means that size changes are absorbed by this vertex in the sense they don't propagate further.
@@ -290,7 +295,7 @@ function vertexandlayer(in, outsize)
     return absorbvertex(l, in), l
 end
 
-# Ok, now lets get down to business!
+# Make a simple model
 invertices = inputvertex.(["in1", "in2"], [3,4])
 v1, l1 = vertexandlayer(invertices[1], 4)
 v2, l2 = vertexandlayer(invertices[2], 3)
