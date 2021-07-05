@@ -58,15 +58,14 @@ include("vertex.jl")
 include("compgraph.jl")
 include("prettyprint.jl")
 
-include("mutation/op.jl")
 include("mutation/vertex.jl")
 include("mutation/graph.jl")
+
 include("mutation/jumpnorm.jl")
 include("mutation/sizestrategies.jl")
-include("mutation/size.jl")
-include("mutation/apply.jl")
-include("mutation/select.jl")
 
+include("mutation/size.jl")
+include("mutation/select.jl")
 include("mutation/structure.jl")
 
 include("mutation/sugar.jl")

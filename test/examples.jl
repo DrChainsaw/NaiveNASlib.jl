@@ -193,7 +193,7 @@ end
             return value .- 0.4mean(value)
         end
         @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
-        #Compare to original:
+        # Compare to original:
         @test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]
 
         @testset "Weight modification example" begin

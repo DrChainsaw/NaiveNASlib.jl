@@ -177,6 +177,8 @@ $(generic_Δnout_docstring_examples("ΔNoutRelaxed"))
 """
 ΔNoutRelaxed(args...;fallback=default_noutfallback("nout", args)) = ΔNout{Relaxed}(args...;fallback)
 
+const Maybe{T} = Union{T, Missing}
+
 Δnout_err_info(v, Δ::Union{<:Maybe{Int}, <:Pair}...) = "$(nameorrepr(v)) by $(join(first.(Δ), ", ", " and "))"
 Δnout_err_info(v, Δ::Tuple) = Δnout_err_info(v, Δ...)
 Δnout_err_info(ps::Pair...) = join(map(p ->Δnout_err_info(p...), ps), ", ", " and ")
