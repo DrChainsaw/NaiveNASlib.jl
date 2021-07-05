@@ -64,7 +64,8 @@ default_outvalue(v::AbstractVertex) = default_outvalue(trait(v), v)
 default_outvalue(t, v::AbstractVertex) = default_outvalue(t, base(v))
 default_outvalue(t, ::InputVertex) = 1
 default_outvalue(t, v::CompVertex) = default_outvalue(t, v.computation)
-default_outvalue(t, f) = 1
+default_outvalue(t, f) = default_outvalue(f)
+default_outvalue(f) = 1
 
 """
     Δsize(d::Direction, v::AbstractVertex, Δ...)
