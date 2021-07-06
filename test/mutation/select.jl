@@ -526,6 +526,20 @@ import JuMP
         @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
     end
 
+    @testset "Low values in not-connected" begin
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2 = av(v1, 5, "v2")
+        v3 = av(v2, 3, "v3")
+        v4 = av(v2, 5, "v4")
+
+        @test Δnout!(v1 => 2) do v
+            v == v2 ? (-2:nout(v2)-3) : 1
+        end
+        @test nout(v1) == 6
+        @test nout(v2) == 5
+    end
+
     @testset "Increase at vertex removal" begin
         inpt = iv(3)
         v1 = av(inpt, 2, "v1")

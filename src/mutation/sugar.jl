@@ -19,7 +19,7 @@ inputvertex(name, size) = InputSizeVertex(name, size)
 
 
 """
-    vertex(computation, outsize::Integer, trait::MutationTrait, inputs::AbstractVertex...; mutation=IoChange)
+    vertex(computation, trait::MutationTrait, inputs::AbstractVertex...; mutation=IoChange)
 
 Return a mutable computation type vertex.
 
@@ -27,7 +27,7 @@ Return a mutable computation type vertex.
 ```julia-repl
 julia> using NaiveNASlib
 
-julia> v = vertex(x -> 5x, 1, SizeInvariant(), inputvertex("input", 1));
+julia> v = vertex(x -> 5x, NaiveNASlib.SizeInvariant(), inputvertex("input", 1));
 
 julia> v(3)
 15

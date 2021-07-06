@@ -262,13 +262,13 @@ end
 function after_Δnout(t, v, Δ, changed) end
 
 function validate_Δnin(v::AbstractVertex, Δ)
-    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
-    nout.(inputs(v)) == nin(v) || throw(ΔSizeFailError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")) 
+    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(nameorrepr(v))! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
+    nout.(inputs(v)) == nin(v) || throw(ΔSizeFailError("Nin change of $(compressed_string.(Δ)) to $(nameorrepr(v)) did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")) 
 end
 
 function validate_Δnout(v::AbstractVertex, Δ)
     nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
-    nin_of_outputs == [nout(v)] || throw(ΔSizeFailError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
+    nin_of_outputs == [nout(v)] || throw(ΔSizeFailError("Nout change of $(compressed_string(Δ)) to $(nameorrepr(v)) resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
 end
 
 newsizes(s::ThrowΔSizeFailError, vs::AbstractVector{<:AbstractVertex}) = throw(ΔSizeFailError(s.msgfun(vs)))
@@ -390,7 +390,20 @@ Add size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-sizeconstraint!(::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data) = @constraint(data.model, data.noutdict[v] >= 1)
+function sizeconstraint!(::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data) 
+    # If we find any outputs to v which are not part of the problem to solve, we need to prevent v from changing size
+    if any(vo -> vo ∉ keys(data.noutdict), outputs(v))
+        # Ok, this is a bit speculative, but should we find that there is a size mismatch (e.g. when create/remove vertex/edge)
+        # we might make the problem infeasible somehow by doing this. Instead we just skip it and hope some other constraint deals
+        # with aligning the size 
+        allnins = unique!(mapreduce(vo -> nin(vo)[v .== inputs(vo)], vcat, outputs(v)))
+        if length(allnins) == 1
+            @constraint(data.model, data.noutdict[v] == allnins[1])
+            return
+        end
+    end
+    @constraint(data.model, data.noutdict[v] >= 1)
+end
 
 function sizeconstraint!(case::ScalarSize, s::ΔNout{Exact}, v, data)
     Δ = get(s.Δs, v, nothing)
