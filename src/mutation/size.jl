@@ -2,22 +2,24 @@
 
 nin(v::AbstractVertex) = nin(trait(v), v)
 nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
-nin(t::MutationTrait, v::AbstractVertex) = nin(t, base(v))
-nin(::MutationTrait, v::CompVertex) = nin(v.computation)
+nin(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nin(t, base(v), vo)
+nin(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nin(v.computation, t, vo)
 nin(::MutationTrait, ::InputSizeVertex) = []
 
-# SizeTransparent does not need mutation state to keep track of sizes
-nin(::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
+nin(f, ::MutationTrait, ::AbstractVertex) = nin(f)
+nin(f, ::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
 
 nout(v::AbstractVertex) = nout(trait(v), v)
 nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
-nout(t::MutationTrait, v::AbstractVertex) = nout(t, base(v))
-nout(::MutationTrait, v::CompVertex) = nout(v.computation)
+nout(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nout(t, base(v), vo)
+nout(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nout(v.computation, t, vo)
 nout(::MutationTrait, v::InputSizeVertex) = v.size
 
+nout(f, ::MutationTrait, ::AbstractVertex) = nout(f)
+
 # SizeTransparent might not care about size
-nout(::SizeInvariant, v::AbstractVertex) = isempty(nin(v)) ? 0 : nin(v)[1]
-nout(::SizeStack, v::AbstractVertex) = isempty(nin(v)) ? 0 : sum(nin(v))
+nout(f, ::SizeInvariant, v::AbstractVertex) = isempty(nin(v)) ? 0 : nin(v)[1]
+nout(f, ::SizeStack, v::AbstractVertex) = isempty(nin(v)) ? 0 : sum(nin(v))
 
 # TODO: Remove
 nout_org(v::AbstractVertex) = nout(v)

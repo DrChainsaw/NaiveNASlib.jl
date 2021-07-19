@@ -237,6 +237,17 @@ import JuMP
                 @test issame(v4, v4c)
                 @test issame(v5, v5c)
             end
+
+            @testset "invariantvertex with params and size" begin
+                struct InvariantWithSize
+                    s::Int
+                end
+                NaiveNASlib.nin(i::InvariantWithSize, ::SizeInvariant, v::AbstractVertex) = [i.s]
+
+                v = invariantvertex(InvariantWithSize(7), inpt(3, "in"); traitdecoration=tf("v"))
+
+                @test nin(v) == [nout(v)] == [7] 
+            end
         end
 
         @testset "SizeChangeValidation" begin

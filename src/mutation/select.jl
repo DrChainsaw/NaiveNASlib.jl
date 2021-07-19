@@ -135,7 +135,7 @@ function Δsize!(valuefun, case::NeuronIndices, s::TruncateInIndsToValid, vs::Ab
     if success
         for (vv, ininds) in ins
             for innr in eachindex(ininds)
-                ininds[innr] = aligntomax(nin_org(vv)[innr], ininds[innr])
+                ininds[innr] = aligntomax(nin(vv)[innr], ininds[innr])
             end
             newins, newouts = align_outs_to_ins(vv, ins[vv], outs[vv])
             ins[vv] = newins
@@ -352,7 +352,7 @@ Add constraints so that `insert` does not create undefined gaps in the result of
 Assume `select` is a set of binary variables where `select[i] = 1` means select the output neuron at position `i` and `insert[i] = N` means insert `N` new output neurons at the position after `i`.
 
 An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1]` because this results in the instruction to use existing output neurons `1 and 2` and then insert a new neuron at position `4`. 
-In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method contrains `model` so that this solution is infeasible.
+In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method constrains `model` so that this solution is infeasible.
 """
 function noinsertgaps!(model, select, insert, maxinsert=max(length(select) * 10, 200)) # TODO: get maxinsert from strategy instead
     insert_nogap = @variable(model, [1:length(insert)], Bin)
@@ -449,8 +449,11 @@ valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expre
 insertlastobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = insertlastobjective!(case::NeuronIndices, base(s), v, data)
 function insertlastobjective!(::NeuronIndices, s, v, data)
     insvars = data.outinsertvars[v]
+    
+    isempty(insvars) && return @expression(data.model, 0)
+
     preferend = collect(length(insvars) : -1 : 1)
-    scale = minimum(x -> x > 0 ? x : typemax(x), data.valuefun(v)) / sum(preferend) 
+    scale = minimum(x -> x >= 0 ? x : typemax(x), data.valuefun(v)) / sum(preferend) 
     return @expression(data.model, -0.1scale*sum(insvars .* preferend))
 end
 
