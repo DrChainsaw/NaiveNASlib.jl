@@ -507,6 +507,20 @@ import JuMP
                 @test outputs(v0) == [v1, v2]
             end
 
+            @testset "Add to middle of invariant PostAlign" begin
+                v0 = inpt(3, "v0")
+                v1a = av(v0, 5; name="v1a")
+                v1b = av(v0, 5; name="v1b")
+                v2 = iv(v1a, v1b; name = "v2")
+                v3 = av(v2, 3; name="v3")
+
+                v1c = av(v0, 3; name="v1c")
+                create_edge!(v1c, v2; pos=2, strategy=PostAlign())
+
+                @test inputs(v2) == [v1a, v1c, v1b]
+                @test nin(v2) == [nout(v1a), nout(v1c), nout(v1b)] == [5,5,5]
+            end
+
             @testset "Add with hidden SizeStack" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")

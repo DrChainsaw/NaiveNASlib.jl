@@ -410,10 +410,12 @@ function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict
     onemismatch = false
     for vi in inputs(v)
         # Sizes mismatch when vertex/edge was removed (or edge added)
-        onemismatch = nout(vi) != nout(v) 
-        onemismatch && continue
-        var_i = vardict[vi]
-        @constraint(model, var_i .== var)
+        if nout(vi) == nout(v)
+            var_i = vardict[vi]
+            @constraint(model, var_i .== var)
+        else
+            onemismatch = true
+        end
     end
     return onemismatch
 end
