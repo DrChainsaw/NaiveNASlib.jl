@@ -1,5 +1,32 @@
 import JuMP
 
+@testset "shapetrait and nin/nout" begin
+    import NaiveNASlib: shapetrait, NoShapeTraitError, noutnin_errmsg
+    struct NoutNinFailDummy end
+
+    @test shapetrait(NoutNinFailDummy()) == NoutNinFailDummy
+
+    @test_throws NoShapeTraitError nout(NoutNinFailDummy())
+    @test_throws NoShapeTraitError nin(NoutNinFailDummy())
+
+    @test noutnin_errmsg(NoutNinFailDummy(), nout) == "nout not defined for NoutNinFailDummy()! Either implement NaiveNASlib.nout(::NoutNinFailDummy) or implement NaiveNASlib.nout(::ST, ::NoutNinFailDummy) where ST is the return type of NaiveNASlib.shapetrait(::NoutNinFailDummy)"
+    @test noutnin_errmsg(NoutNinFailDummy(), nin) == "nin not defined for NoutNinFailDummy()! Either implement NaiveNASlib.nin(::NoutNinFailDummy) or implement NaiveNASlib.nin(::ST, ::NoutNinFailDummy) where ST is the return type of NaiveNASlib.shapetrait(::NoutNinFailDummy)"
+
+    struct NinNoutSuccessDummy end
+    NaiveNASlib.nout(::NinNoutSuccessDummy, args...) = 3
+    NaiveNASlib.nin(::NinNoutSuccessDummy, args...) = [3]
+
+    @test nout(NinNoutSuccessDummy()) == 3
+    @test nin(NinNoutSuccessDummy()) == [3]
+
+    # This is not really how the traits are supposed to be used, but it saves us from defining a new type and associated nout and nin methods here
+    struct NinNoutTraitSuccessDummy end
+    NaiveNASlib.shapetrait(::NinNoutTraitSuccessDummy) = NinNoutSuccessDummy()
+
+    @test nout(NinNoutTraitSuccessDummy()) == 3
+    @test nin(NinNoutTraitSuccessDummy()) == [3]
+end
+
 @testset "Size mutations" begin
 
     inpt(size, id="in") = inputvertex(id, size)

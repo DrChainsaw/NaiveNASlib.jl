@@ -6,6 +6,7 @@ nin(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nin(t, base(v),
 nin(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nin(v.computation, t, vo)
 nin(::MutationTrait, ::InputSizeVertex) = []
 
+# Give users a chance to fallback to smoe generic property of the vertex
 nin(f, ::MutationTrait, ::AbstractVertex) = nin(f)
 nin(f, ::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
 
@@ -15,6 +16,7 @@ nout(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nout(t, base(v
 nout(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nout(v.computation, t, vo)
 nout(::MutationTrait, v::InputSizeVertex) = v.size
 
+# Give users a chance to fallback to smoe generic property of the vertex or trait
 nout(f, ::MutationTrait, ::AbstractVertex) = nout(f)
 
 # SizeTransparent might not care about size
@@ -25,7 +27,21 @@ nout(f, ::SizeStack, v::AbstractVertex) = isempty(nin(v)) ? 0 : sum(nin(v))
 nout_org(v::AbstractVertex) = nout(v)
 nin_org(v::AbstractVertex) = nin(v)
 
+# Add possibly for shape traits for computations
+nout(f) = nout(shapetrait(f), f)
+nin(f) = nin(shapetrait(f), f)
 
+shapetrait(f::T) where T = T
+
+struct NoShapeTraitError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::NoShapeTraitError) = print(io, e.msg)
+
+noutnin_errmsg(f, name) = "$name not defined for $(f)! Either implement NaiveNASlib.$name(::$(typeof(f))) or implement NaiveNASlib.$name(::ST, ::$(typeof(f))) where ST is the return type of NaiveNASlib.shapetrait(::$(typeof(f)))" 
+
+nout(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nout)))
+nin(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nin)))
 
 """
     minΔnoutfactor(v::AbstractVertex)
