@@ -1557,4 +1557,96 @@ import JuMP
             end
         end
     end
+
+    @testset "Notify vertex change" begin
+        import NaiveNASlib: NotifyVertexChange, PostAlign, FailAlignSizeNoOp, ΔSizeFailNoOp, NoSizeChange
+        struct DummyStoreVertexNames{F}
+            names::Vector{String}
+            comp::F
+        end
+        function namestore(vs::AbstractVertex...)  
+            names = mapreduce(vcat, vs) do v
+                repeat([name(v)], nout(v))
+            end
+            return f -> DummyStoreVertexNames(names, f)
+        end
+        
+        (c::DummyStoreVertexNames)(x...) = c.comp(c...)
+
+        function NaiveNASlib.notify_remove_input_edge!(t, c::DummyStoreVertexNames, vout::AbstractVertex, vin::AbstractVertex, pos)    
+            nins = nin(vout)
+            start = isempty(nins) ? 0 : sum(nins[1:pos-1])
+            inds = 1+start:start+nout(vin)
+
+            removed = c.names[inds]
+            deleteat!(c.names, inds)
+            return () -> foreach((ind, item) -> insert!(c.names, ind, item), inds, removed)
+        end
+
+        function NaiveNASlib.notify_create_input_edge!(t, c::DummyStoreVertexNames, vout::AbstractVertex, vin::AbstractVertex, pos)  
+            nins = nin(vout)
+            start = isempty(nins) ? 0 : sum(nins[1:pos-1])
+            inds = 1+start:start+nout(vin)
+
+            foreach(ind-> insert!(c.names, ind, name(vin)), inds) 
+            return () -> deleteat!(c.names, inds)
+        end
+
+        @testset "Remove edge success" begin
+            v0 = inpt(3, "v0")
+            v1a = av(v0, 2; name="v1a")
+            v1b = av(v0, 3; name="v1b")
+            v1c = av(v0, 4; name="v1c")
+
+            v2 = conc(v1a,v1b,v1c; dims=2, outwrap=namestore(v1a, v1b, v1c), traitdecoration=tf("v2"))
+            @test remove_edge!(v1b, v2; strategy=NotifyVertexChange(PostAlign())) == true
+            @test computation(v2).names == ["v1a", "v1a", "v1c", "v1c", "v1c", "v1c"]
+        end
+
+        @testset "Remove edge fail" begin
+            v0 = inpt(3, "v0")
+            v1a = av(v0, 2; name="v1a")
+            v1b = av(v0, 3; name="v1b")
+            v1c = av(v0, 4; name="v1c")
+
+            v2 = conc(v1a,v1b,v1c; dims=2, outwrap=namestore(v1a, v1b, v1c), traitdecoration=tf("v2"))
+            @test remove_edge!(v1b, v2; strategy=NotifyVertexChange(PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp()))) == false
+            @test computation(v2).names == ["v1a", "v1a", "v1b", "v1b", "v1b", "v1c", "v1c", "v1c", "v1c"]
+        end
+
+        @testset "Add edge success" begin
+            v0 = inpt(3, "v0")
+            v1a = av(v0, 2; name="v1a")
+            v1b = av(v0, 3; name="v1b")
+            v1c = av(v0, 4; name="v1c")
+
+            v2 = conc(v1a,v1c; dims=2, outwrap=namestore(v1a, v1c), traitdecoration=tf("v2"))
+            @test create_edge!(v1b, v2; strategy=NotifyVertexChange(PostAlign()), pos=2) == true
+            @test computation(v2).names == ["v1a", "v1a", "v1b", "v1b", "v1b", "v1c", "v1c", "v1c", "v1c"]
+        end
+
+        @testset "Add edge fail" begin
+            v0 = inpt(3, "v0")
+            v1a = av(v0, 2; name="v1a")
+            v1b = av(v0, 3; name="v1b")
+            v1c = av(v0, 4; name="v1c")
+
+            v2 = conc(v1a,v1c; dims=2, outwrap=namestore(v1a, v1c), traitdecoration=tf("v2"))
+            @test create_edge!(v1b, v2; strategy=NotifyVertexChange(PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp())), pos=2) == false
+            @test computation(v2).names == ["v1a", "v1a", "v1c", "v1c", "v1c", "v1c"]
+        end
+
+        @testset "Remove single edge and add edge to empty success" begin
+            v0 = inpt(3, "v0")
+            v1a  = av(v0, 2; name="v1a")
+            v2 = conc(v1a; dims=2, outwrap=namestore(v1a), traitdecoration=tf("v2"))
+            @test remove_edge!(v1a, v2; strategy=NotifyVertexChange(NoSizeChange())) == true
+            @test computation(v2).names == []
+
+            v1b = av(v0, 3; name="v1b")
+            @test create_edge!(v1b, v2; strategy=NotifyVertexChange(PostAlign())) == true
+
+            @test computation(v2).names == ["v1b", "v1b", "v1b"] 
+        end
+    end
 end

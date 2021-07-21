@@ -191,6 +191,12 @@ PostAlign(s::AbstractJuMPΔSizeStrategy; fallback = FailAlignSizeError()) = Post
 PostAlign(s::AlignNinToNout; fallback=FailAlignSizeError()) = PostAlign(s, fallback)
 PostAlign(s; fallback=FailAlignSizeError()) = PostAlign(s, fallback)
 
+struct NotifyVertexChange{S, D} <: AbstractAlignSizeStrategy
+    andthen::S
+    data::D
+end
+NotifyVertexChange(andthen) = NotifyVertexChange(andthen, nothing)
+
 """
     RemoveStrategy
     RemoveStrategy()
@@ -405,6 +411,56 @@ function postalignsizes(s::PostAlign, vin, vout, pos)
     end
     return success
 end
+
+function postalignsizes(s::NotifyVertexChange, vin, vout, pos)
+    inds = findall(vx -> vx == vin, inputs(vout))
+    removededge = inds === nothing || pos ∉ inds
+
+    undo = if removededge
+        notify_remove_edge!(vin, vout, pos)
+    else
+        notify_create_edge!(vin, vout, pos)
+    end
+    success = postalignsizes(s.andthen, vin, vout, pos)
+    
+    if !success
+        undo()
+    end
+    return success
+end
+
+function notify_remove_edge!(vin, vout, pos)
+    undo1 = notify_remove_input_edge!(vout, vin, pos)
+    undo2 = notify_remove_output_edge!(vin, vout)
+    return () -> (undo1(); undo2())
+end
+
+notify_remove_input_edge!(vout::AbstractVertex, vin::AbstractVertex, pos) = notify_remove_input_edge!(trait(vout), vout, vout, vin, pos)
+notify_remove_input_edge!(t, v::AbstractVertex, vout::AbstractVertex, vin::AbstractVertex, pos) = notify_remove_input_edge!(t, base(v), vout, vin, pos)
+notify_remove_input_edge!(t, v::CompVertex, vout::AbstractVertex, vin::AbstractVertex, pos) = notify_remove_input_edge!(t, v.computation, vout, vin, pos) 
+notify_remove_input_edge!(t, c, vout::AbstractVertex, vin::AbstractVertex, pos) = () -> nothing
+
+notify_remove_output_edge!(vin::AbstractVertex, vout::AbstractVertex) = notify_remove_output_edge!(trait(vin), vin, vin, vout)
+notify_remove_output_edge!(t, v::AbstractVertex, vin::AbstractVertex, vout::AbstractVertex) = notify_remove_output_edge!(t, base(v), vin, vout)
+notify_remove_output_edge!(t, v::CompVertex, vin::AbstractVertex, vout::AbstractVertex) = notify_remove_output_edge!(t, v.computation, vin, vout) 
+notify_remove_output_edge!(t, c, vin::AbstractVertex, vout::AbstractVertex) = () -> nothing
+
+function notify_create_edge!(vin, vout, pos)
+    undo1 = notify_create_input_edge!(vout, vin, pos)
+    undo2 = notify_create_output_edge!(vin, vout)
+    return () -> (undo1(); undo2())
+end
+
+notify_create_input_edge!(vout::AbstractVertex, vin::AbstractVertex, pos) = notify_create_input_edge!(trait(vout), vout, vout, vin, pos)
+notify_create_input_edge!(t, v::AbstractVertex, vout::AbstractVertex, vin::AbstractVertex, pos) = notify_create_input_edge!(t, base(v), vout, vin, pos)
+notify_create_input_edge!(t, v::CompVertex, vout::AbstractVertex, vin::AbstractVertex, pos) = notify_create_input_edge!(t, v.computation, vout, vin, pos) 
+notify_create_input_edge!(t, c, vout::AbstractVertex, vin::AbstractVertex, pos) = () -> nothing
+
+notify_create_output_edge!(vin::AbstractVertex, vout::AbstractVertex) = notify_create_output_edge!(trait(vin), vin, vin, vout)
+notify_create_output_edge!(t, v::AbstractVertex, vin::AbstractVertex, vout::AbstractVertex) = notify_create_output_edge!(t, base(v), vin, vout)
+notify_create_output_edge!(t, v::CompVertex, vin::AbstractVertex, vout::AbstractVertex) = notify_create_output_edge!(t, v.computation, vin, vout) 
+notify_create_output_edge!(t, c, vin::AbstractVertex, vout::AbstractVertex) = () -> nothing
+
 
 """
     insert!(vin::AbstractVertex, factory::Function, outselect::Function=identity)

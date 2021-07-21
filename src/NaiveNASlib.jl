@@ -10,7 +10,7 @@ import JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBL
 import Cbc
 
 #Interface
-export AbstractVertex, MutationOp, MutationState
+export AbstractVertex
 
 # Vertex
 export InputVertex, CompVertex, inputs, outputs
@@ -19,10 +19,9 @@ export InputVertex, CompVertex, inputs, outputs
 export infostr, name, RawInfoStr, NameInfoStr, InputsInfoStr, OutputsInfoStr, SizeInfoStr, MutationTraitInfoStr, ComposedInfoStr, NameAndInputsInfoStr, NinInfoStr, NoutInfoStr, NameAndIOInfoStr, FullInfoStr,MutationSizeTraitInfoStr
 
 # Computation graph
-export CompGraph, SizeDiGraph, output!,flatten, nv, vertices
+export CompGraph, SizeDiGraph, output!, flatten, nv, vertices
 
-# Mutation operations
-#State
+#Size query and mutation
 export nin, nout, Δnin!, Δnout!, clone, relaxed
 
 # Mutation vertex
@@ -37,22 +36,19 @@ export minΔnoutfactor, minΔninfactor, minΔnoutfactor_only_for, minΔninfactor
 export AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, DefaultJuMPΔSizeStrategy, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout
 
 #Selection util
-export AbstractΔSizeStrategy, SelectDirection, AbstractJuMPΔSizeStrategy, TruncateInIndsToValid, WithValueFun
+export SelectDirection, TruncateInIndsToValid, WithValueFun
 
 # Connectivity mutation
 export remove!, RemoveStrategy, insert!, create_edge!, remove_edge!
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeNoOp, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlign, SelectOutputs, ApplyMutation, PostSelectOutputs, PostApplyMutation
+export AbstractAlignSizeStrategy, IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, AdjustToCurrentSize, FailAlignSizeNoOp, FailAlignSizeError, FailAlignSizeWarn, FailAlignSizeRevert, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlign
 
 # Connect strategies
 export AbstractConnectStrategy, ConnectAll, ConnectNone
 
-# apply mutation
-export mutate_inputs, mutate_outputs, apply_mutation
-
 #sugar
-export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc, VertexConf, traitconf, mutationconf, outwrapconf
+export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc, VertexConf, traitconf, outwrapconf
 
 include("vertex.jl")
 include("compgraph.jl")
