@@ -540,7 +540,7 @@ default_create_edge_strat(::SizeInvariant,v) = CheckCreateEdgeNoSizeCycle(ifok=I
 default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 function default_create_edge_strat(::SizeStack,v)
     alignstrat = TruncateInIndsToValid(AlignNinToNout(DefaultJuMPΔSizeStrategy(), ΔSizeFailNoOp()))
-    CheckCreateEdgeNoSizeCycle(ifok=PostAlign(alignstrat))
+    CheckCreateEdgeNoSizeCycle(ifok=NotifyVertexChange(PostAlign(alignstrat)))
 end
 
 """
