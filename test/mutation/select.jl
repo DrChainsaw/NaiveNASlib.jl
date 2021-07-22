@@ -68,6 +68,8 @@ import JuMP
         @test join_extracted_inds([2,3,4,5], [1,2,3,4]) == [2,-1,3,-1,-1,4,-1,-1,-1,5,-1,-1,-1,-1,]
         @test join_extracted_inds([2], [2,4,0]) == [2,-1,-1,-1,-1,-1,-1]
         @test join_extracted_inds([], [3,0]) == [-1,-1,-1]
+        @test join_extracted_inds([1,2,4], [0]) == [1,2,4]
+        @test join_extracted_inds([1,2,3,4,8], [0,1,2]) == [1, 2, -1, 3, -1, -1, 4, 8]
     end
 
     @testset "Absorb 2 Absorb" begin

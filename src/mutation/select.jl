@@ -294,7 +294,18 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     # Thus, the result will consist of all selected indices with possibly interlaced -1s
 
     # TODO: Cache and rescale valuefun?
-    outselectvars = Dict(v => @variable(model, [1:nout(v)], Bin) for v in vertices)
+    # We use the lenght of valuefun as the number of outputs to select as we will use it to add utility to each variable, so they must not mismatch
+    # They might mismatch when there are parameters attached to some size transparent vertex (e.g BatchNorm or even concatenation with some
+    # computed activation utility metric) and we are in the process of aligning sizes after adding/removing an edge.
+    # Forcing the user to provide a length of valuefun matching nout(v) in this case is not really fair as it is we who caused the mismatch.
+    # TODO: The indicies alignment below will not be ideal in this case. Perhaps it can be mitigated with some strategy providing information on
+    # how the edges have changed so that we can better align what hasn't changed.
+    selectsizes = map(vertices) do v
+        outvals = valuefun(v)
+        return outvals isa Number ? nout(v) : length(outvals)
+    end
+
+    outselectvars = Dict(v => @variable(model, [1:nvals], Bin) for (v,nvals) in zip(vertices, selectsizes))
     outinsertvars = Dict(v => @variable(model, [1:nout(v)], Int, lower_bound=0) for v in vertices)
     # This is the same variable name as used when adjusting size only. It allows us to delegate alot of size changing strategies to ScalarSize. 
     # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
@@ -395,14 +406,16 @@ function inoutconstraint!(::NeuronIndices, s, t::SizeStack, v, model, vardict::D
     for (i, vi) in enumerate(inputs(v))
         var_i = vardict[vi]
         # Sizes mismatch when vertex/edge was removed (or edge added)
-        if nout(vi) == nin(v)[i] && offs+length(var_i)-1 <= length(var)
+        if length(var_i) == nin(v)[i] && offs+length(var_i)-1 <= length(var)
             @constraint(model, var_i .== var[offs:offs+length(var_i)-1])
         else
             onemismatch = true
         end
         offs += length(var_i)
     end
-    return onemismatch
+    # Length var != nout means that we need to enforce the SizeStack constraint that sum(nin.(inputs(v))) == nout(v)
+    # as this indicates that there is some parameter array which needs to be aligned with the new size
+    return onemismatch || length(var) != nout(v)
 end
 
 function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict::Dict)
@@ -410,8 +423,8 @@ function inoutconstraint!(::NeuronIndices, s, ::SizeInvariant, v, model, vardict
     onemismatch = false
     for vi in inputs(v)
         # Sizes mismatch when vertex/edge was removed (or edge added)
-        if nout(vi) == nout(v)
-            var_i = vardict[vi]
+        var_i = vardict[vi]
+        if length(var_i) == length(var)
             @constraint(model, var_i .== var)
         else
             onemismatch = true
@@ -487,7 +500,7 @@ function join_extracted_inds(selected, insert)
             j += 1
             i += 1
         end
-        if insert[k] > 0
+        if k <= length(insert) && insert[k] > 0
             start = i
             stop = i+insert[k]-1
             result[start:stop] .= -1
