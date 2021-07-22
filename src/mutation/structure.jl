@@ -575,6 +575,6 @@ end
 
 default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
 default_remove_edge_strat(t::DecoratingTrait,v) = default_remove_edge_strat(base(t),v)
-default_remove_edge_strat(::SizeStack,v) = PostAlign()
+default_remove_edge_strat(::SizeStack,v) = NotifyVertexChange(PostAlign())
 default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
