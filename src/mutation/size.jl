@@ -344,7 +344,12 @@ Return true of the solution for `model` is accepted using strategy `s`.
 """
 accept(case, s::DecoratingJuMPΔSizeStrategy, model::JuMP.Model) = accept(case, base(s), model)
 accept(case, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
-
+function accept(case, s::TimeOutAction, model::JuMP.Model)
+    if  JuMP.termination_status(model) == MOI.TIME_LIMIT
+        return s.action(model)
+    end
+    return accept(case, base(s), model)
+end
 
 # Just a shortcut for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)

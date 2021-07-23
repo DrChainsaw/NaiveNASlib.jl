@@ -90,16 +90,44 @@ struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
 """
     TimeLimitΔSizeStrategy{S} <: DecoratingJuMPΔSizeStrategy
+    TimeLimitΔSizeStrategy(limit::Number)
+    TimeLimitΔSizeStrategy(limit::Number, base::S)
 
-Sets a time limit for the solver. 
+Sets the time limit for the solver to `limit`. Use strategy `base` for all other aspects. 
 """
-struct TimeLimitΔSizeStrategy{S} <: DecoratingJuMPΔSizeStrategy
+struct TimeLimitΔSizeStrategy{S,F} <: DecoratingJuMPΔSizeStrategy
     limit::Float64
     base::S
+    fallback::F
 end
-TimeLimitΔSizeStrategy(limit::Number) = TimeLimitΔSizeStrategy(limit, DefaultJuMPΔSizeStrategy())
-TimeLimitΔSizeStrategy(limit::Number, s::S) where S = TimeLimitΔSizeStrategy{S}(Float64(limit), s)
+TimeLimitΔSizeStrategy(limit::Number, base=DefaultJuMPΔSizeStrategy(); fallback=ThrowΔSizeFailError("Solver failed!")) = TimeLimitΔSizeStrategy(limit, base, fallback)
+TimeLimitΔSizeStrategy(limit::Number, base::S, fallback::F) where {S,F} = TimeLimitΔSizeStrategy{S,F}(Float64(limit), base, fallback)
 base(s::TimeLimitΔSizeStrategy) = s.base
+fallback(s::TimeLimitΔSizeStrategy) = s.fallback
+
+"""
+    TimeOutAction{S,A,F} <: DecoratingJuMPΔSizeStrategy
+    TimeOutAction(action::A, base::S, fallback::F)
+    TimeOutAction(base; fallback)
+
+Calls `action(model)` if JuMP model `model` has status `MOI.TIME_LIMIT` after optimization stops. Use strategy `base` for all other aspects.
+
+Default action is to display a warning and then apply `fallback` (default [`ThrowΔSizeFailError`](@ref)).
+"""
+struct TimeOutAction{S,A,F} <: DecoratingJuMPΔSizeStrategy
+    action::A
+    base::S
+    fallback::F
+end
+base(s::TimeOutAction) = s.base
+function TimeOutAction(;action=default_timeout, base::AbstractJuMPΔSizeStrategy=DefaultJuMPΔSizeStrategy(), fallback=ThrowΔSizeFailError("Solver failed!")) 
+    TimeOutAction(action, base, fallback)
+end
+fallback(s::TimeOutAction) = s.fallback
+function default_timeout(args...) 
+    @warn "Solver timed out"
+    return false
+end
 
 struct Exact end
 struct Relaxed end
