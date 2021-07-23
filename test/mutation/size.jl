@@ -317,6 +317,11 @@ end
         end
     end
 
+    @testset "Time limit" begin
+        import NaiveNASlib: TimeLimitΔSizeStrategy, sizemodel
+        @test JuMP.time_limit_sec(sizemodel(TimeLimitΔSizeStrategy(123), AbstractVertex[])) == 123
+    end
+
     @testset "Mutate tricky structures" begin
 
         ## Helper functions

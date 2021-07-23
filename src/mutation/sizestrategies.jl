@@ -81,13 +81,25 @@ LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> 
 base(s::LogΔSizeExec) = s.andthen
 fallback(s::LogΔSizeExec) = base(s)
 
-
 """
     DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
 
 Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
 """
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
+
+"""
+    TimeLimitΔSizeStrategy{S} <: DecoratingJuMPΔSizeStrategy
+
+Sets a time limit for the solver. 
+"""
+struct TimeLimitΔSizeStrategy{S} <: DecoratingJuMPΔSizeStrategy
+    limit::Float64
+    base::S
+end
+TimeLimitΔSizeStrategy(limit::Number) = TimeLimitΔSizeStrategy(limit, DefaultJuMPΔSizeStrategy())
+TimeLimitΔSizeStrategy(limit::Number, s::S) where S = TimeLimitΔSizeStrategy{S}(Float64(limit), s)
+base(s::TimeLimitΔSizeStrategy) = s.base
 
 struct Exact end
 struct Relaxed end

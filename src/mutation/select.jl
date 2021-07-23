@@ -287,7 +287,7 @@ The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
 function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)
-    model = selectmodel(NeuronIndices(), s, vertices, values)
+    model = selectmodel(NeuronIndices(), s, vertices, valuefun)
     case = NeuronIndices()
     # The binary variables `outselectvars` tells us which existing output indices to select
     # The integer variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
@@ -327,8 +327,13 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
 end
 
-selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, values) = selectmodel(case, base(s), v, values) 
-selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, values) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
+selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vs, valuefun) = selectmodel(case, base(s), vs, valuefun) 
+selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, vs, valuefun) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0, "seconds" => 20))
+function selectmodel(case::NeuronIndices, s::TimeLimitΔSizeStrategy, vs, valuefun) 
+    model = selectmodel(case, base(s), vs, valuefun)
+    JuMP.set_time_limit_sec(model, s.limit)
+    return model
+end
 
 function vertexconstraints!(case::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
      @constraint(data.model, data.outselectvars[v] .== 1)

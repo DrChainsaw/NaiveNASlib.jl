@@ -188,6 +188,11 @@ import JuMP
         end
     end
 
+    @testset "Time limit" begin
+        import NaiveNASlib: TimeLimitΔSizeStrategy, selectmodel, NeuronIndices
+        @test JuMP.time_limit_sec(selectmodel(NeuronIndices(), TimeLimitΔSizeStrategy(123), AbstractVertex[], () -> 1)) == 123
+    end
+
     @testset "Absorb 2 Absorb fail error" begin
         import NaiveNASlib: ΔSizeFailError
         inpt = iv(3)
