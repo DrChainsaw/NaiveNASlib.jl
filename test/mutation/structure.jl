@@ -284,7 +284,7 @@ import JuMP
                 v4 = sv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                remove_edge!(v2, v4, strategy=DecreaseBigger(mapstrat=WithValueFun(v -> 1:nout(v))))
+                @test remove_edge!(v2, v4, strategy=DecreaseBigger(mapstrat=WithValueFun(v -> 1:nout(v))))
 
                 @test inputs(v4) == [v1, v3]
                 @test nin(v4) == nout.([v1, v3]) == [1,2]
@@ -1303,6 +1303,28 @@ import JuMP
             @test remove!(v3, RemoveStrategy(PostAlign()))
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [4]
+        end
+
+        @testset "Remove with negative value IncreaseSmaller" begin
+            v0 = inpt(3)
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+            v3 = av(v2, 3, name="v3")
+
+            @test remove!(v2, RemoveStrategy(IncreaseSmaller(;mapstrat=WithValueFun(v -> v == v1 ? -1 : 1), fallback=ΔSizeFailNoOp())))
+
+            @test [nout(v1)] == nin(v3) == [5]
+        end
+
+        @testset "Remove with negative value DecreaseBigger" begin
+            v0 = inpt(3)
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+            v3 = av(v2, 3, name="v3")
+
+            @test remove!(v2, RemoveStrategy(DecreaseBigger(;mapstrat=WithValueFun(v -> v == v2 ? -1 : 1), fallback=ΔSizeFailNoOp())))
+
+            @test [nout(v1)] == nin(v3) == [4]
         end
 
         @testset "Hidden immutable" begin

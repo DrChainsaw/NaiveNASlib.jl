@@ -188,29 +188,6 @@ import JuMP
         end
     end
 
-    @testset "Time limit" begin
-        import NaiveNASlib: TimeLimitΔSizeStrategy, selectmodel, NeuronIndices
-        @test JuMP.time_limit_sec(selectmodel(NeuronIndices(), TimeLimitΔSizeStrategy(123), AbstractVertex[], () -> 1)) == 123
-    end
-
-    @testset "Timeout action" begin
-        import NaiveNASlib: TimeLimitΔSizeStrategy, TimeOutAction, ΔSizeFailNoOp
-
-        v0 = av(iv(1), 1000, "v0")
-        v1 = cc(v0, v0, v0; name="v1")
-        v2 = cc(v1, v0, v1; name="v2")
-        v3 = "v3" >> v2 + v2
-
-        @test @test_logs (:warn, "Solver timed out") Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(); fallback=ΔSizeFailNoOp()), v3) == false
-
-        modelres = nothing
-        action = m -> (modelres = m; return false)
-
-        @test Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(;action); fallback=ΔSizeFailNoOp()), v3) == false
-
-        @test modelres isa JuMP.Model
-    end
-
     @testset "Absorb 2 Absorb fail error" begin
         import NaiveNASlib: ΔSizeFailError
         inpt = iv(3)
@@ -722,5 +699,28 @@ import JuMP
 
         tp = TestProbe(v2, Both())
         @test tp.vs == Set([v1, v2, v3])
+    end
+
+    @testset "Time limit" begin
+        import NaiveNASlib: TimeLimitΔSizeStrategy, selectmodel, NeuronIndices
+        @test JuMP.time_limit_sec(selectmodel(NeuronIndices(), TimeLimitΔSizeStrategy(123), AbstractVertex[], () -> 1)) == 123
+    end
+
+    @testset "Timeout action" begin
+        import NaiveNASlib: TimeLimitΔSizeStrategy, TimeOutAction, ΔSizeFailNoOp
+
+        v0 = av(iv(1), 1000, "v0")
+        v1 = cc(v0, v0, v0; name="v1")
+        v2 = cc(v1, v0, v1; name="v2")
+        v3 = "v3" >> v2 + v2
+
+        @test @test_logs (:warn, "Solver timed out") Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(); fallback=ΔSizeFailNoOp()), v3) == false
+
+        modelres = nothing
+        action = m -> (modelres = m; return false)
+
+        @test Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(;action); fallback=ΔSizeFailNoOp()), v3) == false
+
+        @test modelres isa JuMP.Model
     end
 end
