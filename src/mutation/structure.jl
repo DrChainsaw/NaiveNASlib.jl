@@ -352,7 +352,7 @@ proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 Δninstrat(v, Δ) = Δninstrat(trait(v), v, Δ)
 Δninstrat(t::DecoratingTrait, v, Δ) = Δninstrat(base(t), v, Δ)
 Δninstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
-Δninstrat(::SizeTransparent, v, Δ) = ΔNoutExact(v => Δ ; fallback=ΔSizeFailNoOp())
+Δninstrat(::SizeTransparent, v, Δ) = ΔNoutExact(v => Δ; fallback=ΔSizeFailNoOp())
 function Δninstrat(::MutationSizeTrait, v, Δ) 
     Δs = Δnin2Δnout(v => Δ)
     Δs[v] = 0
@@ -485,7 +485,7 @@ end
 
 default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
 default_create_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
-default_create_edge_strat(::SizeInvariant,v) = CheckCreateEdgeNoSizeCycle(ifok=IncreaseSmaller())
+default_create_edge_strat(::SizeInvariant,v) = CheckCreateEdgeNoSizeCycle(ifok=AlignSizeBoth())
 default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
 function default_create_edge_strat(::SizeStack,v)
     alignstrat = TruncateInIndsToValid(AlignNinToNout(DefaultJuMPΔSizeStrategy(), ΔSizeFailNoOp()))
