@@ -27,8 +27,9 @@ Main supported operations:
 For each of the above operations, NaiveNASlib makes the necessary changes to neighboring vertices to ensure that the computation graph 
 is consistent w.r.t dimensions of the activations and so it to whatever extent possible represents the same function.
 
-For complex models this can explode in complexity to the point where one might just throw in the towel completely. NaiveNASlib comes to
-the rescue so that you can focus on the actual problem. Any failure to produce a valid model after mutation warrants an issue!
+While this is sometimes possible to do manually or through some ad-hoc method, things tend to explode in complexity for 
+more complex models to the point where one might just throw in the towel completely. NaiveNASlib comes to the rescue so that you 
+can focus on the actual problem. Any failure to produce a valid model after mutation warrants an issue!
 
 The price one has to pay is that the computation graph must be explicitly defined in the "language" of this library, similar to what 
 some older frameworks using less modern programming languages used to do. In its defense, the main reason anyone would use this 
@@ -79,7 +80,7 @@ module TinyNNlib
     NaiveNASlib.nout(l::LinearLayer) = size(l.W, 1)
 
     # We also need to tell NaiveNASlib how to change the size of LinearLayer
-    # The Δsize function will receive indices to keep from existing weights as well as where to insert new indices
+    # The Δsize! function will receive indices to keep from existing weights as well as where to insert new indices
     function NaiveNASlib.Δsize!(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
         # newins is a vector of vectors as vertices may have more than one input, but LinearLayer has only one
         # The function NaiveNASlib.parselect can be used to interpret newins and newouts. 
@@ -100,7 +101,7 @@ but here we use the bare minimum to get ourselves started. Some examples of this
 In practice one might not want to create a whole neural network library from scratch, but rather incorporate NaiveNASlib with an existing library
 in a glue package.
 It might appear that this will inevitably lead to type-piracy as neither the layer definitions nor the functions (e.g. nout, nin) would 
-belong to the glue package. However, it turns out that one anyways need to wrap the layers in some intermediate type. For instance, 
+belong to the glue package. However, one typically wants to wrap the layers in some intermediate type anyways. For instance, 
 [NaiveNASflux](https://github.com/DrChainsaw/NaiveNASflux.jl) needs to wrap the layers from Flux in a mutable container as the layers 
 themselves are not mutable.
 
