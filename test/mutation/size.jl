@@ -324,7 +324,6 @@ end
     end
 
     @testset "Mutate tricky structures" begin
-        using NaiveNASlib: minΔninfactor, minΔnoutfactor
 
         ## Helper functions
         iv(in; name="iv") = invariantvertex(identity, in; traitdecoration=tf(name))
@@ -397,7 +396,6 @@ end
             @test nin(out) == [2nout(start)] == [6]
 
             # Should basically undo the previous mutation
-            @test minΔninfactor(out) == 2
             @test Δnin!(out, 2)
             @test nin(out) == [2nout(start)] == [8]
         end
@@ -421,7 +419,6 @@ end
             @test Δnin!(out, +2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            @test minΔninfactor(out) == 2
             @test Δnout!(start, -2)
             @test nin(out) == [nout(start)] == [6]
             @test nout(split) == 3
@@ -447,7 +444,6 @@ end
             @test Δnin!(out, 2)
             @test nin(out) == [nout(start)] == nin(split) == [8]
 
-            @test minΔninfactor(out) == 2
             @test Δnout!(start, -2)
             @test nin(out) == [nout(start)] == [2*nout(split) + nout(p3)] == [6]
             @test nout(split) == 2
@@ -456,15 +452,14 @@ end
     end
 
     @testset "Size Mutation possibilities" begin
-        using NaiveNASlib: minΔninfactor, minΔnoutfactor, newsizes
+        using NaiveNASlib: newsizes
 
         # Helpers
         struct SizeConstraint{T}
             constraint::Int
             w::T
         end
-        NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
-        NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+
         function NaiveNASlib.compconstraint!(::NaiveNASlib.ScalarSize, s, c::SizeConstraint, data)
             fv_out = JuMP.@variable(data.model, integer=true)
             JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
@@ -486,8 +481,6 @@ end
 
             cc1 = cc(v1, v2, name="cc1")
             cc2 = cc(v3, v2, v1, v2, name="cc2")
-            @test minΔnoutfactor(cc1) == 6
-            @test minΔnoutfactor(cc2) == 12
 
             # Expect only v1 to change as size change is not compatible with v2
             @test Δnout!(cc1, -3)
@@ -522,9 +515,6 @@ end
             cc1 = cc(v2, v3, name="cc1")
             cc2 = cc(cc1, v1, name="cc2")
             cc3 = cc(cc2, v4, v2, name="cc3")
-            @test minΔnoutfactor(cc1) == minΔninfactor(cc1) == 6
-            @test minΔnoutfactor(cc2) == minΔninfactor(cc2)== 6
-            @test minΔnoutfactor(cc3) == minΔninfactor(cc3) == 60 # v2 is input twice through sc2->cc1
 
             @test Δnout!(cc3, -60)
             @test nin(cc1) == nout.(inputs(cc1)) == [86, 91]
@@ -535,9 +525,6 @@ end
             @test nout(cc3) == nout(cc2) + nout(v4) + nout(v2) == 440
 
             v5 = av(10, 3, cc3, name="v5")
-            @test minΔnoutfactor(cc1) == minΔninfactor(cc1) == 6
-            @test minΔnoutfactor(cc2) == minΔninfactor(cc2)== 6
-            @test minΔnoutfactor(cc3) == minΔninfactor(cc3) == 60
 
             @test Δnout!(v1, 3)
             @test nin(cc1) == nout.(inputs(cc1)) == [86, 91]
@@ -600,10 +587,6 @@ end
             ea3 = ea(ea2, v4, v2, name="ea3")
 
             # Everything touches everything in this setup
-            @test minΔnoutfactor(ea1) == minΔninfactor(ea1) == 1*2*3*5
-            @test minΔnoutfactor(ea2) == minΔninfactor(ea2) == 1*2*3*5
-            @test minΔnoutfactor(ea3) == minΔninfactor(ea3) == 1*2*3*5
-
             @test Δnout!(ea3, -30)
             @test nout(v1) == nout(v2) == nout(v3) == nout(v4) == 70
             @test nout(ea1) == nout(ea2) == nout(ea3) == 70
@@ -630,9 +613,6 @@ end
             v5 = ea(v4,v3, name="v5")
             v6 = av(10, 7, v5, name="v6")
 
-            # Evilness: Invariant vertex must change all its inputs and therefore it must take their minΔnoutfactors into account when computing minΔninfactor.
-            @test minΔnoutfactor(v4) == 2*2*3*5*7
-
             @test Δnout!(v5, 2*2*3*5*7)
 
             @test nout(v5) == nout(v4) == nout(v3) == 490
@@ -649,9 +629,6 @@ end
             v5 = ea(v4,v3, name="v5")
             v6 = av(10, 7, v5, name="v6")
 
-            # Evilness: Infinite recursion without memoization
-            @test minΔnoutfactor(v4) == 2*3*5*7
-
             @test Δnout!(v5, 2*3*5*7)
 
             @test nout(v5) == nout(v4) == nout(v3) == 230
@@ -667,7 +644,6 @@ end
             v5 = ea(v4, name="v5")
             v6 = cc(v5, v2, name="v6")
 
-            @test minΔnoutfactor(v6) == 3*2
             @test Δnout!(v6, 12)
 
             @test nout(v6) == sum(nin(v6)) == 18
@@ -692,9 +668,6 @@ end
                 v6 = av(11, 11, v5, name="v6")
 
                 expectedΔf = 2*3*5*7*11
-                @test minΔnoutfactor(v1) == expectedΔf / 3 # 3 is size constraint for v2
-                @test minΔnoutfactor(v2) == expectedΔf / 2 # 2 is size constraint for v1
-                @test minΔnoutfactor(v3) == expectedΔf
 
                 @test Δnout!(v2, expectedΔf)
                 @test nout(v3) == nout(v4) == nout(v5) == expectedΔf + 2+3
@@ -714,7 +687,6 @@ end
             v8 = av(4, 7, v7, name="v8")
 
             expectedΔf = 2*2*3*5*7
-            @test minΔnoutfactor(v6) == expectedΔf
 
             @test Δnout!(v6, expectedΔf)
             @test nin(v8) == [nout(v7)] == [nout(v6)] == [4+expectedΔf]
@@ -737,8 +709,6 @@ end
             pa1pb1 = ea(pa1, name="pa1pb1")
             pa2 = cc(pa1pa1, pa1pb1, name = "pa2")
             v4 = cc(pa2, pb1, pc1, pd1, name = "v4")
-
-            @test minΔnoutfactor(v4) == 4
 
             @test Δnout!(v4, 8)
 

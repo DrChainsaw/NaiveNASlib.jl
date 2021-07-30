@@ -44,103 +44,6 @@ nout(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nout)))
 nin(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nin)))
 
 """
-    minΔnoutfactor(v::AbstractVertex)
-
-Returns the smallest `k` so that allowed changes to `nout` of `v` as well as `nin` of its outputs are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nout`.
-"""
-minΔnoutfactor(v::AbstractVertex) = missing
-minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
-minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
-minΔnoutfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔninfactor_only_for.(outputs(v))..., minΔnoutfactor_only_for(v)))
-minΔnoutfactor(t::SizeTransparent, v::AbstractVertex) = minΔninfactor(t, v)
-
-"""
-    minΔnoutfactor(v::AbstractVertex, [s=VisitState{Int}()])
-
-Returns the smallest `k` so that allowed changes to `nin` of `v` as well as `nout` of its inputs are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nin`.
-"""
-minΔninfactor(v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
-minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
-minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
-minΔninfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
-minΔninfactor(::SizeTransparent, v::AbstractVertex) = lcmsafe([minΔnoutfactor_only_for(v), minΔninfactor_only_for(v)])
-
-
-"""
-    minΔnoutfactor_only_for(v::AbstractVertex, [s=VisitState{Int}()])
-
-Returns the smallest `k` so that allowed changes to `nout` of `v` are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nout`.
-"""
-minΔnoutfactor_only_for(v::AbstractVertex, s=[]) = outvisit(v, s) ? 1 : minΔnoutfactor_only_for(base(v),s)
-minΔnoutfactor_only_for(v::MutationVertex, s=[]) = outvisit(v, s) ? 1 : minΔnoutfactor_only_for(trait(v), v, s)
-minΔnoutfactor_only_for(v::InputVertex, s=[]) = missing
-minΔnoutfactor_only_for(v::CompVertex, s=[]) = minΔnoutfactor(v.computation)
-minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔnoutfactor_only_for(t::DecoratingTrait, v::AbstractVertex, s) = minΔnoutfactor_only_for(base(t), v, s)
-minΔnoutfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
-minΔnoutfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔnoutfactor_only_for(base(v),s)
-
-minΔnoutfactor_only_for(::SizeInvariant, v::AbstractVertex, s) = lcmsafe(vcat(map(vi -> minΔnoutfactor_only_for(vi,s), inputs(v)), map(vo -> minΔninfactor_only_for(vo,s), outputs(v))))
-function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex, s)
-    absorbing = findterminating(v, inputs, outputs)
-
-    # This is not strictly the minimum as using only one of the factors would work as well
-    # However, this would create a bias as the same factor would be used all the time
-    # Life is really hard sometimes :(
-
-    # Count thingy is for duplicate outputs. Must be counted twice as it is impossible
-    # to only change one of them, right?
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va,s) for va in unique(absorbing)]
-    return lcmsafe(factors)
-end
-
-"""
-    minΔninfactor_only_for(v::AbstractVertex)
-
-Returns the smallest `k` so that allowed changes to `nin` of `v` are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nin`.
-"""
-minΔninfactor_only_for(v::AbstractVertex, s=[]) = invisit(v, s) ? 1 : minΔninfactor_only_for(base(v),s)
-minΔninfactor_only_for(v::MutationVertex, s=[]) = invisit(v, s) ? 1 : minΔninfactor_only_for(trait(v), v, s)
-minΔninfactor_only_for(v::InputVertex,s=[]) = missing
-minΔninfactor_only_for(v::CompVertex,s=[]) = minΔninfactor(v.computation)
-minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔninfactor_only_for(t::DecoratingTrait, v::AbstractVertex, s) = minΔninfactor_only_for(base(t), v, s)
-minΔninfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
-minΔninfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔninfactor_only_for(base(v), s)
-minΔninfactor_only_for(t::SizeInvariant, v::AbstractVertex, s) = minΔnoutfactor_only_for(t, v, s)
-function minΔninfactor_only_for(::SizeStack, v::AbstractVertex, s)
-    absorbing = findterminating(v, outputs, inputs)
-    # This is not strictly the minimum as using only one of the factors would work as well
-    # However, this would create a bias as the same factor would be used all the time
-    # Life is really hard sometimes :(
-
-    # Count thingy is for duplicate inputs. Must be counted twice as it is impossible
-    # to only change one of them, right?
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va, s) for va in unique(absorbing)]
-    return lcmsafe(factors)
-end
-
-#lcm which also checks for missing and arrays of undefined type
-function lcmsafe(x)
-    isempty(x) && return 1
-    return any(ismissing.(x)) ? missing : lcm(Integer.(x))
-end
-
-invisit(v, visited) = hasvisited(v, Input(), visited)
-outvisit(v, visited) = hasvisited(v, Output(), visited)
-
-function hasvisited(v, d::Direction, visited)
-    (v, d) in visited && return true
-    push!(visited, (v, d))
-    return false
-end
-
-
-"""
     findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [], visited = [])
 
 Return an array of all vertices which terminate size changes (i.e does not propagate them) seen through the given direction (typically inputs or outputs). A vertex will be present once for each unique path through which its seen.
@@ -172,8 +75,6 @@ julia> name.(findterminating(v3, inputs, outputs))
  "v1"
 
  julia> v5 = v3 + inputvertex("v4", 9);
-
- julia>  # Note, + creates a SizeInvariant vertex and this causes its inputs to be seen through the output direction
 
  julia> name.(findterminating(v3, outputs, inputs))
  1-element Array{String,1}:

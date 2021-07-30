@@ -696,8 +696,7 @@ import JuMP
                 nin::Int
                 nout::Int
              end
-            NaiveNASlib.minΔnoutfactor(c::SizeConstraintNoDecrease) = c.constraint
-            NaiveNASlib.minΔninfactor(c::SizeConstraintNoDecrease) = c.constraint
+
             function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, ::AbstractJuMPΔSizeStrategy, c::SizeConstraintNoDecrease, data)
                 model = data.model
                 v = data.vertex
@@ -739,7 +738,6 @@ import JuMP
                     v5 = av(v3, 7, 7, "v5")
 
                     @test inputs(v3) == [v1]
-                    @test minΔninfactor(v3) == 70
 
                     @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
@@ -755,7 +753,6 @@ import JuMP
                     v3 = av(v2, 5, 5, "v3")
 
                     @test inputs(v2) == [v1]
-                    @test minΔninfactor(v2) == 10
 
                     @test create_edge!(v0, v2)
                     @test inputs(v2) == [v1, v0]
@@ -790,7 +787,6 @@ import JuMP
                     v5 = imu(v4, 3, name="v5")
 
                     @test inputs(v4) == [v1, v2]
-                    @test ismissing(minΔnoutfactor(v4))
 
                     @test create_edge!(v3, v4)
                     @test inputs(v4) == [v1, v2, v3]
@@ -819,7 +815,6 @@ import JuMP
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
 
@@ -836,8 +831,7 @@ import JuMP
                     v5 = av(v3, 7, 7, "v5")
 
                     @test inputs(v3) == [v1]
-                    @test minΔninfactor(v3) == 70
-
+                    
                     @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
@@ -852,7 +846,6 @@ import JuMP
                     v3 = av(v2, 5, 6, "v3", false)
 
                     @test inputs(v2) == [v1]
-                    @test minΔninfactor(v2) == 6
 
                     @test create_edge!(v0, v2)
                     @test inputs(v2) == [v1, v0]
@@ -870,7 +863,6 @@ import JuMP
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
@@ -888,7 +880,6 @@ import JuMP
                     v5 = imu(v4, 3, name="v5")
 
                     @test inputs(v4) == [v1, v2]
-                    @test ismissing(minΔnoutfactor(v4))
 
                     @test create_edge!(v3, v4)
                     @test inputs(v4) == [v1, v2, v3]
@@ -905,7 +896,6 @@ import JuMP
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3)
                 end
@@ -919,7 +909,6 @@ import JuMP
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
 
@@ -973,7 +962,6 @@ import JuMP
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1,v2]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test remove_edge!(v2, v3)
                     @test inputs(v3) == [v1]
@@ -992,7 +980,6 @@ import JuMP
 
                     @test inputs(v4) == [v1, v2, v3]
                     @test [nout(v4)] == nin(v5) == [23]
-                    @test ismissing(minΔnoutfactor(v4))
 
                     @test remove_edge!(v1, v4)
                     @test inputs(v4) == [v2, v3]
@@ -1009,7 +996,6 @@ import JuMP
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1, v2]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test_throws NaiveNASlib.SizeAlignFailError remove_edge!(v2, v3)
                 end
@@ -1024,7 +1010,6 @@ import JuMP
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
                     @test [nout(v3)] == nin(v4) == [19]
-                    @test ismissing(minΔnoutfactor(v3))
 
                     @test @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
 
@@ -1106,8 +1091,6 @@ import JuMP
     end
 
     @testset "Vertex removal" begin
-
-        using NaiveNASlib: minΔnoutfactor_only_for
 
         @testset "Fail noop $(nameof(typeof(strategy)))" for strategy in (
             FailAlignSizeNoOp(),
@@ -1351,9 +1334,6 @@ import JuMP
             v2 = av(join, 16, name = "v2") # 16 is not divisible by 3!
             v3 = av(v2, 4, name="v3")
 
-            @test minΔnoutfactor_only_for.(outputs(v2)) == [1]
-            @test minΔnoutfactor_only_for.(inputs(v2)) == [3]
-
             # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is obviously a senseless construct)
             @test remove!(v2)
             @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
@@ -1389,8 +1369,6 @@ import JuMP
                 w::T
             end
 
-            NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
-            NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
             function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, s, c::SizeConstraint, data)
                 fv_out = JuMP.@variable(data.model, integer=true)
                 JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
@@ -1410,9 +1388,6 @@ import JuMP
                 v2 = av(v1, 5, name = "v2")
                 v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
 
-                @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
-                @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
-
                 # Impossible to increase v1 by 5 due to SizeConstraint(3)
                 # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
                 # However, if we increase v1 by 2*2 and increase v3 by 3*3 we will hit home!
@@ -1426,9 +1401,6 @@ import JuMP
                 v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
                 v2 = sv(v1, name = "v2")
                 v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
-
-                @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
-                @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
 
                 # Size is already aligned due to transparent. Just test that this
                 # does not muck things up

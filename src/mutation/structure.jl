@@ -1,5 +1,3 @@
-# Overengineered set of strategy types and structs? Not gonna argue with that, but I do this for fun and sometimes I have a wierd idea of what fun is.
-# Also, everything is the fault of size transparent vertices, especially SizeStack and those blasted Δnoutfactors!
 """
     AbstractConnectStrategy
 

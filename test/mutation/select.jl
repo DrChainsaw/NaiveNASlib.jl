@@ -1,6 +1,5 @@
 import JuMP
 @testset "Selection" begin
-    using NaiveNASlib: minΔnoutfactor
 
     # Helper methods
     nt(name) = t -> NamedTrait(t, name)
@@ -252,7 +251,6 @@ import JuMP
         g = CompGraph(inpt, v4)
         @test size(g(ones(3,2))) == (nout(v4), 2)
 
-        @test minΔnoutfactor(v4) == 2
         @test Δnout!(v4, -4)
 
         @test nout(v1) == 7
@@ -296,7 +294,6 @@ import JuMP
         g = CompGraph(inpt, v6)
         @test size(g(ones(3))) == (nout(v6),)
 
-        @test minΔnoutfactor(v6) == 2
         @test Δnout!(v->1:nout(v), v6, -4)
 
         @test nout(v1) == 5
@@ -403,7 +400,6 @@ import JuMP
         g = CompGraph(inpt, v7)
         @test size(g(ones(3))) == (nout(v7),)
 
-        @test minΔnoutfactor(v7) == 2
         @test Δnout!(v7, -7)
 
         @test nout(v1) == 8
@@ -475,7 +471,6 @@ import JuMP
 
         oldg = copy(g)
 
-        @test minΔnoutfactor(v7) == 1
         Δnout!(v7, 6)
 
         @test nout(v1) == 5
