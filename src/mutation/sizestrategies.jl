@@ -430,20 +430,6 @@ end
 failtoalign(vin, vout) = ThrowΔSizeFailError(vs -> string("Could not align nout of ", nameorrepr(vin), " to nin of ", nameorrepr(vout), "!!"))
 
 """
-    SelectDirection <: AbstractΔSizeStrategy
-    SelectDirection()
-    SelectDirection(s::AbstractΔSizeStrategy)
-
-Select indices for a vertex using `AbstractΔSizeStrategy s` (default `DefaultJuMPSelectionStrategy`) in only the direction(s) in which the vertex has changed size.
-
-Intended use it to reduce the number of constraints for a `AbstractJuMPΔSizeStrategy` as only the parts of the graph which are changed will be considered.
-"""
-struct SelectDirection{S} <: AbstractΔSizeStrategy # TODO: Obsolete with add_participants!
-    strategy::S
-end
-SelectDirection() = SelectDirection(DefaultJuMPΔSizeStrategy())
-
-"""
     TruncateInIndsToValid{S} <: AbstractΔSizeStrategy
     TruncateInIndsToValid()
     TruncateInIndsToValid(s::S)

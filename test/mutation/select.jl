@@ -1,5 +1,6 @@
 import JuMP
 @testset "Selection" begin
+    using NaiveNASlib: minΔnoutfactor
 
     # Helper methods
     nt(name) = t -> NamedTrait(t, name)
@@ -89,7 +90,7 @@ import JuMP
         @test lastouts(v1) == lastins(v2) == [1,2,3,-1,-1,-1]
         @test size(g(ones(3))) == (nout(v2),)
 
-        @test Δnin!(v2, -2)
+        @test Δnin!(v -> 1:nout(v), v2, -2)
         @test lastouts(v1) == lastins(v2) == [3,4,5,6]
         @test size(g(ones(3))) == (nout(v2),)
     end
@@ -695,38 +696,6 @@ import JuMP
 
         Δnout!(v1, 3)
         @test ccouts == lastins(v2) == [2, 4, -1, -1, -1, -1, -1]
-    end
-
-    @testset "SelectDirection" begin
-        using NaiveNASlib: all_in_Δsize_graph
-
-        mutable struct TestProbe <: AbstractΔSizeStrategy
-            vs
-            d
-            function TestProbe(v, d)
-                tp = new(nothing, d)
-                Δsize!(v -> error("Shall not be called!"), SelectDirection(tp), v)
-                return tp
-            end
-        end
-        NaiveNASlib.Δsize!(vfun, s::TestProbe, d, v::AbstractVertex) = s.vs = Set(all_in_Δsize_graph(v, d))
-        NaiveNASlib.Δdirection(t::TestProbe) = t.d
-
-        v1 = av(iv(3), 5, "v1")
-        v2 = av(v1, 4, "v2")
-        v3 = av(v2, 3, "v3")
-
-        tp = TestProbe(v2, nothing)
-        @test tp.vs === nothing
-
-        tp = TestProbe(v2, Input())
-        @test tp.vs == Set([v2, v1])
-
-        tp = TestProbe(v2, Output())
-        @test tp.vs == Set([v2, v3])
-
-        tp = TestProbe(v2, Both())
-        @test tp.vs == Set([v1, v2, v3])
     end
 
     @testset "Time limit" begin

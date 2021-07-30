@@ -9,19 +9,15 @@ This means that individual indices will be aligned so that the function to the l
 struct NeuronIndices end
 
 # Just another name for Δsize with the corresponding direction
-Δnin!(v::AbstractVertex, Δ, Δs...) = Δsize!(Input(), v => (Δ, Δs...))
-Δnout!(v::AbstractVertex, Δ) = Δsize!(Output(), v=>Δ)
-Δnin!(args...) = Δsize!(Input(), args...)
-Δnout!(args...) = Δsize!(Output(), args...)
-Δnin!(ps::Pair{<:AbstractVertex}...) = Δsize!(Input(), ps...)
-Δnout!(ps::Pair{<:AbstractVertex}...) = Δsize!(Output(), ps...)
+Δnin!(args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(ΔNin(args...))
+Δnout!(args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(ΔNout(args...))
+Δnin!(v::AbstractVertex, Δs...) = Δnin!(v => Δs)
+Δnout!(v::AbstractVertex, Δ) = Δnout!(v => Δ)
 
-Δnin!(valuefun, v::AbstractVertex, Δ, Δs...) = Δsize!(valuefun, Input(), v => (Δ, Δs...))
-Δnout!(valuefun, v::AbstractVertex, Δ) = Δsize!(valuefun, Output(), v=>Δ)
-Δnin!(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize!(valuefun, Input(), p, ps...)
-Δnout!(valuefun, p::Pair{<:AbstractVertex}, ps::Pair...) = Δsize!(valuefun, Output(), p, ps...)
-Δnin!(valuefun, d::AbstractDict) = Δsize!(valuefun, Input(), d)
-Δnout!(valuefun, d::AbstractDict) = Δsize!(valuefun, Output(), d)
+Δnin!(f, args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(f, ΔNin(args...))
+Δnout!(f, args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(f, ΔNout(args...))
+Δnin!(f, v::AbstractVertex, Δs...) = Δnin!(f, v => Δs)
+Δnout!(f, v::AbstractVertex, Δ) = Δnout!(f, v => Δ)
 
 
 Δsizetype(vs::AbstractVector{<:AbstractVertex}) = partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true)
@@ -75,18 +71,8 @@ Change size of `v` by `Δ` in direction `d`.
 Δsize!(s::AbstractΔSizeStrategy) = Δsize!(s, add_participants!(s))
 Δsize!(f, s::AbstractΔSizeStrategy) = Δsize!(f, s, add_participants!(s))
 
-Δsize!(d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize!(ΔNin(v, Δs), all_in_Δsize_graph(v, d))
-Δsize!(d::Output, v::AbstractVertex, Δ::Integer) = Δsize!(ΔNout(v, Δ), all_in_Δsize_graph(v, d))
-Δsize!(d::Input, args...) = Δsize!(ΔNin(args...), all_in_Δsize_graph(args, d))
-Δsize!(d::Output, args...) = Δsize!(ΔNout(args...), all_in_Δsize_graph(args, d))
-
-Δsize!(f, d::Input, args...) = Δsize!(f, ΔNin(args...), all_in_Δsize_graph(args, d))
-Δsize!(f, d::Output, args...) = Δsize!(f, ΔNout(args...), all_in_Δsize_graph(args, d))
-
-Δsize!(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(valuefun, Δsizetype(vs), s, vs)
+Δsize!(f, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(f, Δsizetype(vs), s, vs)
 Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(Δsizetype(vs), s, vs)
-
-
 
 """
     Δsize!(valuefun, g::CompGraph)
@@ -113,15 +99,6 @@ If provided, `Direction d` will narrow down the set of vertices to evaluate so t
 
 Δsize!(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize!(default_outvalue, s::AbstractΔSizeStrategy, v::AbstractVertex) 
 Δsize!(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize!(valuefun, s, all_in_graph(v))
-function Δsize!(valuefun, s::SelectDirection, v::AbstractVertex)
-    d = Δdirection(s.strategy)
-    d === nothing && return true
-    return Δsize!(valuefun, s.strategy, d, v)
-end
-
-Δdirection(::AbstractΔSizeStrategy) = Both()
-Δdirection(s::LogΔSizeExec) = Δdirection(s.andthen)
-Δdirection(::ΔNout) = Output()
 
 Δsize!(::Nothing, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = false
 

@@ -789,7 +789,6 @@ end
     @testset "SizeChangeLogger" begin
         using NaiveNASlib: NameInfoStr
 
-
         traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
         av(in, size ;name = "av") = absorbvertex(SizeDummy(nout(in), size), in; traitdecoration=traitfun(name))
 
@@ -798,7 +797,7 @@ end
             v2 = av(v1, 10, name="v2")
             v3 = av(v2, 4, name="v3")
 
-            @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3") Δnin!(v3, 3)
+            @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3")  match_mode=:any Δnin!(v3, 3)
 
             @test @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout!(v2, -3)
 
