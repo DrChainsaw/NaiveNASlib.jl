@@ -52,6 +52,8 @@ end
 ThrowΔSizeFailError(msg::AbstractString) = ThrowΔSizeFailError(vs -> msg)
 ThrowΔSizeFailError() = ThrowΔSizeFailError(vs -> string("Could not change size of vertices ", join(nameorrepr.(vs), ", ", " and "),"!")) 
 
+add_participants!(::ThrowΔSizeFailError, vs=AbstractVertex[]) = vs
+
 """
     ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
     ΔSizeFailNoOp()
@@ -59,6 +61,8 @@ ThrowΔSizeFailError() = ThrowΔSizeFailError(vs -> string("Could not change siz
 Does not perform any action.
 """
 struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
+
+add_participants!(::ΔSizeFailNoOp, vs=AbstractVertex[]) = vs
 
 """
     LogΔSizeExec <: AbstractJuMPΔSizeStrategy
@@ -78,6 +82,9 @@ LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoOp(
 LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(nameorrepr(v)) failed! $nextstr", level, andthen)
 base(s::LogΔSizeExec) = s.andthen
 fallback(s::LogΔSizeExec) = base(s)
+
+add_participants!(s::LogΔSizeExec, vs=AbstractVertex[]) = add_participants!(s.andthen, vs)
+
 
 """
     DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
@@ -102,6 +109,7 @@ TimeLimitΔSizeStrategy(limit::Number, base=DefaultJuMPΔSizeStrategy(); fallbac
 TimeLimitΔSizeStrategy(limit::Number, base::S, fallback::F) where {S,F} = TimeLimitΔSizeStrategy{S,F}(Float64(limit), base, fallback)
 base(s::TimeLimitΔSizeStrategy) = s.base
 fallback(s::TimeLimitΔSizeStrategy) = s.fallback
+add_participants!(s::TimeLimitΔSizeStrategy, vs=AbstractVertex[]) = add_participants!(base(s), vs)
 
 """
     TimeOutAction{S,A,F} <: DecoratingJuMPΔSizeStrategy
@@ -126,6 +134,9 @@ function default_timeout(args...)
     @warn "Solver timed out"
     return false
 end
+add_participants!(s::TimeOutAction, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+
+
 
 struct Exact end
 struct Relaxed end
@@ -149,6 +160,9 @@ struct ΔNout{T, V, F} <: AbstractJuMPΔSizeStrategy
     fallback::F
 end
 fallback(s::ΔNout) = s.fallback
+
+add_participants!(s::ΔNout, vs=AbstractVertex[]) = append!(vs, filter(v -> v ∉ vs, all_in_Δsize_graph(keys(s.Δs), Output())))
+
 
 generic_Δnin_docstring_examples(fname::String; kwargs...) = generic_Δnin_docstring_examples(args ->  "$fname($args)"; kwargs...)
 generic_Δnin_docstring_examples(fgen; footer = "```") = generic_Δnout_docstring_examples(fgen; footer="") * """
@@ -283,6 +297,13 @@ struct ΔNoutMix{VE, VR, F} <: AbstractJuMPΔSizeStrategy
 end
 fallback(s::ΔNoutMix) = s.fallback
 
+function add_participants!(s::ΔNoutMix, vs=AbstractVertex[]) 
+    add_participants!(s.exact, vs)
+    add_participants!(s.relax, vs)
+    return vs
+end
+
+
 """
     relaxed(Δ)
 
@@ -370,6 +391,12 @@ AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, Vector{Ju
 fallback(s::AlignNinToNout) = s.fallback
 base(s::AlignNinToNout) = s.vstrat
 
+function add_participants!(s::AlignNinToNout, vs=AbstractVertex[]) 
+    add_participants!(base(s), vs)
+    append!(vs, filter(v -> v ∉ vs, all_in_Δsize_graph(keys(s.nindict), Both())))
+end
+
+
 """
     AlignNinToNoutVertices{V1,V2,S,F} <: AbstractJuMPΔSizeStrategy
     AlignNinToNoutVertices(vin::V1, vout::V2, inds; vstrat::S=AlignNinToNout(), fallback::F=ThrowΔSizeFailError())
@@ -394,6 +421,12 @@ AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback) = AlignNinToNoutVertic
 fallback(s::AlignNinToNoutVertices) = s.fallback
 base(s::AlignNinToNoutVertices) = s.vstrat
 
+function add_participants!(s::AlignNinToNoutVertices, vs=AbstractVertex[]) 
+    add_participants!(base(s), vs)
+    append!(v -> v ∉ vs, vcat(all_in_Δsize_graph(s.vin, Input()), all_in_Δsize_graph(s.vout, Output())))
+end
+
+
 failtoalign(vin, vout) = ThrowΔSizeFailError(vs -> string("Could not align nout of ", nameorrepr(vin), " to nin of ", nameorrepr(vout), "!!"))
 
 """
@@ -405,7 +438,7 @@ Select indices for a vertex using `AbstractΔSizeStrategy s` (default `DefaultJu
 
 Intended use it to reduce the number of constraints for a `AbstractJuMPΔSizeStrategy` as only the parts of the graph which are changed will be considered.
 """
-struct SelectDirection{S} <: AbstractΔSizeStrategy
+struct SelectDirection{S} <: AbstractΔSizeStrategy # TODO: Obsolete with add_participants!
     strategy::S
 end
 SelectDirection() = SelectDirection(DefaultJuMPΔSizeStrategy())
@@ -439,6 +472,10 @@ struct TruncateInIndsToValid{S} <: AbstractΔSizeStrategy
     strategy::S
 end
 TruncateInIndsToValid() = TruncateInIndsToValid(DefaultJuMPΔSizeStrategy())
+base(s::TruncateInIndsToValid) = s.strategy
+
+add_participants!(s::TruncateInIndsToValid, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+
 
 """
     WithValueFun{F, S} <: AbstractΔSizeStrategy
@@ -456,3 +493,5 @@ end
 WithValueFun(f) = s -> WithValueFun(f ,s) 
 base(s::WithValueFun) = s.strategy
 fallback(s::WithValueFun) = fallback(s.strategy)
+
+add_participants!(s::WithValueFun, vs=AbstractVertex[]) = add_participants!(base(s), vs)

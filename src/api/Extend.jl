@@ -16,6 +16,6 @@ using Reexport: @reexport
 @reexport using ..NaiveNASlib: AbstractAlignSizeStrategy
 @reexport using ..NaiveNASlib: AbstractConnectStrategy
 
-@reexport using ..NaiveNASlib: base, clone
+@reexport using ..NaiveNASlib: base, clone, parselect
 
 end

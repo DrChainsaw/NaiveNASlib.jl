@@ -322,7 +322,8 @@ function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:Abst
     if accept(case, s, model)
         return true, ninsandnouts(s, vertices, noutvars)...
     end
-    return newsizes(fallback(s), vertices)
+    fbstrat = fallback(s)
+    return newsizes(fbstrat, add_participants!(fbstrat, copy(vertices)))
 end
 
 """

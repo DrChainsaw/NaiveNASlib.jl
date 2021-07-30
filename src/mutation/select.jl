@@ -72,6 +72,9 @@ default_outvalue(f) = 1
 
 Change size of `v` by `Δ` in direction `d`.
 """
+Δsize!(s::AbstractΔSizeStrategy) = Δsize!(s, add_participants!(s))
+Δsize!(f, s::AbstractΔSizeStrategy) = Δsize!(f, s, add_participants!(s))
+
 Δsize!(d::Input, v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize!(ΔNin(v, Δs), all_in_Δsize_graph(v, d))
 Δsize!(d::Output, v::AbstractVertex, Δ::Integer) = Δsize!(ΔNout(v, Δ), all_in_Δsize_graph(v, d))
 Δsize!(d::Input, args...) = Δsize!(ΔNin(args...), all_in_Δsize_graph(args, d))
@@ -82,6 +85,7 @@ Change size of `v` by `Δ` in direction `d`.
 
 Δsize!(valuefun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(valuefun, Δsizetype(vs), s, vs)
 Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(Δsizetype(vs), s, vs)
+
 
 
 """
@@ -322,7 +326,9 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
 
     JuMP.optimize!(model)
 
-    !accept(case, s, model) && return solve_outputs_selection(fallback(s), vertices, valuefun)
+    !accept(case, s, model) && return   let fbstrat = fallback(s)
+                                            solve_outputs_selection(fbstrat, add_participants!(fbstrat, copy(vertices)), valuefun)
+                                        end
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
 end

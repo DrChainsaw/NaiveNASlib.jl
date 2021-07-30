@@ -6,10 +6,13 @@ using Reexport: @reexport
 @reexport using ..NaiveNASlib: NamedTrait, SizeChangeValidation, SizeChangeLogger
 
 # Size strategies
-@reexport using ..NaiveNASlib: DefaultJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, ΔNinExact, ΔNinRelaxed, AlignNinToNout, SelectDirection, TruncateInIndsToValid, WithValueFun
+@reexport using ..NaiveNASlib:  DefaultJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, 
+                                ΔNinExact, ΔNinRelaxed, AlignNinToNout, SelectDirection, TruncateInIndsToValid, WithValueFun, TimeLimitΔSizeStrategy,
+                                TimeOutAction
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex
-@reexport using ..NaiveNASlib: IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSizeNoOp, FailAlignSizeError, FailAlignSizeWarn, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlign
+@reexport using ..NaiveNASlib:  IncreaseSmaller, DecreaseBigger, AlignSizeBoth, ChangeNinOfOutputs, FailAlignSizeNoOp, FailAlignSizeError, 
+                                FailAlignSizeWarn, NoSizeChange, CheckAligned, CheckNoSizeCycle, CheckCreateEdgeNoSizeCycle, PostAlign
 
 # Connect strategies
 @reexport using ..NaiveNASlib: ConnectAll, ConnectNone

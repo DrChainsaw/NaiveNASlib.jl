@@ -188,6 +188,32 @@ import JuMP
         end
     end
 
+    @testset "add_participants" begin
+        using NaiveNASlib: add_participants!
+        using Logging: Info
+
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2 = av(v1, 4, "v2")
+        v3 = "v3" >> v1 + v2
+
+        @testset "ΔNout $wraplabel" for (wraplabel, wrap) in (
+            (LogΔSizeExec, s -> LogΔSizeExec("", Info, s)),
+            (AlignNinToNout, s -> AlignNinToNout(vstrat=s)), 
+            (TruncateInIndsToValid, TruncateInIndsToValid),
+            (WithValueFun, s -> WithValueFun(identity, s)), 
+            (TimeLimitΔSizeStrategy, s -> TimeLimitΔSizeStrategy(10, s)),
+            (TimeOutAction,  s -> TimeOutAction(base=s)),
+        )
+            @test add_participants!(wrap(ΔNout(v2 => 3))) == [v2, v3 ,v1]
+        end
+
+        v4 = av(inpt, 5, "v4")
+        @testset "ΔNoutMix" begin
+            @test add_participants!(ΔNout(v1 => 2, v4 => relaxed(3), v2 => relaxed(2))) == [v1, v2, v3, v4]            
+        end
+    end
+
     @testset "Absorb 2 Absorb fail error" begin
         import NaiveNASlib: ΔSizeFailError
         inpt = iv(3)
@@ -394,6 +420,7 @@ import JuMP
             s::S
         end
         NaiveNASlib.base(s::DummyDecorator) = s.s
+        NaiveNASlib.add_participants!(s::DummyDecorator, vs=AbstractVertex[]) = NaiveNASlib.add_participants!(base(s), vs)
 
         function graphgen()
             inpt = iv(3)
@@ -423,8 +450,8 @@ import JuMP
             s_exp = genstrat(basestrat, g_exp)
             s_act = genstrat(basestrat, g_act)
 
-            @test Δsize!(v -> 1:nout(v), s_exp, g_exp)
-            @test Δsize!(v -> 1:nout(v), DummyDecorator(s_act), g_act)
+            @test Δsize!(v -> 1:nout(v), s_exp)
+            @test Δsize!(v -> 1:nout(v), DummyDecorator(s_act))
 
             @test nout.(vertices(g_exp)) == nout.(vertices(g_act))
         end
