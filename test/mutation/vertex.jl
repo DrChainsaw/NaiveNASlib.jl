@@ -1,6 +1,5 @@
 import NaiveNASlib
 import NaiveNASlib:OutputsVertex
-import InteractiveUtils:subtypes
 
 @testset "Mutation vertices" begin
 
@@ -69,7 +68,7 @@ import InteractiveUtils:subtypes
         end
 
         @testset "NamedTrait" begin
-
+            using NaiveNASlib: MutationVertex
             v1 = MutationVertex(CompVertex(identity, InputSizeVertex("input1", 3)), NamedTrait(SizeInvariant(), "mv"))
 
             @test showstr(show_less, v1) == "mv"
@@ -80,6 +79,7 @@ import InteractiveUtils:subtypes
         end
 
         @testset "Info strings" begin
+            import NaiveNASlib: infostr, NameInfoStr, NinInfoStr, SizeInfoStr, OutputsInfoStr, NameAndIOInfoStr, MutationTraitInfoStr, MutationSizeTraitInfoStr, FullInfoStr
 
             v1 = InputSizeVertex("v1", 3)
             v2 = absorbvertex(MatMul(3, 5), v1, traitdecoration=t->NamedTrait(t, "v2"))

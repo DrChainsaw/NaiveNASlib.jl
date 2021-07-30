@@ -37,6 +37,9 @@ function (g::CompGraph)(x...)
     return Tuple(map(v -> output!(memo, v), g.outputs))
 end
 
+inputs(g::CompGraph) = g.inputs
+outputs(g::CompGraph) = g.outputs
+
 """
     output!(memo::Dict{AbstractVertex, Any}, v::AbstractVertex)
 
@@ -77,14 +80,14 @@ end
 
 Return g as a SimpleDiGraph.
 """
-LightGraphs.SimpleDiGraph(g::CompGraph) = SimpleDiGraph(mapfoldl(v -> flatten(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), g.outputs))
+LightGraphs.SimpleDiGraph(g::CompGraph) = SimpleDiGraph(mapfoldl(v -> ancestors(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), g.outputs))
 
 """
     SimpleDiGraph(v::AbstractVertex)
 
 Return a SimpleDiGraph of all parents of v
 """
-LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(flatten(v))
+LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(ancestors(v))
 
 """
     SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
@@ -108,23 +111,40 @@ LightGraphs.nv(g::CompGraph) = nv(SimpleDiGraph(g))
 
 
 """
-    flatten(v::AbstractVertex)
+    ancestors(v::AbstractVertex)
 
-Return an array of all input parents of v
+Return an array of all ancestors of `v`, including `v` itself.
 
 # Examples
 ```julia-repl
-julia> flatten(CompVertex(+, InputVertex.(1:2)...))
+julia> ancestors(CompVertex(+, InputVertex.(1:2)...))
 3-element Array{AbstractVertex,1}:
  InputVertex(1)
  InputVertex(2)
  CompVertex(+, [InputVertex(1), InputVertex(2)])
 """
-function flatten(v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
+ancestors(v::AbstractVertex,args...) = collect_vertices_from(inputs, v, args...)
+
+"""
+    descendants(v::AbstractVertex)
+
+Return an array of all descendants of `v`, including `v` itself.
+
+# Examples
+```julia-repl
+julia> descendants(CompVertex(+, InputVertex.(1:2)...))
+3-element Array{AbstractVertex,1}:
+ InputVertex(1)
+ InputVertex(2)
+ CompVertex(+, [InputVertex(1), InputVertex(2)])
+"""
+descendants(v::AbstractVertex,args...) = collect_vertices_from(outputs, v, args...)
+
+function collect_vertices_from(f, v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
     v in vertices && return vertices
     if !(v in visited)
         push!(visited, v)
-        foreach(iv -> flatten(iv, vertices), inputs(v))
+        foreach(iv -> collect_vertices_from(f, iv, vertices), f(v))
     end
     push!(vertices, v)
     return vertices
@@ -153,7 +173,7 @@ julia> vertices(graph)
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```
 """
-LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
+LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(ancestors, vcat, g.outputs))
 
 """
     Base.copy(g::CompGraph, cf=clone)

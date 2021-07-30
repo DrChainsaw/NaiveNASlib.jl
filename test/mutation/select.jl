@@ -671,6 +671,7 @@ import JuMP
     end
 
     @testset "SelectDirection" begin
+        using NaiveNASlib: all_in_Δsize_graph
 
         mutable struct TestProbe <: AbstractΔSizeStrategy
             vs

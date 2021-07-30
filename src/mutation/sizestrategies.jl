@@ -4,8 +4,6 @@
     AbstractΔSizeStrategy
 
 Abstract base type for strategies for how to change the size.
-
-Only used as a transition until JuMP approach has been fully verified.
 """
 abstract type AbstractΔSizeStrategy end
 

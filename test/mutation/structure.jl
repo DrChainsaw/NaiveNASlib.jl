@@ -1107,6 +1107,8 @@ import JuMP
 
     @testset "Vertex removal" begin
 
+        using NaiveNASlib: minΔnoutfactor_only_for
+
         @testset "Fail noop $(nameof(typeof(strategy)))" for strategy in (
             FailAlignSizeNoOp(),
             PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp()),

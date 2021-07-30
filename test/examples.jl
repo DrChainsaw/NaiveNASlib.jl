@@ -34,15 +34,14 @@ end
     # Don't forget to update README.md! TODO: Use some real tool to handle this instead...
 
     @testset "First example" begin
-        using NaiveNASlib
-        using Test
+        using NaiveNASlib, Test
         in1 = inputvertex("in1", 1)
         in2 = inputvertex("in2", 1)
 
         # Create a new vertex which computes the sum of in1 and in2
         # Use >> to attach a name to the vertex
         computation = "add" >> in1 + in2
-        @test computation isa MutationVertex
+        @test computation isa NaiveNASlib.AbstractVertex
 
         # CompGraph helps evaluating the whole graph as a function
         graph = CompGraph([in1, in2], computation);
@@ -188,7 +187,7 @@ end
         graphprune40 = copy(graph);
         Δsize!(graphprune40) do v
             # Assign no value to SizeTransparent vertices
-            trait(v) isa NaiveNASlib.SizeTransparent && return 0
+            NaiveNASlib.trait(v) isa NaiveNASlib.SizeTransparent && return 0
             value = NaiveNASlib.default_outvalue(v)
             return value .- 0.4mean(value)
         end
@@ -333,6 +332,7 @@ end
         end
 
         @testset "Advanced usage" begin
+            using NaiveNASlib.Advanced, NaiveNASlib.Extend
 
             @testset "Strategies" begin
                 # A simple graph where one vertex has a constraint for changing the size.
@@ -391,7 +391,7 @@ end
                 layer1 = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> SizeChangeLogger(NamedTrait(t, "layer1")))
 
                 # What info is shown can be controlled by supplying an extra argument to SizeChangeLogger
-                nameonly = NameInfoStr()
+                nameonly = NaiveNASlib.NameInfoStr()
                 layer2 = absorbvertex(LinearLayer(nout(layer1), 4), layer1, traitdecoration = t -> SizeChangeLogger(nameonly, NamedTrait(t, "layer2")))
 
                 @test_logs(

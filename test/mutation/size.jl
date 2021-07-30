@@ -36,6 +36,7 @@ end
     ea(ins...; name="ea") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
 
     @testset "Basic tests" begin
+        using NaiveNASlib: clone, Input, Output, Both, neighbours
 
         av(in, outsize, name="av") = absorbvertex(SizeDummy(nout(in), outsize), in; traitdecoration=tf(name))
 
@@ -323,6 +324,7 @@ end
     end
 
     @testset "Mutate tricky structures" begin
+        using NaiveNASlib: minΔninfactor, minΔnoutfactor
 
         ## Helper functions
         iv(in; name="iv") = invariantvertex(identity, in; traitdecoration=tf(name))
@@ -454,6 +456,8 @@ end
     end
 
     @testset "Size Mutation possibilities" begin
+        using NaiveNASlib: minΔninfactor, minΔnoutfactor, newsizes
+
         # Helpers
         struct SizeConstraint{T}
             constraint::Int
@@ -783,6 +787,7 @@ end
     end
 
     @testset "SizeChangeLogger" begin
+        using NaiveNASlib: NameInfoStr
 
 
         traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))

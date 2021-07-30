@@ -1,5 +1,5 @@
 @testset "Basic vertex tests" begin
-
+    using NaiveNASlib: clone
     @testset "Method contracts $subtype" for subtype in implementations(AbstractVertex)
         @test hasmethod(inputs, (subtype,))
         @test hasmethod(clone, (subtype, Vararg{AbstractVertex}))
@@ -59,8 +59,10 @@
         end
 
         @testset "Info string CompVertex" begin
-            cv = CompVertex(+, InputVertex.(["input1", "input2"]))
+            using NaiveNASlib: infostr,RawInfoStr, NameInfoStr, MutationTraitInfoStr, InputsInfoStr, NameAndInputsInfoStr
 
+            cv = CompVertex(+, InputVertex.(["input1", "input2"]))
+            
             @test infostr(RawInfoStr(), cv) == "CompVertex(+, inputs=[input1, input2])"
             @test infostr(NameInfoStr(), cv) == "CompVertex"
             @test infostr(MutationTraitInfoStr(), cv) == "Immutable()"

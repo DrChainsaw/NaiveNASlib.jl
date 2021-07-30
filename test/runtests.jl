@@ -1,4 +1,4 @@
-using Test, NaiveNASlib
+using Test, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
 
 include("testutil.jl")
 

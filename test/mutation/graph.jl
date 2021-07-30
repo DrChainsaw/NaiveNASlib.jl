@@ -1,5 +1,6 @@
 @testset "Graphs" begin
     using LightGraphs, MetaGraphs
+    using NaiveNASlib: SizeDiGraph, fullgraph
 
     # Helper methods
     nt(name) = t -> NamedTrait(t, name)
@@ -75,6 +76,7 @@
     end
 
     @testset "ΔSizeGraph" begin
+        using NaiveNASlib: Input, Output, ΔninSizeGraph, ΔnoutSizeGraph
         changed(vs) = filter(vi -> trait(vi) !== Immutable() && (ismissing(lastins(vi)) || any(<(1), lastouts(vi)) || any(nins -> any(<(1), nins), lastins(vi))), vs)
 
         function testedge(::Input, src, dst, size)

@@ -37,15 +37,14 @@ library to begin with is to not have to create computation graphs themselves.
 
 Just to get started, lets create a simple graph for the summation of two numbers:
 ```julia
-using NaiveNASlib
-using Test
+using NaiveNASlib, Test
 in1 = inputvertex("in1", 1)
 in2 = inputvertex("in2", 1)
 
 # Create a new vertex which computes the sum of in1 and in2
 # Use >> to attach a name to the vertex
 computation = "add" >> in1 + in2
-@test computation isa MutationVertex
+@test computation isa NaiveNASlib.AbstractVertex
 
 # CompGraph helps evaluating the whole graph as a function
 graph = CompGraph([in1, in2], computation);
@@ -277,7 +276,7 @@ v1, v2 = vertices(graphΔnin)[end-1:end];
 graphprune40 = copy(graph);
 Δsize!(graphprune40) do v
     # Assign no value to SizeTransparent vertices
-    trait(v) isa NaiveNASlib.SizeTransparent && return 0
+    NaiveNASlib.trait(v) isa NaiveNASlib.SizeTransparent && return 0
     value = NaiveNASlib.default_outvalue(v)
     return value .- 0.4mean(value)
 end
@@ -430,7 +429,12 @@ graph = CompGraph(invertex, out)
 
 ## Advanced usage
 
-The previous examples have been focused on giving an overview of the purpose of this library. For more advanced usage, there are many of ways to customize the behavior and in other ways alter or hook in to the functionality. Here are a few of the most important.
+The previous examples have been focused on giving an overview of the purpose of this library using the simple high level API. For more advanced usage, there are
+many of ways to customize the behavior and in other ways alter or hook in to the functionality. Some of the more important concepts are described below.
+
+To make it more convenient to extend `NaiveNASlib`, the two submodules `NaiveNASlib.Advanced` and `NaiveNASlib.Extend` export most of the useful stuff, such as 
+abstract types and composable strategies. For now they are also part of the public API, but in future releases they might be moved to separate subpackages so 
+that they can be versioned separately (e.g NaiveNASlibCore).
 
 ### Strategies
 
@@ -439,6 +443,9 @@ For more or less all operations which mutate the graph, it is possible achieve f
 Here is an example of strategies for changing the size:
 
 ```julia
+# The submodules Advanced and Extend are just a convenience for bringing many new names into the namespace.
+using NaiveNASlib.Advanced, NaiveNASlib.Extend
+
 # A simple graph where one vertex has a constraint for changing the size.
 invertex = inputvertex("in", 3)
 layer1 = linearvertex(invertex, 4)

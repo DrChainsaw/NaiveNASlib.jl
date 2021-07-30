@@ -14,10 +14,6 @@ import LightGraphs:adjacency_matrix,is_cyclic
         graph2out = CompGraph(ins, [scalevert, sumvert2])
 
         @testset "Structural tests" begin
-            @test adjacency_matrix(SimpleDiGraph(graph)) == [0 0 1 0; 0 0 1 0; 0 0 0 1; 0 0 0 0]
-            @test adjacency_matrix(SimpleDiGraph(graph2out)) == [0 0 1 0 0 1;
-            0 0 1 0 0 0; 0 0 0 1 0 0; 0 0 0 0 0 0; 0 0 0 0 0 1; 0 0 0 0 0 0]
-
             @test nv(graph) == 4
             @test nv(graph2out) == 6
 
@@ -31,7 +27,6 @@ import LightGraphs:adjacency_matrix,is_cyclic
             @test graph(0.5, 1.3) ≈ 3.6
             @test graph2out(4,5,8) == (18, 14)
         end
-
     end
 
     @testset "Array computation graphs" begin
