@@ -20,6 +20,10 @@ Represents both directions (`Input` and `Output`).
 """
 struct Both <: Direction end
 
+struct TightΔSizeGraph end
+struct LooseΔSizeGraph end
+
+
 """
     opposite(d::Direction)
 
@@ -79,14 +83,14 @@ Return a `ΔSizeGraph` for the case when nout of `v` is changed, i.e when Δnout
 function ΔSizeGraph(d::Direction, v)
     g = ΔSizeGraph()
     set_prop!(g, :start, v => d)
-    verts = all_in_Δsize_graph(trait(v), d, v, (g, v))
+    verts = all_in_Δsize_graph(LooseΔSizeGraph(), trait(v), d, v, (g, v))
     return g
 end
 
-function all_in_Δsize_graph(v::AbstractVertex, d::Direction, (g,from)::Tuple{MetaDiGraph, AbstractVertex})
+function all_in_Δsize_graph(mode, v::AbstractVertex, d::Direction, (g,from)::Tuple{MetaDiGraph, AbstractVertex})
     has_edge(g, vertexind!(g, v), vertexind!(g, from)) && return g
     add_edge!(g, from, v, d) && return g
-    all_in_Δsize_graph(trait(v), d, v, (g, v))
+    all_in_Δsize_graph(mode, trait(v), d, v, (g, v))
 end
 
 function LightGraphs.add_edge!(g::MetaDiGraph, src::AbstractVertex, dst::AbstractVertex, d::Direction)
@@ -191,26 +195,37 @@ end
 
 Return an array of vertices which will be affected if `v` changes size in direction `d`.
 """
-all_in_Δsize_graph(vs::AbstractDict{<:AbstractVertex}, d::Direction) = all_in_Δsize_graph(keys(vs), d)
-all_in_Δsize_graph(vs::Tuple{Vararg{Pair{<:AbstractVertex}}}, d::Direction) = all_in_Δsize_graph(first.(vs), d)
-all_in_Δsize_graph(vs, d::Direction) = unique(mapreduce(v -> all_in_Δsize_graph(v, d), vcat, vs; init=AbstractVertex[]))
+all_in_Δsize_graph(vs::AbstractDict{<:AbstractVertex}, d::Direction, mode=LooseΔSizeGraph()) = all_in_Δsize_graph(keys(vs), d, mode)
+all_in_Δsize_graph(vs::Tuple{Vararg{Pair{<:AbstractVertex}}}, d::Direction, mode=LooseΔSizeGraph()) = all_in_Δsize_graph(first.(vs), d, mode)
+all_in_Δsize_graph(vs, d::Direction, mode=LooseΔSizeGraph()) = unique(mapreduce(v -> all_in_Δsize_graph(mode, v, d), vcat, vs; init=AbstractVertex[]))
 
-function all_in_Δsize_graph(v::AbstractVertex, d::Direction, visited=[])
+all_in_Δsize_graph(v::AbstractVertex, d::Direction) = all_in_Δsize_graph(LooseΔSizeGraph(), v, d)
+
+function all_in_Δsize_graph(mode, v::AbstractVertex, d::Direction, visited=[])
     (v, d) in visited && return visited
     push!(visited, (v, d))
-    all_in_Δsize_graph(trait(v),d, v, visited)
+    all_in_Δsize_graph(mode, trait(v), d, v, visited)
     return unique(map(e -> e[1], visited))
 end
-function all_in_Δsize_graph(v::AbstractVertex, d::Both, visited=[])
+function all_in_Δsize_graph(mode, v::AbstractVertex, d::Both, visited=[])
     all_in_Δsize_graph(v, Input(), visited)
-    foreach(vout -> all_in_Δsize_graph(vout, Input(), visited), outputs(v))
+    foreach(vout -> all_in_Δsize_graph(mode, vout, Input(), visited), outputs(v))
     return unique(map(e -> e[1], visited))
 end
 
-all_in_Δsize_graph(t::DecoratingTrait, d, v, visited) = all_in_Δsize_graph(base(t), d, v, visited)
-function all_in_Δsize_graph(::Immutable, ::Direction, v, visited) end
-all_in_Δsize_graph(::SizeAbsorb, d, v, visited) = foreach(vn -> all_in_Δsize_graph(vn, opposite(d), visited), neighbours(d, v))
-function all_in_Δsize_graph(::SizeTransparent, d, v, visited)
-    foreach(vin -> all_in_Δsize_graph(vin, Output(), visited), inputs(v))
-    foreach(vout -> all_in_Δsize_graph(vout, Input(), visited), outputs(v))
+all_in_Δsize_graph(mode, t::DecoratingTrait, d, v, visited) = all_in_Δsize_graph(mode, base(t), d, v, visited)
+function all_in_Δsize_graph(mode, ::Immutable, ::Direction, v, visited) end
+all_in_Δsize_graph(mode, ::SizeAbsorb, d, v, visited) = foreach(vn -> all_in_Δsize_graph(mode, vn, opposite(d), visited), neighbours(d, v))
+function all_in_Δsize_graph(mode, ::SizeTransparent, d, v, visited)
+    foreach(vin -> all_in_Δsize_graph(mode, vin, Output(), visited), inputs(v))
+    foreach(vout -> all_in_Δsize_graph(mode, vout, Input(), visited), outputs(v))
+end
+
+function all_in_Δsize_graph(mode::TightΔSizeGraph, ::SizeStack, d::Input, v, visited) 
+    if any(vx -> vx in inputs(v), first.(visited))
+        push!(visited, (v, opposite(d)))
+        foreach(vin -> all_in_Δsize_graph(mode, vin, d, visited), neighbours(opposite(d), v))
+    else
+        all_in_Δsize_graph(mode, SizeInvariant(), d, v, visited)
+    end
 end

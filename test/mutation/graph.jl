@@ -12,6 +12,63 @@
 
     nc(name) = traitconf(nt(name))
 
+    @testset "all_in_Δsize_graph" begin
+        using NaiveNASlib: TightΔSizeGraph, LooseΔSizeGraph, all_in_Δsize_graph, Input, Output
+
+        @testset "Concat and elemwise not connected" begin
+            v1 = iv(3, "v1")
+            v2a = av(v1, 2, "v2a")
+            v2b = av(v1, 4, "v2b")
+            v3 = cc(v2a, v2b; name="v3")
+            v4a = av(v3, 2, "v4a")
+            v4b = av(v3, 2, "v4b")
+            v5 = "v5" >> v4a + v4b
+            v6 = av(v5, 3, "v6") 
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v2a, Output())) == ["v2a", "v3", "v2b", "v4a", "v4b"]
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v2a, Output())) == ["v2a", "v3", "v4a", "v4b"]
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v2a, Input())) == ["v2a", "v1"]
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v2a, Input())) == ["v2a", "v1"]
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v3, Output())) == ["v3", "v2a", "v2b", "v4a", "v4b"]
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v3, Output())) == ["v3", "v2a", "v4a", "v4b", "v2b"] 
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v3, Input())) == ["v3", "v2a", "v2b", "v4a", "v4b"]
+            # When we start from v3, at least one of v2a and v2b must change, and we decide to add both in the set, perhaps we should just pick one?
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v3, Input())) == ["v3", "v2a", "v2b", "v4a", "v4b"]
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v4a, Output())) == ["v4a", "v5", "v4b", "v6"] 
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v4a, Output())) == ["v4a", "v5", "v4b", "v6"] 
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v4a, Input())) == ["v4a", "v3", "v2a", "v2b", "v4b"] 
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v4a, Input())) == ["v4a", "v3", "v2a", "v4b", "v2b"] 
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v5, Output())) == ["v5", "v4a", "v4b", "v6"]
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v5, Output())) == ["v5", "v4a", "v4b", "v6"]
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v5, Input())) == ["v5", "v4a", "v4b", "v6"]
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v5, Input())) == ["v5", "v4a", "v4b", "v6"]
+        end
+
+        @testset "Concat and elemwise connected" begin
+            v1 = iv(6, "v1")
+            v2 = av(v1, 2, "v2")
+            v3a = av(v2, 2, "v3a")
+            v3b = av(v2, 4, "v3b")
+            v4 = cc(v3a, v3b; name="v4")
+            v5 = "v5" >> v4 + v1
+            v6 = av(v5, 3, "v6") 
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v3a, Output())) == ["v3a", "v4", "v3b", "v5", "v1", "v6"]
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v3a, Output())) == ["v3a", "v4", "v5", "v1", "v6"]
+
+            @test name.(all_in_Δsize_graph(LooseΔSizeGraph(), v4, Output())) == ["v4", "v3a", "v3b", "v5", "v1", "v6"]
+            # When we start from v4, at least one of v3a and v3b must change, and we decide to add both in the set, perhaps we should just pick one?
+            @test name.(all_in_Δsize_graph(TightΔSizeGraph(), v4, Output())) == ["v4", "v3a", "v5", "v1", "v6", "v3b"] 
+        end
+    end
+
     @testset "SizeDiGraph" begin
 
         @testset "SizeAbsorb" begin
