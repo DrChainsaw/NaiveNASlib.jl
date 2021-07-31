@@ -1,6 +1,3 @@
-import NaiveNASlib:CompGraph, CompVertex, InputVertex, SimpleDiGraph
-import LightGraphs:adjacency_matrix,is_cyclic
-
 @testset "Computation graph tests" begin
 
     @testset "Scalar computation graphs" begin

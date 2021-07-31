@@ -1,4 +1,3 @@
-import Base.show
 """
     AbstractVertex
 Vertex base type

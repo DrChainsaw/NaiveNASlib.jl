@@ -84,7 +84,7 @@ FailAlignSizeWarn(;andthen=FailAlignSizeNoOp(), msgfun=(vin,vout) -> "Could not 
     AlignSizeBoth()
     AlignSizeBoth(fallback)
 
-Align sizes by changing both input and output considering any Δfactors.
+Align sizes by changing both input and output.
 Fallback to another strategy (default `FailAlignSizeError`) if size change is not possible.
 """
 struct AlignSizeBoth{S, F} <: AbstractAlignSizeStrategy
@@ -402,7 +402,7 @@ function postalignsizes(s::FailAlignSizeWarn, vin, vout, pos)
 end
 
 function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, pos)
-    is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout, pos)
+    any(isinsizecycle, inputs(vout)) && return postalignsizes(s.ifnok, vin, vout, pos)
     return postalignsizes(s.ifok, vin, vout, pos)
 end
 

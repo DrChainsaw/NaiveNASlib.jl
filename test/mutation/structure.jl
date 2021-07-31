@@ -956,9 +956,9 @@ import JuMP
                 @testset "Remove from nout-constrained to stacking with one immutable output" begin
                     v0 = inpt(3, "v0")
                     v1 = av(v0, 8, 2, "v1", false)
-                    v2 = av(v0, 10, 1, "v2", false) # Δfactor of 1 is of no help as v2 will be remove
+                    v2 = av(v0, 10, 1, "v2", false)
                     v3 = sv(v1,v2, name="v3")
-                    v4 = av(v3, 5, 1, "v4", false) # Δfactor of 1 is of no help as v5 is immutable
+                    v4 = av(v3, 5, 1, "v4", false)
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1,v2]

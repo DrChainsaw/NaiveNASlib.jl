@@ -1,5 +1,3 @@
-import LightGraphs:SimpleDiGraph
-
 """
     CompGraph
 
@@ -76,39 +74,11 @@ function output!(memo::AbstractDict{AbstractVertex, Any}, v::AbstractVertex)
 end
 
 """
-    SimpleDiGraph(g::CompGraph)
-
-Return g as a SimpleDiGraph.
-"""
-LightGraphs.SimpleDiGraph(g::CompGraph) = SimpleDiGraph(mapfoldl(v -> ancestors(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), g.outputs))
-
-"""
-    SimpleDiGraph(v::AbstractVertex)
-
-Return a SimpleDiGraph of all parents of v
-"""
-LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(ancestors(v))
-
-"""
-    SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
-
-Return a SimpleDiGraph of all given vertices
-"""
-function LightGraphs.SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
-    g = SimpleDiGraph(length(vertices))
-    for (ind, v) in enumerate(vertices)
-        add_edge!.([g], indexin(inputs(v), vertices), ind)
-    end
-    return g
-end
-
-"""
     nv(g::CompGraph)
 
 Return the total number of vertices in the graph.
 """
-LightGraphs.nv(g::CompGraph) = nv(SimpleDiGraph(g))
-
+nv(g::CompGraph) = length(vertices(g))
 
 """
     ancestors(v::AbstractVertex)
@@ -173,7 +143,7 @@ julia> vertices(graph)
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```
 """
-LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(ancestors, vcat, g.outputs))
+vertices(g::CompGraph) = unique(mapfoldl(ancestors, vcat, g.outputs))
 
 """
     Base.copy(g::CompGraph, cf=clone)

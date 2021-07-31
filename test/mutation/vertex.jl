@@ -1,6 +1,3 @@
-import NaiveNASlib
-import NaiveNASlib:OutputsVertex
-
 @testset "Mutation vertices" begin
 
     @testset "OutputsVertex" begin

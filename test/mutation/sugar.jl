@@ -1,5 +1,3 @@
-import NaiveNASlib
-
 @testset "Sugar" begin
 
     struct ScaleByTwo

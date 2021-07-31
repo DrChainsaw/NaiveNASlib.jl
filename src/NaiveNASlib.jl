@@ -1,6 +1,5 @@
 module NaiveNASlib
 
-using LightGraphs, MetaGraphs
 import Statistics
 import Logging
 using Logging: LogLevel, @logmsg
