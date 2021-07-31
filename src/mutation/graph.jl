@@ -306,17 +306,27 @@ module SizeCycleDetector
         problemvertices = Dict(findproblemvertices(v))
 
         isempty(problemvertices) && return false
-        ancs = mapreduce(vi -> findterminating(vi, inputs), vcat, inputs(v); init=AbstractVertex[])
+        v_ancestors = mapreduce(vi -> findterminating(vi, inputs), vcat, inputs(v); init=AbstractVertex[])
 
         undo_rm = remove_with_undo!(v)
 
-        iscycle = any(ancs) do ancestor
-            ancproblemvertices = Dict(findproblemvertices(ancestor))
+        iscycle = any(keys(problemvertices)) do problemvertex
+            problemancestors = findterminating(problemvertex, inputs)
 
-            any(intersect(keys(problemvertices), keys(ancproblemvertices))) do commonproblem
-                s1 = problemvertices[commonproblem]
-                s2 = ancproblemvertices[commonproblem]
-                any(vx -> vx in s2.vs, s1.vs)
+            # There can't be any size ccyle if there is no transparent path
+            # from vs terminating ancestors to one of problemvertexs terminating
+            # ancestors
+            !any(pa -> pa in v_ancestors, problemancestors) && return false
+
+            any(problemancestors) do ancestor
+
+                ancestorproblemvertices = Dict(findproblemvertices(ancestor))
+
+                any(intersect(keys(problemvertices), keys(ancestorproblemvertices))) do commonproblem
+                    s1 = problemvertices[commonproblem]
+                    s2 = ancestorproblemvertices[commonproblem]
+                    any(vx -> vx in s2.vs, s1.vs)
+                end
             end
         end
 

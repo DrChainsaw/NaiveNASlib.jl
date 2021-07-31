@@ -320,8 +320,8 @@ function prealignsizes(s::CheckAligned, vin, vout, will_rm)
 end
 
 function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
-    if will_rm(vout) && vin==vout
-        is_cyclic(ΔnoutSizeGraph(vin)) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
+    if will_rm(vout) && vin===vout
+        isinsizecycle(vin) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
     end
     return prealignsizes(s.ifok, vin, vout, will_rm)
 end

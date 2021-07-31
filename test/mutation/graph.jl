@@ -82,6 +82,7 @@
             (" concat before and after", v -> cc(v; name="ccpre"), v -> cc(v;name="ccpost")),
         )
             # Canonical size cycle: if we remove v3b we get the constraint that nout(v2) == nin(v5) == nout(v4) == 2 * nout(v2)
+            # Also, if we remove v2 then v1 sees v5 through v4 and we get the impossible size constraint that nout(v1) == nin(v5) == nout(v4) == nout(v1) + nout(v3b) and nout(v3b) > 0
             v1 = iv(6, "v1")
             v2 = av(v1, 2, "v2")
             v3a = tv(v2, "v3a") 
@@ -91,7 +92,7 @@
             v6 = av(v5, 3, "v6") 
 
             @testset "Vertex $(name(v))" for v in all_in_graph(v1)
-                if v == v3b
+                if v === v3b || v === v2
                     @test isinsizecycle(v) == true
                 else
                     @test isinsizecycle(v) == false
@@ -127,6 +128,28 @@
 
             @testset "Vertex $(name(v))" for v in all_in_graph(v1)
                 @test isinsizecycle(v) == false
+            end
+
+            @test remove!(v3a) == true
+            @test isinsizecycle(v3b) == true
+        end
+
+        @testset "Concat and elemwise connected in cycle" begin
+            v1 = iv(2, "v1")
+            v2 = av(v1, 6, "v2")
+            v3a = av(v2, 2, "v3a")
+            v3b = av(v2, 4, "v3b")
+            v4 = cc(v3a, v3b; name="v4")
+            v5 = "v5" >> v4 + v2
+            v6 = av(v5, 3, "v6") 
+
+
+            @testset "Vertex $(name(v))" for v in all_in_graph(v1)
+                if v === v3a || v === v3b
+                    @test isinsizecycle(v) == true
+                else
+                    @test isinsizecycle(v) == false
+                end
             end
         end
     end
