@@ -327,10 +327,10 @@ function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
 end
 
 function prealignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, will_rm)
-    sg = ΔnoutSizeGraph(vin)
-    if vout in keys(sg.metaindex[:vertex])
-        add_edge!(sg, sg[vin, :vertex], sg[vout, :vertex])
-        is_cyclic(ΔnoutSizeGraph(vin)) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
+    if vout in all_in_Δsize_graph(vin, Output())
+        # Previous alg created a MetaGraph of all_in_Δsize_graph and added an edge from vin to vout
+        # but it didn't use that graph for anything. Should probably add a temporary edge before this....
+        isinsizecycle(vin) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
     end
     return prealignsizes(s.ifok, vin, vout, will_rm)
 end
