@@ -82,7 +82,8 @@
             (" concat before and after", v -> cc(v; name="ccpre"), v -> cc(v;name="ccpost")),
         )
             # Canonical size cycle: if we remove v3b we get the constraint that nout(v2) == nin(v5) == nout(v4) == 2 * nout(v2)
-            # Also, if we remove v2 then v1 sees v5 through v4 and we get the impossible size constraint that nout(v1) == nin(v5) == nout(v4) == nout(v1) + nout(v3b) and nout(v3b) > 0
+            # Also, if we remove v2 then v5 sees v1 through v4 too and we get the impossible size constraint 
+            # that nout(v1) == nin(v5) == nout(v4) == nout(v1) + nout(v3b) (where nout(v) > 0 ∀ v).
             v1 = iv(6, "v1")
             v2 = av(v1, 2, "v2")
             v3a = tv(v2, "v3a") 
@@ -100,8 +101,29 @@
             end
         end
 
+        @testset "Double absorbing in path -> no cycle" begin
+            # Same as above, but now there are two size absorbing vertices in the non-transparent path
+            # v3b1 does not see v5 as v3b2 blocks the line of sight and v3b2 does not see v2 as v3b1 block the line of sight
+            v1 = iv(6, "v1")
+            v2 = av(v1, 2, "v2")
+            v3a = tv(v2, "v3a") 
+            v3b1 = av(v2, 2, "v3b1")
+            v3b2 = av(v3b1, 4, "v3b2")
+            v4 = cc(v3a, v3b2; name="v4")
+            v5 = "v5" >> v4 + v1
+            v6 = av(v5, 3, "v6") 
+
+            @testset "Vertex $(name(v))" for v in all_in_graph(v1)
+                if v === v2
+                    @test isinsizecycle(v) == true
+                else
+                    @test isinsizecycle(v) == false
+                end
+            end
+        end
+
         @testset "Independent concats" begin
-            # Counterexample to the above. Not a size cycle as the two paths go through different concatenations
+            # Counterexample to Simple cycle. Not a size cycle as the two paths go through different concatenations
             v1 = iv(2, "v1")
             v2 = av(v1, 2, "v2")
             v3a = tv(v2, "v3a")
@@ -138,14 +160,14 @@
             v1 = iv(2, "v1")
             v2 = av(v1, 6, "v2")
             v3a = av(v2, 2, "v3a")
-            v3b = av(v2, 4, "v3b")
-            v4 = cc(v3a, v3b; name="v4")
+            v3b1 = av(v2, 3, "v3b1")
+            v3b2 = av(v3b1, 4, "v3b2")
+            v4 = cc(v3a, v3b2; name="v4")
             v5 = "v5" >> v4 + v2
             v6 = av(v5, 3, "v6") 
 
-
             @testset "Vertex $(name(v))" for v in all_in_graph(v1)
-                if v === v3a || v === v3b
+                if v === v3a
                     @test isinsizecycle(v) == true
                 else
                     @test isinsizecycle(v) == false
