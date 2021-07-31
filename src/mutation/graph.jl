@@ -229,3 +229,112 @@ function all_in_Δsize_graph(mode::TightΔSizeGraph, ::SizeStack, d::Input, v, v
         all_in_Δsize_graph(mode, SizeInvariant(), d, v, visited)
     end
 end
+
+"""
+    findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [], visited = [])
+
+Return an array of all vertices which terminate size changes (i.e does not propagate them) seen through the given direction (typically inputs or outputs). A vertex will be present once for each unique path through which its seen.
+
+The `other` direction may be specified and will be traversed if a SizeInvariant vertex is encountered.
+
+Will return the given vertex if it is terminating.
+
+# Examples
+```julia-repl
+
+julia> v1 = inputvertex("v1", 3);
+
+julia> v2 = inputvertex("v2", 3);
+
+julia> v3 = conc(v1,v2,v1,dims=1);
+
+julia> name.(findterminating(v1, outputs, inputs))
+1-element Array{String,1}:
+ "v1"
+
+julia> name.(findterminating(v3, outputs, inputs))
+0-element Array{Any,1}
+
+julia> name.(findterminating(v3, inputs, outputs))
+3-element Array{String,1}:
+ "v1"
+ "v2"
+ "v1"
+
+ julia> v5 = v3 + inputvertex("v4", 9);
+
+ julia> name.(findterminating(v3, outputs, inputs))
+ 1-element Array{String,1}:
+  "v4"
+```
+"""
+function findterminating(v::AbstractVertex, direction::Function, other::Function=v->AbstractVertex[], visited = Set{AbstractVertex}())
+    v in visited && return AbstractVertex[]
+    push!(visited, v)
+    res = findterminating(trait(v), v, direction, other, visited)
+    delete!(visited, v)
+    return res
+ end
+findterminating(t::DecoratingTrait, v, d::Function, o::Function, visited) = findterminating(base(t), v, d, o, visited)
+findterminating(::SizeAbsorb, v, d::Function, o::Function, visited) = [v]
+findterminating(::Immutable, v, d::Function, o::Function, visited) = [v]
+
+findterminating(::SizeStack, v, d::Function, o::Function, visited) = collectterminating(v, d, o, visited)
+findterminating(::SizeInvariant, v, d::Function, o::Function, visited) = vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
+collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
+
+# Will be defined later but we need it below
+function remove_with_undo! end
+
+# Just a namespace so we don't have to see very generic names in the NaiveNASlib namespace as they are not to be used outside
+module SizeCycleDetector
+
+    export isinsizecycle
+
+    using ..NaiveNASlib
+    using ..NaiveNASlib:    AbstractVertex, remove_with_undo!, Input, Output, neighbours, DecoratingTrait, MutationTrait, 
+                            SizeAbsorb, SizeStack, SizeInvariant, SizeTransparent, trait, base, findterminating
+
+    struct SeenNothing end
+    struct SeenSizeStack{T}
+        vs::T
+    end
+    SeenSizeStack(v, s) = SeenSizeStack([v])
+    SeenSizeStack(v, s::SeenSizeStack) = SeenSizeStack(vcat(v, s.vs))
+
+    function isinsizecycle(v)
+        problemvertices = Dict(findproblemvertices(v))
+
+        isempty(problemvertices) && return false
+        ancs = mapreduce(vi -> findterminating(vi, inputs), vcat, inputs(v); init=AbstractVertex[])
+
+        undo_rm = remove_with_undo!(v)
+
+        iscycle = any(ancs) do ancestor
+            ancproblemvertices = Dict(findproblemvertices(ancestor))
+
+            any(intersect(keys(problemvertices), keys(ancproblemvertices))) do commonproblem
+                s1 = problemvertices[commonproblem]
+                s2 = ancproblemvertices[commonproblem]
+                any(vx -> vx in s2.vs, s1.vs)
+            end
+        end
+
+        undo_rm()
+        return iscycle
+    end
+
+    findproblemvertices(v) = stepforward(SeenNothing(), v)
+    findproblemvertices(state, v::AbstractVertex) = findproblemvertices(state, trait(v), v)
+    findproblemvertices(state, t::DecoratingTrait, v) = findproblemvertices(state, base(t), v)
+    findproblemvertices(state, ::MutationTrait, v) = pvinit()
+    findproblemvertices(state::SeenNothing, ::SizeInvariant, v) = stepforward(state, v)
+    findproblemvertices(state::SeenSizeStack, ::SizeInvariant, v) = vcat(v => state, stepforward(state, v))
+    findproblemvertices(state, ::SizeStack, v) = stepforward(SeenSizeStack(v, state), v)
+
+    stepforward(state, v) = mapreduce(vo -> findproblemvertices(state, vo), vcat, outputs(v); init=pvinit())
+
+    pvinit() = Pair{AbstractVertex, <:SeenSizeStack}[]
+
+end
+using .SizeCycleDetector

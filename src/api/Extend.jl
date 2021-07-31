@@ -8,7 +8,7 @@ using Reexport: @reexport
 @reexport using ..NaiveNASlib: AbstractVertex, InputVertex, InputSizeVertex, CompVertex, MutationVertex, OutputsVertex
 
 # Mutation traits
-@reexport using ..NaiveNASlib: trait, MutationTrait, DecoratingTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeStack, SizeInvariant
+@reexport using ..NaiveNASlib: trait, MutationTrait, DecoratingTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeTransparent, SizeStack, SizeInvariant
 
 # Size strategies
 @reexport using ..NaiveNASlib: AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, DecoratingJuMPΔSizeStrategy

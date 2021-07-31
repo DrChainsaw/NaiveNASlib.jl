@@ -224,10 +224,7 @@ to all its `outputs`.
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v, vx -> vx == v) || return false
 
-    undo_fun = create_remove_undo(strategy.align, strategy.reconnect, v)
-
-    remove!(v, inputs, outputs, strategy.reconnect)
-    remove!(v, outputs, inputs, strategy.reconnect)
+    undo_fun = remove_with_undo!(v, strategy)
 
     # Note, success from prealignsizes strategies is implicit as we return if it fails
     success = postalignsizes(strategy.align, v)
@@ -238,28 +235,40 @@ function remove!(v::MutationVertex, strategy=RemoveStrategy())
     return success
 end
 
+remove_with_undo!(v) = remove_with_undo!(v, RemoveStrategy(ConnectNone()))
+function remove_with_undo!(v, strategy)
+    undo_fun = create_remove_undo(strategy.align, strategy.reconnect, v)
+
+    remove!(v, inputs, outputs, strategy.reconnect)
+    remove!(v, outputs, inputs, strategy.reconnect)
+    return undo_fun
+end
+
+
 function create_remove_undo(sa, sc, v)
-    previns = copy(inputs(v))
-    prevouts = copy(outputs(v))
-    previnsouts = Dict(v => copy(outputs(v)) for v in previns)
-    prevoutsins = Dict(v => copy(inputs(v)) for v in prevouts)
-    return function()
-        set_inputs!(v => previns)
-        set_outputs!(v => prevouts)
-        foreach(set_outputs!, previnsouts)
-        foreach(set_inputs!, prevoutsins)
+    undo_rm_inputs = create_remove_undo_one_direction(v, inputs, outputs)
+    undo_rm_outputs = create_remove_undo_one_direction(v, outputs, inputs)
+    return function() 
+        undo_rm_inputs() 
+        undo_rm_outputs()
     end
 end
 
-function set_inputs!((v, newins)::Pair)
-    empty!(inputs(v))
-    append!(inputs(v), newins)
-end
-function set_outputs!((v, newouts)::Pair)
-    empty!(outputs(v))
-    append!(outputs(v), newouts) 
+## Helper function to avoid code duplication. I don't expect this to be able to do
+## anything useful unless f1=inputs and f2=outputs or vise versa.
+function create_remove_undo_one_direction(v::AbstractVertex, f1, f2)
+    prev = copy(f1(v))
+    prevf1f2 = Dict(vf1 => copy(f2(vf1)) for vf1 in prev)
+    return function()
+        set_edges!(f1, v => prev)
+        foreach(vf1f2 -> set_edges!(f2, vf1f2), prevf1f2)
+    end
 end
 
+function set_edges!(f, (v, newins)::Pair)
+    empty!(f(v))
+    append!(f(v), newins)
+end
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
 ## anything useful unless f1=inputs and f2=outputs or vise versa.
@@ -504,7 +513,7 @@ function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy
     prealignsizes(strategy, from, to, v -> false) || return false
 
     in_ind  = findall(vx -> vx == from, inputs(to))[nr]
-    out_ind = findall(vx -> vx == to, outputs(from))[nr]
+    out_ind = findall(vx -> vx == to, outputs(from))[1] #which output should not matter
 
     deleteat!(inputs(to), in_ind)
     deleteat!(outputs(from), out_ind)

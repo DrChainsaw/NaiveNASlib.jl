@@ -44,59 +44,6 @@ nout(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nout)))
 nin(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nin)))
 
 """
-    findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [], visited = [])
-
-Return an array of all vertices which terminate size changes (i.e does not propagate them) seen through the given direction (typically inputs or outputs). A vertex will be present once for each unique path through which its seen.
-
-The `other` direction may be specified and will be traversed if a SizeInvariant vertex is encountered.
-
-Will return the given vertex if it is terminating.
-
-# Examples
-```julia-repl
-
-julia> v1 = inputvertex("v1", 3);
-
-julia> v2 = inputvertex("v2", 3);
-
-julia> v3 = conc(v1,v2,v1,dims=1);
-
-julia> name.(findterminating(v1, outputs, inputs))
-1-element Array{String,1}:
- "v1"
-
-julia> name.(findterminating(v3, outputs, inputs))
-0-element Array{Any,1}
-
-julia> name.(findterminating(v3, inputs, outputs))
-3-element Array{String,1}:
- "v1"
- "v2"
- "v1"
-
- julia> v5 = v3 + inputvertex("v4", 9);
-
- julia> name.(findterminating(v3, outputs, inputs))
- 1-element Array{String,1}:
-  "v4"
-```
-"""
-function findterminating(v::AbstractVertex, direction::Function, other::Function=v->[], visited = Set{AbstractVertex}())
-    v in visited && return []
-    push!(visited, v)
-    res = findterminating(trait(v), v, direction, other, visited)
-    delete!(visited, v)
-    return res
- end
-findterminating(t::DecoratingTrait, v, d::Function, o::Function, visited) = findterminating(base(t), v, d, o, visited)
-findterminating(::SizeAbsorb, v, d::Function, o::Function, visited) = [v]
-findterminating(::Immutable, v, d::Function, o::Function, visited) = [v]
-
-findterminating(::SizeStack, v, d::Function, o::Function, visited) = collectterminating(v, d, o, visited)
-findterminating(::SizeInvariant, v, d::Function, o::Function, visited) = vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
-collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
-
-"""
     ScalarSize
     
 Treat vertices as having a scalar size when formulating the size change problem.
