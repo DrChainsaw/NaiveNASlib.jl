@@ -443,23 +443,17 @@ For more or less all operations which mutate the graph, it is possible achieve f
 Here is an example of strategies for changing the size:
 
 ```julia
-# The submodules Advanced and Extend are just a convenience for bringing many new names into the namespace.
-using NaiveNASlib.Advanced, NaiveNASlib.Extend
-
 # A simple graph where one vertex has a constraint for changing the size.
 invertex = inputvertex("in", 3)
 layer1 = linearvertex(invertex, 4)
 # joined can only change in steps of 2
 joined = conc(scalarmult(layer1, 2), scalarmult(layer1, 3), dims=1)          
 
-# all_in_graph finds all vertices in the same graph as the given vertex
-verts = all_in_graph(joined)
-
 # Strategy to try to change it by one and throw an error when not successful
 exact_or_fail = ΔNoutExact(joined => 1; fallback=ThrowΔSizeFailError("Size change failed!!"))
 
-# Note that we now call Δsize instead of Δnout! as the direction is given by the strategy
-@test_throws NaiveNASlib.ΔSizeFailError Δsize!(exact_or_fail, verts)
+# Note that we now call Δsize! instead of Δnout! as the wanted action is given by the strategy
+@test_throws NaiveNASlib.ΔSizeFailError Δsize!(exact_or_fail)
 
 # No change was made
 @test nout(joined) == 2*nout(layer1) == 8
@@ -467,7 +461,7 @@ exact_or_fail = ΔNoutExact(joined => 1; fallback=ThrowΔSizeFailError("Size cha
 # Try to change by one and fail silently when not successful
 exact_or_noop = ΔNoutExact(joined=>1;fallback=ΔSizeFailNoOp())
 
-@test !Δsize!(exact_or_noop, verts) 
+@test !Δsize!(exact_or_noop) 
 
 # No change was made
 @test nout(joined) == 2*nout(layer1) == 8
@@ -475,7 +469,7 @@ exact_or_noop = ΔNoutExact(joined=>1;fallback=ΔSizeFailNoOp())
 # In many cases it is ok to not get the exact change which was requested
 relaxed_or_fail = ΔNoutRelaxed(joined=>1;fallback=ThrowΔSizeFailError("This should not happen!!"))
 
-@test Δsize!(relaxed_or_fail, verts)
+@test Δsize!(relaxed_or_fail)
 
 # Changed by two as this was the smallest possible change
 @test nout(joined) == 2*nout(layer1) == 10
@@ -485,7 +479,7 @@ using Logging
 # Yeah, this is not easy on the eyes, but it gets the job done...
 exact_or_log_then_relax = ΔNoutExact(joined=>1; fallback=LogΔSizeExec("Exact failed, relaxing", Logging.Info, relaxed_or_fail))
 
-@test_logs (:info, "Exact failed, relaxing") Δsize!(exact_or_log_then_relax, verts)
+@test_logs (:info, "Exact failed, relaxing") Δsize!(exact_or_log_then_relax)
 
 @test nout(joined) == 2*nout(layer1) == 12
 ```
