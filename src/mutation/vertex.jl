@@ -25,6 +25,9 @@ base(v::OutputsVertex) = v.base
 inputs(v::OutputsVertex) = inputs(base(v))
 outputs(v::OutputsVertex) = v.outs
 
+# Must not copy the outs field as it is typically added by higher vertices
+Functors.functor(::Type{<:OutputsVertex}, v) = (base = v.base,), newbase -> OutputsVertex(newbase[1])
+
 """
     InputSizeVertex
 
@@ -51,6 +54,8 @@ base(v::InputSizeVertex)::AbstractVertex = v.base
 
 inputs(v::InputSizeVertex) = inputs(base(v))
 outputs(v::InputSizeVertex) = outputs(base(v))
+
+@functor InputSizeVertex
 
 """
     MutationTrait
@@ -110,6 +115,9 @@ struct NamedTrait{T<:MutationTrait, S} <: DecoratingTrait
 end
 base(t::NamedTrait) = t.base
 clone(t::NamedTrait; cf=clone) = NamedTrait(cf(base(t), cf=cf), cf(t.name, cf=cf))
+
+@functor NamedTrait
+
 function Base.show(io::IO, t::NamedTrait) 
     print(io, "NamedTrait(")
     show(io, t.base)
@@ -129,11 +137,15 @@ base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
 clone(t::SizeChangeLogger; cf=clone) = SizeChangeLogger(cf(t.level, cf=cf), cf(t.infostr,cf=cf), cf(base(t), cf=cf))
 
+@functor SizeChangeLogger
+
 struct SizeChangeValidation{T<:MutationTrait} <: DecoratingTrait
     base::T
 end
 base(t::SizeChangeValidation) = t.base
 clone(t::SizeChangeValidation; cf=clone) = SizeChangeValidation(cf(base(t), cf=cf))
+
+@functor SizeChangeValidation
 
 """
     MutationVertex
@@ -159,6 +171,8 @@ struct MutationVertex{V<:AbstractVertex, T<:MutationTrait} <: AbstractVertex
     end
 end
 MutationVertex(b::AbstractVertex, t::MutationTrait) = MutationVertex(OutputsVertex(b), t)
+
+@functor MutationVertex
 
 clone(v::MutationVertex, ins::AbstractVertex...; cf=clone) = MutationVertex(
 cf(base(v), ins...,cf=cf),

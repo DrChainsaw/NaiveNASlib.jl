@@ -7,6 +7,8 @@ using Logging: LogLevel, @logmsg
 import JuMP
 using JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
 import Cbc
+import Functors
+using Functors: @functor, functor
 
 # Computation graph
 export CompGraph, nv, vertices, inputs, outputs, name

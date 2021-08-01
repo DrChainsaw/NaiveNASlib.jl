@@ -1,5 +1,7 @@
 @testset "Computation graph tests" begin
 
+    using Functors: fmap
+
     @testset "Scalar computation graphs" begin
 
         # Setup a simple scalar graph which sums two numbers
@@ -51,11 +53,16 @@
         v4 = CompVertex(-, v3, v2)
         v5 = CompVertex(/, ins[1], v1)
         graph = CompGraph(ins, [v5, v4])
+        
+        @testset "Copy graph with $label" for (label, cfun) in (
+            (deepcopy, deepcopy),
+            ("fmap", g -> fmap(identity, g))
+        )
+            gcopy = cfun(graph)
 
-        gcopy = copy(graph)
-
-        @test issame(graph, gcopy)
-        @test graph(3,4,10) == gcopy(3,4,10)
+            @test issame(graph, gcopy)
+            @test graph(3,4,10) == gcopy(3,4,10)
+        end
     end
 
     @testset "Mutation graph copy" begin
@@ -67,32 +74,66 @@
         v5 = ins[1] / v1
         v6 = absorbvertex(identity, v5)
         graph = CompGraph(ins, [v4, v6])
+        vs = vertices(graph)
 
-        gcopy = copy(graph)
+        @testset "Copy graph with $label" for (label, cfun) in (
+            (deepcopy, deepcopy),
+            ("fmap", g -> fmap(identity, g))
+        )
+            gcopy = cfun(graph)
 
-        @test issame(graph, gcopy)
-        @test graph(3,4,10) == gcopy(3,4,10)
+            @test issame(graph, gcopy)
+            @test graph(3,4,10) == gcopy(3,4,10)
+
+            vscopy = vertices(gcopy)
+            @test length(vscopy) == length(vs)
+            @test any(v -> v ∈ vs, vscopy) == false
+
+            allgraph = all_in_graph(inputs(gcopy)[1])
+            @test length(allgraph) == length(vs)
+            @test any(v -> v ∈ vs, allgraph) == false
+
+            @testset "Consistency for vertex $i" for (i, v) in enumerate(vscopy)
+                @testset "Is in outputs of input $j" for (j, vi) in enumerate(inputs(v))
+                    @test v in outputs(vi)
+                end
+                @testset "Is in inputs of output $j" for (j, vo) in enumerate(outputs(v))                  
+                    @test v in inputs(vo)
+                end
+            end
+        end
     end
 
-    @testset "Graph add trait" begin
+    @testset "Graph add/remove trait" begin
         struct MockTrait <: DecoratingTrait
             t::MutationTrait
         end
+
+        @functor MockTrait
 
         inver = inputvertex("in", 3)
         v1 = absorbvertex(+, inver)
         v2 = conc(inver, v1, dims=1)
         graph = CompGraph(inver, v2)
 
-        addtrait(x...;cf) = clone(x...;cf=cf)
-        addtrait(t::MutationTrait; cf=cf) = MockTrait(clone(t, cf=clone))
+        # slightly annoying that Functors treats leaves and non-leaves differently
+        # MutationTraits happen to be leaves as they have no children
+        addtrait(x) = x
+        addtrait(t::MutationTrait) = MockTrait(t)
+        graphnewtrait = fmap(addtrait, graph)
 
-        graphnew = copy(graph, addtrait)
+        @testset "Check trait for vertex $i" for (i, v) in enumerate(filter(v -> v ∉ inputs(graphnewtrait), vertices(graphnewtrait)))
+            @test trait(v) isa MockTrait
+        end
 
-        function testvert(::InputSizeVertex) end
-        testvert(v) = @test v.trait isa MockTrait
-
-        foreach(testvert, vertices(graphnew))
+        rmtrait(f, x) = Functors._default_walk(f, x)
+        rmtrait(f, t::MockTrait) = t.t
+        grapholdtrait = fmap(identity, graphnewtrait; walk=rmtrait)
+       
+        expected = (SizeAbsorb, SizeStack)
+        @testset "Check trait for vertex $i" for (i, v) in enumerate(filter(v -> v ∉ inputs(grapholdtrait), vertices(grapholdtrait)))
+            @test trait(v) isa expected[i]
+        end
     end
 
     @testset "Graph rename" begin
@@ -101,10 +142,10 @@
         v2 = conc(v0, v1, dims=1, traitdecoration = t -> NamedTrait(t, "v2"))
         graph = CompGraph(v0, v2)
 
-        rename(x...;cf) = clone(x...;cf=cf)
-        rename(s::String; cf) = s * "new"
+        rename(x) = x
+        rename(s::String) = s * "new"
 
-        graphnew = copy(graph, rename)
+        graphnew = fmap(rename, graph)
 
         @test name.(vertices(graphnew)) == ["innew", "v1new", "v2new"]
     end

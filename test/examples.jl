@@ -445,30 +445,35 @@ end
 
                 # Ok, lets add names to layer1 and layer2 and change the name of invertex
 
-                # Lets first define the default: Fallback to "clone"
-                # clone is the existing function to copy things in this manner as I did not want to override Base.copy
-                copyfun(args...;cf) = clone(args...;cf=cf) # Keyword argument cf is the function to use for copying all fields of the input
-
                 # Add a name to layer1 and layer2
-                function copyfun(v::MutationVertex,args...;cf)
+                function walk(f, v::MutationVertex)
                     # This is probably not practical to do in a real graph, so make sure you have names when first creating it...
                     name = v == layer1 ? "layer1" : "layer2"
-                    addname(args...;cf) = clone(args...;cf=cf)
-                    addname(t::SizeAbsorb;cf) = NamedTrait(t, name) # SizeAbsorb has no fields, otherwise we would have had to run cf for each one of them...
-                    clone(v, args...;cf=addname)
+                    addname(x) = x
+                    addname(t::SizeAbsorb) = NamedTrait(t, name) # SizeAbsorb has no fields, otherwise we would have had to use walk to wrap it
+                    Functors._default_walk(v) do x
+                        fmap(addname, x; walk)
+                    end
                 end
 
-                # Change name of invertex
-                # Here we can assume that invertex name is unique in the whole graph or else we would have had to use the above way
-                copyfun(s::String; cf) = s == name(invertex) ? "in changed" : s
+                # Change name of invertex once we get there
+                # We could also just have made a string version of addname above since there are no other Strings in the graph, but this is safer
+                function walk(f, v::InputVertex)
+                    rename(x) = x
+                    rename(s::String) = "in changed"
+                    Functors._default_walk(v) do x
+                        fmap(rename, x; walk)
+                    end
+                end
 
-                # Now supply copyfun when copying the graph.
+                # Everything else just gets functored as normal
+                walk(f, x) = Functors._default_walk(f, x) 
+
                 # I must admit that thinking about what this does makes me a bit dizzy...
-                namedgraph = copy(graph, copyfun)
+                namedgraph = fmap(identity, graph; walk)
 
                 @test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
             end
-
         end
     end
 

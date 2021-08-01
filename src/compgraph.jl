@@ -26,6 +26,8 @@ CompGraph(input::AbstractVertex, output::AbstractVertex) = CompGraph([input], [o
 CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex) = CompGraph(input, [output])
 CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = CompGraph([input], output)
 
+@functor CompGraph
+
 function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
     memo::Dict{AbstractVertex, Any} = Dict(zip(g.inputs, x))

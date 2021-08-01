@@ -66,6 +66,8 @@ clone(v::InputVertex, ins::AbstractVertex...;cf=clone) = isempty(ins) ? InputVer
 inputs(::InputVertex)::AbstractArray{AbstractVertex,1} = []
 (v::InputVertex)(x...) = error("Missing input $(v.name) to graph!")
 
+@functor InputVertex
+
 """
     CompVertex
 
@@ -94,6 +96,8 @@ CompVertex(c, ins::AbstractVertex...) = CompVertex(c, collect(AbstractVertex, in
 clone(v::CompVertex, ins::AbstractVertex...;cf=clone) = CompVertex(cf(v.computation, cf=cf), ins...)
 inputs(v::CompVertex) = v.inputs
 (v::CompVertex)(x...) = v.computation(x...)
+
+@functor CompVertex
 
 ## Stuff for displaying information about vertices
 

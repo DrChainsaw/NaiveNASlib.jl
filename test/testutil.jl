@@ -1,5 +1,6 @@
 
-import InteractiveUtils
+import InteractiveUtils, Functors
+using Functors: @functor
 function implementations(T::Type)
     return mapreduce(t -> isabstracttype(t) ? implementations(t) : t, vcat, InteractiveUtils.subtypes(T), init=[])
 end
@@ -40,6 +41,8 @@ IndMem(w, is::Tuple{Vararg{AbstractVertex}}, os) = IndMem(w, nout.(is), os)
 IndMem(w, is::Integer, os) = IndMem(w, [is], os)
 IndMem(w, is::AbstractVertex, os) = IndMem(w, nout(is), os)
 
+@functor IndMem
+
 (im::IndMem)(x...) = im.wrapped(x...)
 NaiveNASlib.nout(im::IndMem) = nout(im.wrapped)
 NaiveNASlib.nin(im::IndMem) = nin(im.wrapped)
@@ -64,6 +67,8 @@ mutable struct SizeDummy
 end
 SizeDummy(insize::Integer, outsize::Integer) = SizeDummy([insize], outsize)
 
+@functor SizeDummy
+
 function NaiveNASlib.Δsize!(sd::SizeDummy, ins::AbstractVector{<:Integer}, out::Integer)
     sd.nin .= ins
     sd.nout = out
@@ -80,6 +85,8 @@ mutable struct MatMul{M<:AbstractMatrix}
     W::M
 end
 MatMul(nin, nout) = MatMul(reshape(collect(1:nin*nout), nout,nin))
+
+@functor MatMul
 
 (mm::MatMul)(x) = mm.W * x
 
