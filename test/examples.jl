@@ -374,6 +374,16 @@ end
                 @test_logs (:info, "Exact failed, relaxing") Δsize!(exact_or_log_then_relax)
 
                 @test nout(joined) == 2*nout(layer1) == 12
+
+                # If one wants to see every size change we can set up an AfterΔSizeCallback strategy to log it for us like this:
+                exact_or_log_then_relax_verbose = logafterΔsize(v -> "some vertex";base=exact_or_log_then_relax, level=Logging.Info)
+
+                # This prints alot of stuff...
+                @test_logs( 
+                    (:info, r"Change nin of some vertex"),
+                    (:info, r"Change nout of some vertex"),
+                    match_mode=:any,
+                    Δsize!(exact_or_log_then_relax_verbose))    
             end
 
             @testset "Traits" begin
@@ -381,33 +391,35 @@ end
                 @test name(noname) == "MutationVertex::SizeAbsorb"
 
                 # Naming vertices is so useful for logging and debugging I almost made it mandatory
-                named = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait(t, "named layer"))
-                @test name(named) == "named layer"
+                hasname = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait(t, "named layer"))
+                @test name(hasname) == "named layer"
 
-                # Speaking of logging...
-                layer1 = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> SizeChangeLogger(NamedTrait(t, "layer1")))
-
-                # What info is shown can be controlled by supplying an extra argument to SizeChangeLogger
-                nameonly = NaiveNASlib.NameInfoStr()
-                layer2 = absorbvertex(LinearLayer(nout(layer1), 4), layer1, traitdecoration = t -> SizeChangeLogger(nameonly, NamedTrait(t, "layer2")))
+                # Speaking of logging. AfterΔSizeTrait can be used to attach an AbstractAfterΔSizeStrategy to an individual vertex
+                verbose_vertex_info(v) = string(name(v)," with inputs=[", join(name.(inputs(v)), ", "), "] and outputs=[", join(name.(outputs(v)), ", "),']')
+                named_verbose_logging(t) = AfterΔSizeTrait(
+                                                        logafterΔsize(verbose_vertex_info ;level=Logging.Info),
+                                                        NamedTrait(t, "layer1"))
+                layer1 = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = named_verbose_logging)
+                # The above is a mouthful, but NaiveNASlib.Advanced exports the named and logged functions for convenience
+                layer2 = absorbvertex(LinearLayer(nout(layer1), 4), layer1, traitdecoration = logged(name; level=Logging.Info) ∘ named("layer2"))
 
                 @test_logs(
-                (:info, "Change nout of layer1, inputs=[in], outputs=[layer2], nin=[2], nout=[4], SizeAbsorb() by [1, 2, 3, -1]"),
+                (:info, "Change nout of layer1 with inputs=[in] and outputs=[layer2] by [1, 2, 3, -1]"),
                 (:info, "Change nin of layer2 by [1, 2, 3, -1]"), # Note: less verbose compared to layer1 due to NameInfoStr
                 Δnout!(layer1, 1))
 
                 # traitdecoration works exactly the same for conc and invariantvertex as well, no need for an example
 
                 # For more elaborate traits with element wise operations one can use traitconf and >>
-                add = traitconf(t -> SizeChangeLogger(NamedTrait(t, "layer1 + layer2"))) >> layer1 + layer2
-                @test name(add) == "layer1 + layer2"
+                add = traitconf(logged(verbose_vertex_info; level=Logging.Info) ∘ named("layer1+layer2")) >> layer1 + layer2
+                @test name(add) == "layer1+layer2"
 
                 @test_logs(
-                (:info, "Change nout of layer1, inputs=[in], outputs=[layer2, layer1 + layer2], nin=[2], nout=[5], SizeAbsorb() by [1, 2, 3, 4, -1]"),
+                (:info, "Change nout of layer1 with inputs=[in] and outputs=[layer2, layer1+layer2] by [1, 2, 3, 4, -1]"),
                 (:info, "Change nin of layer2 by [1, 2, 3, 4, -1]"),
                 (:info, "Change nout of layer2 by [1, 2, 3, 4, -1]"),
-                (:info, "Change nin of layer1 + layer2, inputs=[layer1, layer2], outputs=[], nin=[5, 5], nout=[5], SizeInvariant() by [1, 2, 3, 4, -1] and [1, 2, 3, 4, -1]"),
-                (:info, "Change nout of layer1 + layer2, inputs=[layer1, layer2], outputs=[], nin=[5, 5], nout=[5], SizeInvariant() by [1, 2, 3, 4, -1]"),
+                (:info, "Change nin of layer1+layer2 with inputs=[layer1, layer2] and outputs=[] by [1, 2, 3, 4, -1] and [1, 2, 3, 4, -1]"),
+                (:info, "Change nout of layer1+layer2 with inputs=[layer1, layer2] and outputs=[] by [1, 2, 3, 4, -1]"),
                 Δnout!(layer1, 1))
 
                 # When creating own trait wrappers, remember to subtype DecoratingTrait or else there will be pain!

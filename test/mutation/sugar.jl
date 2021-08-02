@@ -151,4 +151,10 @@
             @test typeof(computation(v)) == ScaleByTwo
         end
     end
+
+    @testset "Trait functions" begin
+        @test named("test")(SizeAbsorb()) == NamedTrait(SizeAbsorb(), "test")
+        @test validated()(SizeAbsorb()) == AfterΔSizeTrait(validateafterΔsize(), SizeAbsorb())
+        @test logged()(SizeAbsorb()) == AfterΔSizeTrait(logafterΔsize(), SizeAbsorb())
+    end
 end

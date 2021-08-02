@@ -106,7 +106,7 @@ If provided, `Direction d` will narrow down the set of vertices to evaluate so t
 function Δsize!(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
     if success
-        Δsize!(case, ins, outs, vs)
+        Δsize!(case, s, ins, outs, vs)
     end
     return success
 end
@@ -122,7 +122,7 @@ function Δsize!(valuefun, case::NeuronIndices, s::TruncateInIndsToValid, vs::Ab
             ins[vv] = newins
             outs[vv] = newouts
         end
-        Δsize!(case, ins, outs, vs)
+        Δsize!(case, s, ins, outs, vs)
     end
     return success
 end
@@ -153,12 +153,11 @@ function align_outs_to_ins(::SizeInvariant, v, ins::AbstractVector, outs)
     return newins, newouts
 end
 
-"""
-    Δsize!(case::NeuronIndices, ins::Dict, ins::AbstractDict, outs::AbstractDict, vertices::AbstractVector{<:AbstractVertex})
+Δsize!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) = Δsize!(case, base(s), ins, outs, vs)
+Δsize!(case::NeuronIndices, s::AbstractAfterΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, ins, outs, vs)
+Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, ins, outs, vs)
 
-Set input and output indices of each `vi` in `vs` to `outs[vi]` and `ins[vi]` respectively.
-"""
-function Δsize!(case::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
+function _Δsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
 
     Δnins = map(vs) do vi
         vins = ins[vi]
@@ -175,8 +174,8 @@ function Δsize!(case::NeuronIndices, ins::AbstractDict, outs::AbstractDict, vs:
     end
 
     for (i, vi) in enumerate(vs)
-        after_Δnin(vi, ins[vi], Δnins[i])
-        after_Δnout(vi, outs[vi], Δnouts[i])
+        after_Δnin(s, vi, ins[vi], Δnins[i])
+        after_Δnout(s, vi, outs[vi], Δnouts[i])
     end
 end
 

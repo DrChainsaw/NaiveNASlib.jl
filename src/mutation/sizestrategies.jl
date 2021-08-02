@@ -481,3 +481,85 @@ base(s::WithValueFun) = s.strategy
 fallback(s::WithValueFun) = fallback(s.strategy)
 
 add_participants!(s::WithValueFun, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+
+"""
+    AbstractAfterΔSizeStrategy <: DecoratingJuMPΔSizeStrategy
+
+Abstract base type for strategies which perform actions after size has changed (e.g validation and logging).
+"""
+abstract type AbstractAfterΔSizeStrategy <: DecoratingJuMPΔSizeStrategy end 
+
+"""
+    AfterΔSizeValidation{F, S} <: AbstractAfterΔSizeStrategy
+    AfterΔSizeValidation(basestrat::AbstractΔSizeStrategy = ThrowΔSizeFailError())
+    AfterΔSizeValidation(printfun::F, basestrat::S)
+
+Validates that all sizes are consistent after all involved vertices have been asked to change their sizes as a result of `basestrat` and throws a [`ΔSizeFailError`](@ref)
+if there is any mismatch. A vertex `v` which fails the check will be displayed as `printfun(v)` in the error message.
+"""
+struct AfterΔSizeValidation{F, S} <: AbstractAfterΔSizeStrategy
+    printfun::F
+    base::S
+end
+AfterΔSizeValidation(s::AbstractΔSizeStrategy = ThrowΔSizeFailError()) = AfterΔSizeValidation(nameorrepr, s)
+base(s::AfterΔSizeValidation) = s.base
+add_participants!(s::AfterΔSizeValidation, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+fallback(s::AfterΔSizeValidation) = AfterΔSizeValidation(s.printfun, fallback(base(s)))
+
+"""
+    AfterΔSizeCallback{F, S} <: AbstractAfterΔSizeStrategy
+    AfterΔSizeCallback(cbfun::F, basestrat::S=ThrowΔSizeFailError())
+
+Calls `cbfun(v, Δ, isnout)` for all vertices which change size after having been asked to change their sizes as a result of `basestrat`.
+"""
+struct AfterΔSizeCallback{F, S} <: AbstractAfterΔSizeStrategy
+    cbfun::F
+    base::S
+end
+AfterΔSizeCallback(cbfun) = AfterΔSizeCallback(cbfun, ThrowΔSizeFailError())
+base(s::AfterΔSizeCallback) = s.base
+add_participants!(s::AfterΔSizeCallback, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+fallback(s::AfterΔSizeCallback) = AfterΔSizeCallback(s.cbfun, fallback(base(s)))
+
+"""
+    logafterΔsize(printfun=nameorrepr;level=Logging.Info, base=DefaultJuMPΔSizeStrategy()) 
+
+Return an [`AfterΔSizeCallback`] configured to log size changes with log level `level`.
+
+For a given vertex `v`, `printfun(v)` will be used in the logged string.
+
+Strategy `base` will be used to change sizes (e.g if [`Δsize!`](@ref)`(logafterΔsize(base))` is called).
+"""
+logafterΔsize(printfun=nameorrepr;level=Logging.Info, base=DefaultJuMPΔSizeStrategy()) = AfterΔSizeCallback(base) do v, Δ, dirlabel, ischanged
+    ischanged || return
+    dstr, Δstr = if dirlabel === :nout 
+                        "nout", compressed_string(Δ)
+                    else 
+                        "nin", join(compressed_string.(Δ), ", ", " and ")
+                    end
+    @logmsg level "Change $dstr of $(printfun(v)) by $Δstr"
+end 
+
+"""
+    validateafterΔsize(printfun=nameorrepr; base=DefaultJuMPΔSizeStrategy())
+
+Return an [`AfterΔSizeCallback`] configured to validate that sizes (nin and nout) are consistent after a size change and throw a `ΔSizeFailError` if validation fails.
+
+For a given vertex `v`, `printfun(v)` will be used in the error message should the size validation fail.
+
+Strategy `base` will be used to change sizes (e.g if [`Δsize!`](@ref)`(validateafterΔsize(base))` is called).
+"""
+validateafterΔsize(printfun=nameorrepr; base=DefaultJuMPΔSizeStrategy()) = AfterΔSizeCallback(base) do v, Δ, dirlabel, ischanged
+    dirlabel === :nout && return validate_Δnout(printfun, v, Δ)
+    dirlabel === :nin && return validate_Δnin(printfun, v, Δ)
+end
+
+function validate_Δnin(pf, v::AbstractVertex, Δ)
+    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(pf(v))! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
+    nout.(inputs(v)) == nin(v) || throw(ΔSizeFailError("Nin change of $(compressed_string.(Δ)) to $(pf(v)) did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")) 
+end
+
+function validate_Δnout(pf, v::AbstractVertex, Δ)
+    nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
+    nin_of_outputs == [nout(v)] || throw(ΔSizeFailError("Nout change of $(compressed_string(Δ)) to $(pf(v)) resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
+end

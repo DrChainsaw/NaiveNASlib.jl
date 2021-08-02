@@ -140,6 +140,15 @@ base(t::SizeChangeValidation) = t.base
 
 @functor SizeChangeValidation
 
+struct AfterΔSizeTrait{S, T<:MutationTrait} <: DecoratingTrait
+    strategy::S
+    base::T
+end
+base(t::AfterΔSizeTrait) = t.base
+
+@functor AfterΔSizeTrait
+
+
 """
     MutationVertex
 

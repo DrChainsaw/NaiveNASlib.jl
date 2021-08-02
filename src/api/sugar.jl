@@ -394,3 +394,10 @@ IoSize
 """
 Base.:/((conf, v1)::Tuple{VertexConf, <:AbstractVertex}, v2::AbstractVertex) = elemwise(/, conf, v1, v2)
 Base.:/(v1::AbstractVertex, v2::AbstractVertex) = /(VertexConf() >> v1, v2)
+
+
+# Decorate trait with extra stuff like logging of size changes or validation.
+# Meant to be composable, e.g. using ∘
+named(name) = t -> NamedTrait(t, name)
+validated(args...;kwargs...) = t -> AfterΔSizeTrait(validateafterΔsize(args...;kwargs...), t)
+logged(args...;kwargs...) = t -> AfterΔSizeTrait(logafterΔsize(args...;kwargs...), t)

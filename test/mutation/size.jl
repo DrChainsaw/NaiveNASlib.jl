@@ -31,7 +31,7 @@ end
 
     inpt(size, id="in") = inputvertex(id, size)
     nt(name) = t -> NamedTrait(t, name)
-    tf(name) = t -> nt(name)(SizeChangeValidation(t))
+    tf(name) = t -> nt(name)(AfterΔSizeTrait(validateafterΔsize(base=ΔSizeFailNoOp()), t))
     cc(in...; name="cc") = conc(in..., dims=1, traitdecoration = tf(name))
     ea(ins...; name="ea") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
 
@@ -228,7 +228,7 @@ end
             end
         end
 
-        @testset "SizeChangeValidation" begin
+        @testset "validate after Δsize" begin
             import NaiveNASlib: ΔSizeFailError
 
             # Mock for creating invalid size changes
@@ -240,18 +240,30 @@ end
             NaiveNASlib.Δsize!(::Ignore, ::AbstractVector{<:Integer}, ::Integer) = nothing
             NaiveNASlib.Δsizetype(i::Ignore) = NaiveNASlib.Δsizetype(i.f)
 
-            v1 = inpt(3, "v1")
-            v2 = absorbvertex(Ignore(SizeDummy(nout(v1), 5)), v1; traitdecoration=tf("v2"))
-            v3 = av(v2, 7, "v3")
-            v4 = absorbvertex(Ignore(SizeDummy(nout(v3), 5)), v3; traitdecoration=tf("v4"))
+            @testset "With AfterΔSizeTrait" begin
 
-            @test_throws ΔSizeFailError Δnout!(v2, 2)
-            @test_throws ΔSizeFailError Δnin!(v3, -3)
-            @test_throws ΔSizeFailError Δnin!(v4, 5)
-            @test_throws ΔSizeFailError Δnout!(v3, -7)
+                v1 = inpt(3, "v1")
+                v2 = absorbvertex(Ignore(SizeDummy(nout(v1), 5)), v1; traitdecoration=tf("v2"))
+                v3 = av(v2, 7, "v3")
+                v4 = absorbvertex(Ignore(SizeDummy(nout(v3), 5)), v3; traitdecoration=tf("v4"))
 
-            # Too many Δs!
-            @test_throws AssertionError Δnin!(v3, 1, 1)
+                @test_throws ΔSizeFailError Δnout!(v2 => 2)
+                @test_throws ΔSizeFailError Δnin!(v3 => -3)
+                @test_throws ΔSizeFailError Δnin!(v4 => 5)
+                @test_throws ΔSizeFailError Δnout!(v3 => -7)
+            end
+
+            @testset "As strategy" begin
+                v1 = inpt(3, "v1")
+                v2 = absorbvertex(Ignore(SizeDummy(nout(v1), 5)), v1; traitdecoration=nt("v2"))
+                v3 = absorbvertex(SizeDummy(nout(v2), 7), v2; traitdecoration=nt("v3"))
+                v4 = absorbvertex(Ignore(SizeDummy(nout(v3), 5)), v3; traitdecoration=nt("v4"))
+
+                @test_throws ΔSizeFailError Δsize!(validateafterΔsize(base=ΔNout(v2 => 2)))
+                @test_throws ΔSizeFailError Δsize!(validateafterΔsize(base=ΔNin(v3 =>-3)))
+                @test_throws ΔSizeFailError Δsize!(validateafterΔsize(base=ΔNin(v4, 5)))
+                @test_throws ΔSizeFailError Δsize!(validateafterΔsize(base=ΔNout(v3 => -7)))
+            end
         end
 
         @testset "Fail mutate immutable" begin
@@ -706,27 +718,54 @@ end
 
     end
 
-    @testset "SizeChangeLogger" begin
-        using NaiveNASlib: NameInfoStr
+    @testset "Log size change" begin
+        import Logging
+        using Logging: Info
+        using NaiveNASlib: NeuronIndices
 
-        traitfun(name) = t -> SizeChangeLogger(NameInfoStr(), NamedTrait(t, name))
-        av(in, size ;name = "av") = absorbvertex(SizeDummy(nout(in), size), in; traitdecoration=traitfun(name))
+        @testset "With strategy" begin
+            av(in, outsize, name="av") = absorbvertex(SizeDummy(nout(in), outsize), in; traitdecoration=tf(name))
 
-        @testset "Log size change" begin
             v1 = inpt(3, "v1")
-            v2 = av(v1, 10, name="v2")
-            v3 = av(v2, 4, name="v3")
+            v2 = av(v1, 10, "v2")
+            v3 = av(v2, 4, "v3")
+
+            Δninlog!(args...) = Δsize!(logafterΔsize(;level=Info, base=ΔNin(args...)))
+            Δnoutlog!(args...) = Δsize!(logafterΔsize(;level=Info, base=ΔNout(args...)))
+
+            Δnoutloginds!(args...) = Δsize!(NeuronIndices(), logafterΔsize(;level=Info, base=ΔNout(args...)))
+
+
+            @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3")  match_mode=:any Δninlog!(v3 => 3)
+
+            @test @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnoutlog!(v2 => -3)
+
+            v4 = av(v1, nout(v3), "v4")
+            v5 = "v5" >> v3 + v4
+
+            @test @test_logs (:info, "Change nin of v5 by 30 and 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnoutlog!(v5 => 30)
+
+            @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δnoutloginds!(v5 => 10)
+        end
+
+        @testset "With trait" begin
+            traitfun(name) = t -> AfterΔSizeTrait(logafterΔsize(;level=Logging.Info), NamedTrait(t, name))
+            avlogged(in, size ;name = "av") = absorbvertex(SizeDummy(nout(in), size), in; traitdecoration=traitfun(name))
+
+            v1 = inpt(3, "v1")
+            v2 = avlogged(v1, 10, name="v2")
+            v3 = avlogged(v2, 4, name="v3")
 
             @test @test_logs (:info, "Change nin of v3 by 3") (:info, "Change nout of v2 by 3")  match_mode=:any Δnin!(v3, 3)
 
             @test @test_logs (:info, "Change nout of v2 by -3") (:info, "Change nin of v3 by -3") Δnout!(v2, -3)
 
-            v4 = av(v1, nout(v3), name="v4")
+            v4 = avlogged(v1, nout(v3), name="v4")
             v5 = traitconf(traitfun("v5")) >> v3 + v4
 
             @test @test_logs (:info, "Change nin of v5 by 30 and 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout!(v5, 30)
 
-            @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize!(NaiveNASlib.NeuronIndices(), ΔNoutExact(v5, 10), v5)
+            @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize!(NeuronIndices(), ΔNoutExact(v5, 10))
         end
     end
 end

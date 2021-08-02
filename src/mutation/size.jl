@@ -58,19 +58,17 @@ Calculate new sizes for (potentially) all provided `vertices` using the strategy
 function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
-        Δsize!(case, nins, nouts, vertices)
+        Δsize!(case, s, nins, nouts, vertices)
     end
     return execute
 end
 
-"""
-    Δsize!(nins::AbstractDict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
 
-Set output size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
-Set input size of all keys `vi` in `nins` to `nins[vi]`.
-"""
-function Δsize!(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
+Δsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = Δsize!(case, base(s), nins, nouts, vertices)
+Δsize!(case::ScalarSize, s::AbstractAfterΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, nins, nouts, vertices)
+Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, nins, nouts, vertices)
 
+function _Δsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
     Δnins = [coalesce.(get(() -> nin(vi), nins, vi), nin(vi)) .- nin(vi) for vi in vertices]
 
@@ -81,8 +79,8 @@ function Δsize!(case::ScalarSize, nins::AbstractDict, nouts::AbstractVector, ve
     end
 
     for (i, vi) in enumerate(vertices)
-        after_Δnin(vi, Δnins[i], any(!=(0), Δnins[i]))
-        after_Δnout(vi, Δnouts[i], Δnouts[i] != 0)
+        after_Δnin(s, vi, Δnins[i], any(!=(0), Δnins[i]))
+        after_Δnout(s, vi, Δnouts[i], Δnouts[i] != 0)
     end
 end
 
@@ -99,43 +97,44 @@ function Δsize!(::ScalarSize, ::OnlyFor, v::InputSizeVertex, insizes::AbstractV
     end
 end
 
-after_Δnin(v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
+after_Δnin(s::AbstractΔSizeStrategy, v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
 after_Δnin(t::DecoratingTrait, v, Δs, changed) = after_Δnin(base(t), v, Δs, changed)
-function after_Δnin(t::SizeChangeValidation, v, Δs, changed) 
+after_Δnin(s::AbstractAfterΔSizeStrategy, v, Δs, changed) = _after_Δnin(s, v, Δs, changed)
+function after_Δnin(t::AfterΔSizeTrait, v, Δs, changed) 
+    _after_Δnin(t.strategy, v, Δs, changed)
     after_Δnin(base(t), v, Δs, changed)
-    validate_Δnin(v, Δs)
 end
-function after_Δnin(t::SizeChangeLogger, v, Δs, changed) 
-    if changed
-        @logmsg t.level "Change nin of $(infostr(t, v)) by $(join(compressed_string.(Δs), ", ", " and "))"
-    end
-    after_Δnin(base(t), v, Δs, changed)
+_after_Δnin(s::DecoratingJuMPΔSizeStrategy, args...) = _after_Δnin(base(s), args...)
+function _after_Δnin(::AbstractΔSizeStrategy, args...) end
+function _after_Δnin(s::AfterΔSizeValidation, v, Δs, changed) 
+    _after_Δnin(base(s), v, Δs, changed)
+    validate_Δnin(s.printfun, v, Δs)
+end
+function _after_Δnin(s::AfterΔSizeCallback, v, Δs, changed) 
+    s.cbfun(v, Δs, :nin, changed)
+    _after_Δnin(base(s), v, Δs, changed)
 end
 function after_Δnin(t, v, Δs, changed) end
 
-after_Δnout(v, Δ, changed) = after_Δnout(trait(v), v, Δ, changed)
+after_Δnout(::AbstractΔSizeStrategy, v, Δ, changed) = after_Δnout(trait(v), v, Δ, changed)
 after_Δnout(t::DecoratingTrait, v, Δ, changed) = after_Δnout(base(t), v, Δ, changed)
-function after_Δnout(t::SizeChangeValidation, v, Δ, changed) 
-    after_Δnout(base(t), v, Δ, changed)
-    validate_Δnout(v, Δ)
+after_Δnout(s::AbstractAfterΔSizeStrategy, v, Δs, changed) = _after_Δnout(s, v, Δs, changed)
+function after_Δnout(t::AfterΔSizeTrait, v, Δs, changed) 
+    _after_Δnout(t.strategy, v, Δs, changed)
+    after_Δnout(base(t), v, Δs, changed)
 end
-function after_Δnout(t::SizeChangeLogger, v, Δ, changed)
-    if changed
-        @logmsg t.level "Change nout of $(infostr(t, v)) by $(compressed_string(Δ))"
-    end
-    after_Δnout(base(t), v, Δ, changed)
+
+_after_Δnout(s::DecoratingJuMPΔSizeStrategy, args...) = _after_Δnout(base(s), args...)
+function _after_Δnout(::AbstractΔSizeStrategy, args...) end
+function _after_Δnout(s::AfterΔSizeValidation, v, Δ, changed) 
+    _after_Δnout(base(s), v, Δ, changed)
+    validate_Δnout(s.printfun, v, Δ)
+end
+function _after_Δnout(s::AfterΔSizeCallback, v, Δ, changed)
+    s.cbfun(v, Δ, :nout, changed)
+    _after_Δnout(base(s), v, Δ, changed)
 end
 function after_Δnout(t, v, Δ, changed) end
-
-function validate_Δnin(v::AbstractVertex, Δ)
-    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(nameorrepr(v))! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
-    nout.(inputs(v)) == nin(v) || throw(ΔSizeFailError("Nin change of $(compressed_string.(Δ)) to $(nameorrepr(v)) did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))")) 
-end
-
-function validate_Δnout(v::AbstractVertex, Δ)
-    nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
-    nin_of_outputs == [nout(v)] || throw(ΔSizeFailError("Nout change of $(compressed_string(Δ)) to $(nameorrepr(v)) resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
-end
 
 newsizes(s::ThrowΔSizeFailError, vs::AbstractVector{<:AbstractVertex}) = throw(ΔSizeFailError(s.msgfun(vs)))
 newsizes(::ΔSizeFailNoOp, vs::AbstractVector{<:AbstractVertex}) = false, Dict(v => nin(v) for v in vs), nout.(vs)
@@ -267,6 +266,7 @@ Add size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
+sizeconstraint!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, v, data) = sizeconstraint!(case, base(s), v, data)
 function sizeconstraint!(::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data) 
     # If we find any outputs to v which are not part of the problem to solve, we need to prevent v from changing size
     if any(vo -> vo ∉ keys(data.noutdict), outputs(v))
@@ -298,6 +298,7 @@ Add input size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
+ninconstraint!(case, s::DecoratingJuMPΔSizeStrategy, v, data) = ninconstraint!(case, base(s), v, data)
 ninconstraint!(case, s, v, data) = ninconstraint!(case, s, trait(v), v, data)
 ninconstraint!(case, s, t::DecoratingTrait, v, data) = ninconstraint!(case, s, base(t), v, data)
 function ninconstraint!(case, s, ::MutationTrait, v, data) end
@@ -322,6 +323,7 @@ function compconstraint!(case, s, f, data) end
 
 Add the objective for `noutvars` using strategy `s`.
 """
+sizeobjective!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, vertices, data) = sizeobjective!(case, base(s), vertices, data)
 sizeobjective!(case::ScalarSize, s::AbstractJuMPΔSizeStrategy, vertices, data) = @objective(data.model, Min, objective!(case, s, vertices, data))
 
 function objective!(::ScalarSize, s, vertices, data)
