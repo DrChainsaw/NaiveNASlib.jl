@@ -211,36 +211,3 @@ nameorrepr(v::MutationVertex) = nameorrepr(trait(v), v)
 nameorrepr(t::DecoratingTrait, v) = nameorrepr(base(t), v)
 nameorrepr(t::NamedTrait, v) = t.name
 nameorrepr(::MutationTrait, v) = repr(v)
-
-struct MutationTraitInfoStr <: InfoStr  end
-struct MutationSizeTraitInfoStr <: InfoStr  end
-struct NinInfoStr <: InfoStr  end
-struct NoutInfoStr <: InfoStr  end
-SizeInfoStr() = ComposedInfoStr(PrefixedInfoStr("nin=", BracketInfoStr(NinInfoStr())), PrefixedInfoStr("nout=", BracketInfoStr(NoutInfoStr())))
-
-struct OutputsInfoStr <: InfoStr
-    infostr::InfoStr
-end
-OutputsInfoStr() =BracketInfoStr(OutputsInfoStr(NameInfoStr()))
-
-NameAndIOInfoStr() = push!(NameAndInputsInfoStr(), PrefixedInfoStr("outputs=", OutputsInfoStr()))
-
-FullInfoStr() = push!(NameAndIOInfoStr(), SizeInfoStr(), MutationSizeTraitInfoStr())
-
-infostr(::NinInfoStr, v::AbstractVertex) = "unknown"
-infostr(::NoutInfoStr, v::AbstractVertex) = "unknown"
-infostr(::OutputsInfoStr, v::AbstractVertex) = "unknown"
-
-infostr(i::MutationTraitInfoStr, v::AbstractVertex) = infostr(i, trait(v))
-infostr(::MutationTraitInfoStr, t::MutationTrait) = replace(string(t), "\"" => "")
-infostr(i::MutationSizeTraitInfoStr, v::AbstractVertex) = infostr(i, trait(v))
-infostr(i::MutationSizeTraitInfoStr, t::DecoratingTrait) = infostr(i, base(t))
-infostr(::MutationSizeTraitInfoStr, t::MutationSizeTrait) = string(t)
-infostr(::MutationSizeTraitInfoStr, t::Immutable) = string(t)
-infostr(::NinInfoStr, v::MutationVertex) = join(string.(nin(v)), ", ")
-infostr(::NinInfoStr, v::InputSizeVertex) = "N/A"
-infostr(::NoutInfoStr, v::MutationVertex) = string(nout(v))
-infostr(::NoutInfoStr, v::InputSizeVertex) = string(nout(v))
-infostr(i::OutputsInfoStr, v::InputSizeVertex) = infostr(i, base(v))
-infostr(i::OutputsInfoStr, v::MutationVertex) = infostr(i, base(v))
-infostr(i::OutputsInfoStr, v::OutputsVertex) = join(infostr.(i.infostr, outputs(v)), ", ")

@@ -79,54 +79,5 @@
 
             @test showstr(show, v2) == "MutationVertex(CompVertex(+, inputs=[mv, input2], outputs=[]), NamedTrait(SizeInvariant(), \"sv\"))"
         end
-
-        @testset "Info strings" begin
-            import NaiveNASlib: infostr, NameInfoStr, NinInfoStr, SizeInfoStr, OutputsInfoStr, NameAndIOInfoStr, MutationTraitInfoStr, MutationSizeTraitInfoStr, FullInfoStr
-
-            v1 = InputSizeVertex("v1", 3)
-            v2 = absorbvertex(MatMul(3, 5), v1, traitdecoration=t->NamedTrait(t, "v2"))
-            v3 = conc(v1, v2; dims=2, traitdecoration=t->NamedTrait(t, "v3"))
-            v4 = invariantvertex(identity, v3; traitdecoration = t-> NamedTrait(t, "v4"))
-
-            @test infostr(NameInfoStr(), v1) == "v1"
-            @test infostr(NameInfoStr(), v2) == "v2"
-            @test infostr(NameInfoStr(), v3) == "v3"
-            @test infostr(NameInfoStr(), v4) == "v4"
-
-            @test infostr(NinInfoStr(), v1) == "N/A"
-            @test infostr(NinInfoStr(), v2) == "3"
-            @test infostr(NinInfoStr(), v3) == "3, 5"
-            @test infostr(NinInfoStr(), v4) == "8"
-
-            @test infostr(SizeInfoStr(), v1) == "nin=[N/A], nout=[3]"
-            @test infostr(SizeInfoStr(), v2) == "nin=[3], nout=[5]"
-            @test infostr(SizeInfoStr(), v3) == "nin=[3, 5], nout=[8]"
-            @test infostr(SizeInfoStr(), v4) == "nin=[8], nout=[8]"
-
-            @test infostr(OutputsInfoStr(), v1) == "[v2, v3]"
-            @test infostr(OutputsInfoStr(), v2) == "[v3]"
-            @test infostr(OutputsInfoStr(), v3) == "[v4]"
-            @test infostr(OutputsInfoStr(), v4) == "[]"
-
-            @test infostr(NameAndIOInfoStr(), v1) == "v1, inputs=[], outputs=[v2, v3]"
-            @test infostr(NameAndIOInfoStr(), v2) == "v2, inputs=[v1], outputs=[v3]"
-            @test infostr(NameAndIOInfoStr(), v3) == "v3, inputs=[v1, v2], outputs=[v4]"
-            @test infostr(NameAndIOInfoStr(), v4) == "v4, inputs=[v3], outputs=[]"
-
-            @test infostr(MutationTraitInfoStr(), v1) == "Immutable()"
-            @test infostr(MutationTraitInfoStr(), v2) == "NamedTrait(SizeAbsorb(), v2)"
-            @test infostr(MutationTraitInfoStr(), v3) == "NamedTrait(SizeStack(), v3)"
-            @test infostr(MutationTraitInfoStr(), v4) == "NamedTrait(SizeInvariant(), v4)"
-
-            @test infostr(MutationSizeTraitInfoStr(), v1) == "Immutable()"
-            @test infostr(MutationSizeTraitInfoStr(), v2) == "SizeAbsorb()"
-            @test infostr(MutationSizeTraitInfoStr(), v3) == "SizeStack()"
-            @test infostr(MutationSizeTraitInfoStr(), v4) == "SizeInvariant()"
-
-            @test infostr(FullInfoStr(), v1) == "v1, inputs=[], outputs=[v2, v3], nin=[N/A], nout=[3], Immutable()"
-            @test infostr(FullInfoStr(), v2) == "v2, inputs=[v1], outputs=[v3], nin=[3], nout=[5], SizeAbsorb()"
-            @test infostr(FullInfoStr(), v3) == "v3, inputs=[v1, v2], outputs=[v4], nin=[3, 5], nout=[8], SizeStack()"
-            @test infostr(FullInfoStr(), v4) == "v4, inputs=[v3], outputs=[], nin=[8], nout=[8], SizeInvariant()"
-        end
     end
 end

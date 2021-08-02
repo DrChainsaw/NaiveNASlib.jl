@@ -502,7 +502,7 @@ end
 AfterΔSizeCallback(cbfun) = AfterΔSizeCallback(cbfun, ThrowΔSizeFailError())
 base(s::AfterΔSizeCallback) = s.base
 add_participants!(s::AfterΔSizeCallback, vs=AbstractVertex[]) = add_participants!(base(s), vs)
-fallback(s::AfterΔSizeCallback) = AfterΔSizeCallback(s.cbfun, fallback(base(s)))
+fallback(s::AfterΔSizeCallback) = fallback(base(s))
 
 """
     logafterΔsize(printfun=nameorrepr;level=Logging.Info, base=DefaultJuMPΔSizeStrategy()) 

@@ -57,17 +57,5 @@
             cv = CompVertex(+, InputVertex.(1:2))
             @test showstr(show, cv) == "CompVertex(+, inputs=[InputVertex(1), InputVertex(2)])"
         end
-
-        @testset "Info string CompVertex" begin
-            using NaiveNASlib: infostr,RawInfoStr, NameInfoStr, MutationTraitInfoStr, InputsInfoStr, NameAndInputsInfoStr
-
-            cv = CompVertex(+, InputVertex.(["input1", "input2"]))
-
-            @test infostr(RawInfoStr(), cv) == "CompVertex(+, inputs=[input1, input2])"
-            @test infostr(NameInfoStr(), cv) == "CompVertex"
-            @test infostr(MutationTraitInfoStr(), cv) == "Immutable()"
-            @test infostr(InputsInfoStr(), cv) == "[input1, input2]"
-            @test infostr(NameAndInputsInfoStr(), cv) == "CompVertex, inputs=[input1, input2]"
-        end
     end
 end
