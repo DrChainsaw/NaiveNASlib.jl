@@ -37,11 +37,11 @@ struct NeuronIndices end
 Δsizetypeprio(::NeuronIndices) = 2
 
 """
-    default_outvalue(v::AbstractVertex) 
+    defaultutility(v::AbstractVertex) 
 
-Default function used to calculate value of output neurons when `NeuronIndices` is used and no function is provided.
+Default function used to calculate utility of output neurons when `NeuronIndices` is used and no function is provided.
 
-Implement `default_outvalue(t, f)` where `f` is the computation performed by `CompVertex` to set the default for `f` and `t` is the [`trait`](@ref) of `v`. 
+Implement `defaultutility(f)` where `f` is the computation performed by `CompVertex` to set the default for `f`. 
 
 # Examples
 
@@ -51,17 +51,27 @@ julia> struct Affine{T}
 end;
 
 # Default is weight magnitude
-julia> NaiveNASlib.default_outvalue(t, l::Affine) = mean(abs, l.W; dims=2);
+julia> NaiveNASlib.defaultutility(l::Affine) = mean(abs, l.W; dims=2);
 
 ```
 
 """
-default_outvalue(v::AbstractVertex) = default_outvalue(trait(v), v)
-default_outvalue(t, v::AbstractVertex) = default_outvalue(t, base(v))
-default_outvalue(t, ::InputVertex) = 1
-default_outvalue(t, v::CompVertex) = default_outvalue(t, v.computation)
-default_outvalue(t, f) = default_outvalue(f)
-default_outvalue(f) = 1
+defaultutility(v::AbstractVertex) = defaultutility(trait(v), v)
+defaultutility(t, v::AbstractVertex) = defaultutility(t, base(v))
+defaultutility(t, ::InputVertex) = 1
+defaultutility(t, v::CompVertex) = defaultutility(t, v.computation)
+defaultutility(t, f) = resolve_utility(t, defaultutility(f))
+
+struct NoDefaultUtility end
+
+defaultutility(f) = NoDefaultUtility()
+
+resolve_utility(t::DecoratingTrait, ::NoDefaultUtility) = resolve_utility(base(t), NoDefaultUtility())
+resolve_utility(::MutationTrait, ::NoDefaultUtility) = 1
+resolve_utility(::SizeTransparent, ::NoDefaultUtility) = 0 # rationale is that utility of other vertices will be tied to this anyways
+resolve_utility(t, val) = val
+
+
 
 """
     Δsize!(d::Direction, v::AbstractVertex, Δ...)
@@ -88,21 +98,21 @@ Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx`
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
-Δsize!(g::CompGraph) = Δsize!(default_outvalue, g::CompGraph)
+Δsize!(g::CompGraph) = Δsize!(defaultutility, g::CompGraph)
 Δsize!(valuefun, g::CompGraph) = Δsize!(valuefun, DefaultJuMPΔSizeStrategy(), g)
 
-Δsize!(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(default_outvalue, s::AbstractΔSizeStrategy, g::CompGraph)
+Δsize!(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(defaultutility, s::AbstractΔSizeStrategy, g::CompGraph)
 Δsize!(valuefun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(valuefun, s, vertices(g))
 
-Δsize!(v::AbstractVertex) = Δsize!(default_outvalue, v::AbstractVertex)
+Δsize!(v::AbstractVertex) = Δsize!(defaultutility, v::AbstractVertex)
 Δsize!(valuefun, v::AbstractVertex) = Δsize!(valuefun, DefaultJuMPΔSizeStrategy(), v)
 
-Δsize!(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize!(default_outvalue, s::AbstractΔSizeStrategy, v::AbstractVertex) 
+Δsize!(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize!(defaultutility, s::AbstractΔSizeStrategy, v::AbstractVertex) 
 Δsize!(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize!(valuefun, s, all_in_graph(v))
 
 Δsize!(::Nothing, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = false
 
-Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(default_outvalue, case,s , vs)
+Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(defaultutility, case,s , vs)
 function Δsize!(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, valuefun)
     if success

@@ -274,8 +274,8 @@ import JuMP
 
         @test Δnin!(v4, -2, missing)
 
-        @test nout(v1) == 4
-        @test nout(v2) == 6
+        @test nout(v1) == 5
+        @test nout(v2) == 5
 
         @test size(g(ones(3))) == (nout(v4),)
     end
@@ -402,10 +402,10 @@ import JuMP
 
         @test Δnout!(v7, -7)
 
-        @test nout(v1) == 8
-        @test nout(v2) == 4
-        @test nout(v3) == 6
-        @test nout(v4) == 2
+        @test nout(v1) == 6
+        @test nout(v2) == 3
+        @test nout(v3) == 9
+        @test nout(v4) == 6
 
         @test size(g(ones(3))) == (nout(v7),)
     end

@@ -225,8 +225,8 @@ To use this library to mutate architectures for some neural network library basi
 While we still have the complex model in scope, lets show a few more way to change the sizes. There are more examples in the built in documentation.
 
 ```julia
-# Supply a utility function for telling the value of each neuron in a vertex
-# NaiveNASlib will prioritize selecting the indices with higher value
+# Supply a utility function for telling the utility of each neuron in a vertex
+# NaiveNASlib will prioritize selecting the indices with higher utility
 
 # Prefer high indices:
 graphhigh = deepcopy(graph);
@@ -242,7 +242,7 @@ graphlow = deepcopy(graph);
 # Here is how to set that as the default for LinearLayer.
 # This is something one should probably implement in TinyNNlib instead... 
 import Statistics: mean
-NaiveNASlib.default_outvalue(l::LinearLayer) = mean(abs, l.W, dims=2)
+NaiveNASlib.defaultutility(l::LinearLayer) = mean(abs, l.W, dims=2)
 
 graphhighmag = deepcopy(graph);
 @test Δnout!(graphhighmag.outputs[] => -3) 
@@ -277,7 +277,7 @@ graphprune40 = deepcopy(graph);
 Δsize!(graphprune40) do v
     # Assign no value to SizeTransparent vertices
     NaiveNASlib.trait(v) isa NaiveNASlib.SizeTransparent && return 0
-    value = NaiveNASlib.default_outvalue(v)
+    value = NaiveNASlib.defaultutility(v)
     return value .- 0.4mean(value)
 end
 @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]

@@ -22,6 +22,6 @@ using Reexport: @reexport
 
 @reexport using ..NaiveNASlib: RemoveStrategy
 
-@reexport using ..NaiveNASlib: findterminating, all_in_graph, output!, ancestors, descendants
+@reexport using ..NaiveNASlib: findterminating, all_in_graph, output!, ancestors, descendants, defaultutility
 
 end

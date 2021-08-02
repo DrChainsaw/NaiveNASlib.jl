@@ -13,13 +13,13 @@ using Functors: @functor, functor
 # Computation graph
 export CompGraph, nv, vertices, inputs, outputs, name
 
-# Mutation operations
+# Vertex size operations
 export nin, nout, Δnin!, Δnout!, Δsize!, relaxed
 
 # Connectivity mutation
 export remove!, insert!, create_edge!, remove_edge!
 
-#sugar
+# Create vertices
 export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc
 
 include("vertex.jl")

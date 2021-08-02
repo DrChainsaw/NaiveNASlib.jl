@@ -11,7 +11,7 @@ using Reexport: @reexport
 @reexport using ..NaiveNASlib: trait, MutationTrait, DecoratingTrait, Immutable, MutationSizeTrait, SizeAbsorb, SizeTransparent, SizeStack, SizeInvariant
 
 # Size strategies
-@reexport using ..NaiveNASlib: AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, DecoratingJuMPΔSizeStrategy
+@reexport using ..NaiveNASlib: AbstractΔSizeStrategy, AbstractJuMPΔSizeStrategy, DecoratingJuMPΔSizeStrategy, AbstractAfterΔSizeStrategy
 
 @reexport using ..NaiveNASlib: AbstractAlignSizeStrategy
 @reexport using ..NaiveNASlib: AbstractConnectStrategy

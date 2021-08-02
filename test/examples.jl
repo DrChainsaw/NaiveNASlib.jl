@@ -135,8 +135,9 @@ end
         @test parentgraph((ones(6))) == [78, 78, 114, 114, 186, 186]
 
         ### More detailed examples ###
-        # Supply a utility function for telling the value of each neuron in a vertex
-        # NaiveNASlib will prioritize selecting the indices with higher value
+        # Supply a utility function for telling the utility of each neuron in a vertex
+        # NaiveNASlib will prioritize selecting the indices with higher utility
+
 
         # Prefer high indices:
         graphhigh = deepcopy(graph);
@@ -153,7 +154,7 @@ end
         # Here is how to set that as the default for LinearLayer.
         # This is something one should probably implement in TinyNNlib instead... 
         import Statistics: mean
-        NaiveNASlib.default_outvalue(l::LinearLayer) = mean(abs, l.W, dims=2)
+        NaiveNASlib.defaultutility(l::LinearLayer) = mean(abs, l.W, dims=2)
 
         graphhighmag = deepcopy(graph);
         @test Δnout!(graphhighmag.outputs[] => -3) 
@@ -173,7 +174,7 @@ end
         goodgraphdecinc = deepcopy(graph);
         v1, v2 = vertices(goodgraphdecinc)[[3, end]];
         @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
-        @test goodgraphdecinc((ones(6))) == [78, 78, 0, 0, 114, 114, 0, 0, 186, 186, 0, 0] 
+        @test goodgraphdecinc((ones(6))) == [78.0, 78.0, 6.0, 0.0, 108.0, 114.0, 6.0, 6.0, 180.0, 180.0, 0.0, 0.0]
 
         # It is also possible to change the input direction, but it requires specifying a size change for each input
         graphΔnin = deepcopy(graph);
@@ -186,9 +187,7 @@ end
         # This can be done by just not putting any size requirements and assign negative value
         graphprune40 = deepcopy(graph);
         Δsize!(graphprune40) do v
-            # Assign no value to SizeTransparent vertices
-            NaiveNASlib.trait(v) isa NaiveNASlib.SizeTransparent && return 0
-            value = NaiveNASlib.default_outvalue(v)
+            value = NaiveNASlib.defaultutility(v)
             return value .- 0.4mean(value)
         end
         @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
