@@ -112,7 +112,7 @@ end
         @test [nout(start), nout(joined)] == nin(out) == [6, 6]
 
         # In many cases it is useful to hold on to the old graph before mutating
-        parentgraph = copy(graph)
+        parentgraph = deepcopy(graph)
 
         # It is not possible to change the size of out by just 2
         # By default, NaiveNASlib warns when this happens and then tries to make the closest possible change
@@ -139,12 +139,12 @@ end
         # NaiveNASlib will prioritize selecting the indices with higher value
 
         # Prefer high indices:
-        graphhigh = copy(graph);
+        graphhigh = deepcopy(graph);
         @test Δnout!(v -> 1:nout(v), graphhigh.outputs[] => -3)
         @test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]
 
         # Perfer low indices
-        graphlow = copy(graph);
+        graphlow = deepcopy(graph);
         @test Δnout!(v -> nout(v):-1:1, graphlow.outputs[] => -3) 
         @test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]
 
@@ -155,13 +155,13 @@ end
         import Statistics: mean
         NaiveNASlib.default_outvalue(l::LinearLayer) = mean(abs, l.W, dims=2)
 
-        graphhighmag = copy(graph);
+        graphhighmag = deepcopy(graph);
         @test Δnout!(graphhighmag.outputs[] => -3) 
         @test graphhighmag((ones(6))) == [78, 78, 114, 114, 186, 186]
 
         # In many NAS applications one wants to apply random mutations to the graph
         # When doing so, one might end up in situations like this:
-        badgraphdecinc = copy(graph);
+        badgraphdecinc = deepcopy(graph);
         v1, v2 = vertices(badgraphdecinc)[[3, end]]; # Imagine selecting these at random
         @test Δnout!(v1 => relaxed(-2))
         @test Δnout!(v2 => 6)
@@ -170,13 +170,13 @@ end
 
         # In such cases, it might be better to supply all wanted changes in one go and let 
         # NaiveNASlib try to come up with a decent compromise.
-        goodgraphdecinc = copy(graph);
+        goodgraphdecinc = deepcopy(graph);
         v1, v2 = vertices(goodgraphdecinc)[[3, end]];
         @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
         @test goodgraphdecinc((ones(6))) == [78, 78, 0, 0, 114, 114, 0, 0, 186, 186, 0, 0] 
 
         # It is also possible to change the input direction, but it requires specifying a size change for each input
-        graphΔnin = copy(graph);
+        graphΔnin = deepcopy(graph);
         v1, v2 = vertices(graphΔnin)[end-1:end];
         @test Δnin!(v1 => (3, relaxed(2), missing), v2 => relaxed((1,2))) # Use missing to signal "don't care"
         @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
@@ -184,7 +184,7 @@ end
 
         # Another popular pruning strategy is to just remove the x% of params with lowest value
         # This can be done by just not putting any size requirements and assign negative value
-        graphprune40 = copy(graph);
+        graphprune40 = deepcopy(graph);
         Δsize!(graphprune40) do v
             # Assign no value to SizeTransparent vertices
             NaiveNASlib.trait(v) isa NaiveNASlib.SizeTransparent && return 0

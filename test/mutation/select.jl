@@ -469,7 +469,7 @@ import JuMP
         g = CompGraph(inpt, v7)
         @test size(g(ones(3))) == (nout(v7),)
 
-        oldg = copy(g)
+        oldg = deepcopy(g)
 
         Δnout!(v7, 6)
 

@@ -354,6 +354,7 @@ An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1
 In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method constrains `model` so that this solution is infeasible.
 """
 function noinsertgaps!(model, select, insert, maxinsert=max(length(select) * 10, 200)) # TODO: get maxinsert from strategy instead
+    # See  https://discourse.julialang.org/t/help-with-constraints-to-select-and-or-insert-columns-to-a-matrix/63654
     insert_nogap = @variable(model, [1:length(insert)], Bin)
 
     @constraint(model, sum(insert) <= maxinsert)
