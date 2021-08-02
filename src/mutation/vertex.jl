@@ -17,7 +17,6 @@ struct OutputsVertex{V<:AbstractVertex} <: AbstractVertex
 end
 OutputsVertex(v::AbstractVertex) = OutputsVertex(v, AbstractVertex[])
 init!(v::OutputsVertex, p::AbstractVertex) = foreach(in -> push!(outputs(in), p), inputs(v))
-clone(v::OutputsVertex, ins::AbstractVertex...;cf=clone) = OutputsVertex(cf(base(v), ins...,cf=cf))
 
 base(v::OutputsVertex) = v.base
 (v::OutputsVertex)(x...) = base(v)(x...)
@@ -47,7 +46,6 @@ struct InputSizeVertex{V<:AbstractVertex} <: AbstractVertex
 end
 InputSizeVertex(name, size::Integer) = InputSizeVertex(InputVertex(name), size)
 InputSizeVertex(b::AbstractVertex, size::Integer) = InputSizeVertex(OutputsVertex(b), size)
-clone(v::InputSizeVertex, ins::AbstractVertex...;cf=clone) = InputSizeVertex(cf(base(v), ins...,cf=cf), cf(v.size,cf=cf))
 
 base(v::InputSizeVertex)::AbstractVertex = v.base
 (v::InputSizeVertex)(x...) = base(v)(x...)
@@ -63,8 +61,6 @@ outputs(v::InputSizeVertex) = outputs(base(v))
 Base type for traits relevant when mutating.
 """
 abstract type MutationTrait end
-# For convenience as traits are generally immutable. Don't forget to implement for stateful traits or else there will be pain!
-clone(t::MutationTrait, cf=nothing) = t
 
 """
     MutationSizeTrait
@@ -114,7 +110,6 @@ struct NamedTrait{T<:MutationTrait, S} <: DecoratingTrait
     name::S
 end
 base(t::NamedTrait) = t.base
-clone(t::NamedTrait; cf=clone) = NamedTrait(cf(base(t), cf=cf), cf(t.name, cf=cf))
 
 @functor NamedTrait
 
@@ -135,7 +130,6 @@ SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
 SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Logging.Info, infostr, base)
 base(t::SizeChangeLogger) = t.base
 infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
-clone(t::SizeChangeLogger; cf=clone) = SizeChangeLogger(cf(t.level, cf=cf), cf(t.infostr,cf=cf), cf(base(t), cf=cf))
 
 @functor SizeChangeLogger
 
@@ -143,7 +137,6 @@ struct SizeChangeValidation{T<:MutationTrait} <: DecoratingTrait
     base::T
 end
 base(t::SizeChangeValidation) = t.base
-clone(t::SizeChangeValidation; cf=clone) = SizeChangeValidation(cf(base(t), cf=cf))
 
 @functor SizeChangeValidation
 
@@ -173,10 +166,6 @@ end
 MutationVertex(b::AbstractVertex, t::MutationTrait) = MutationVertex(OutputsVertex(b), t)
 
 @functor MutationVertex
-
-clone(v::MutationVertex, ins::AbstractVertex...; cf=clone) = MutationVertex(
-cf(base(v), ins...,cf=cf),
-cf(v.trait, cf=cf))
 
 base(v::MutationVertex) = v.base
 trait(v::MutationVertex) = v.trait

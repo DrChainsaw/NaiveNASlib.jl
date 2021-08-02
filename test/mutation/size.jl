@@ -36,7 +36,7 @@ end
     ea(ins...; name="ea") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
 
     @testset "Basic tests" begin
-        using NaiveNASlib: clone, Input, Output, Both, neighbours
+        using NaiveNASlib: Input, Output, Both, neighbours
 
         av(in, outsize, name="av") = absorbvertex(SizeDummy(nout(in), outsize), in; traitdecoration=tf(name))
 
@@ -83,16 +83,6 @@ end
 
             Δnin!(v2, -2)
             @test nout(v1) == nin(v2)[1] == nin(v3)[1] == 2
-
-            v0c = clone(v0, inputs(v0)[1])
-            v1c = clone(v1, v0c)
-            v2c = clone(v2, v1c)
-            v3c = clone(v3, v1c)
-
-            @test issame(v0, v0c)
-            @test issame(v1, v1c)
-            @test issame(v2, v2c)
-            @test issame(v3, v3c)
         end
 
         @testset "StackingVertex" begin
@@ -119,14 +109,6 @@ end
 
                 Δnout!(v1, -1)
                 @test [nout(v0)] == nin(v1) == [nout(v1)] == nin(v2) == [3]
-
-                v0c = clone(v0, inputs(v0)[])
-                v1c = clone(v1, v0c)
-                v2c = clone(v2, v1c)
-
-                @test issame(v0, v0c)
-                @test issame(v1, v1c)
-                @test issame(v2, v2c)
             end
 
             @testset "StackingVertex 2 inputs" begin
@@ -177,18 +159,6 @@ end
 
                 Δnout!(v3, -1)
                 @test [nout(v1) + nout(v2)] == [sum(nin(v3))] == [nout(v3)] == nin(v4) == nin(v5) == [6]
-
-                v1c = clone(v1, inputs(v1)[])
-                v2c = clone(v2, inputs(v2)[])
-                v3c = clone(v3, v1c, v2c)
-                v4c = clone(v4, v3c)
-                v5c = clone(v5, v3c)
-
-                @test issame(v1, v1c)
-                @test issame(v2, v2c)
-                @test issame(v3, v3c)
-                @test issame(v4, v4c)
-                @test issame(v5, v5c)
             end
 
         end
@@ -209,14 +179,6 @@ end
 
                 Δnin!(v3, -2)
                 @test [nout(v1)] == nin(v2) == [nout(v2)] == nin(v3) == [3]
-
-                v1c = clone(v1, inputs(v1)[])
-                v2c = clone(v2, v1c)
-                v3c = clone(v3, v2c)
-
-                @test issame(v1, v1c)
-                @test issame(v2, v2c)
-                @test issame(v3, v3c)
             end
 
             @testset "invariantvertex 2 inputs" begin
@@ -252,18 +214,6 @@ end
 
                 Δnout!(v2, 3)
                 @test nout(v1) == nout(v2) == nin(v3)[1] == nin(v3)[2] == nout(v3) == nin(v4)[] == nin(v5)[] == 6
-
-                v1c = clone(v1, inputs(v1)[])
-                v2c = clone(v2, inputs(v2)[])
-                v3c = clone(v3, v1c, v2c)
-                v4c = clone(v4, v3c)
-                v5c = clone(v5, v3c)
-
-                @test issame(v1, v1c)
-                @test issame(v2, v2c)
-                @test issame(v3, v3c)
-                @test issame(v4, v4c)
-                @test issame(v5, v5c)
             end
 
             @testset "invariantvertex with params and size" begin
@@ -777,17 +727,6 @@ end
             @test @test_logs (:info, "Change nin of v5 by 30 and 30") (:info, "Change nout of v5 by 30") (:info, "Change nout of v3 by 30") (:info, "Change nout of v4 by 30") Δnout!(v5, 30)
 
             @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize!(NaiveNASlib.NeuronIndices(), ΔNoutExact(v5, 10), v5)
-        end
-
-        @testset "Clone" begin
-            slg = SizeChangeLogger(NameInfoStr(), NamedTrait(SizeAbsorb(), "test"))
-
-            @test slg == clone(slg)
-
-            rename(x;cf=rename) = clone(x, cf=cf)
-            rename(x::String; cf) = "success"
-
-            @test name(rename(slg), nothing) == "success"
         end
     end
 end

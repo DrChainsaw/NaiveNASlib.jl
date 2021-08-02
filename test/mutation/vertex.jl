@@ -1,12 +1,16 @@
 @testset "Mutation vertices" begin
+    using Functors: fmap
 
-    @testset "OutputsVertex" begin
+    @testset "OutputsVertex with $label" for (label, cfun) in (
+        (deepcopy, deepcopy),
+        ("fmap", v -> (vc = fmap(deepcopy, v); NaiveNASlib.init!(vc, base(vc)); return vc)),
+    )
         iv = OutputsVertex(InputVertex(1))
 
         @test inputs(iv) == []
         @test outputs(iv) == []
 
-        @test issame(iv, clone(iv))
+        @test issame(iv, cfun(iv))
 
         cv = OutputsVertex(CompVertex(x -> 2x, iv))
         NaiveNASlib.init!(cv, base(cv))
@@ -14,14 +18,16 @@
         @test inputs(cv) == [iv]
         @test outputs(iv) == [base(cv)]
 
-        ivc = clone(iv)
-        cvc = clone(cv, ivc)
-        NaiveNASlib.init!(cvc,base(cvc))
+        cvc = cfun(cv)
 
+        ivc = inputs(cvc)[]
         @test issame(iv, ivc)
     end
 
-    @testset "InputSizeVertex" begin
+    @testset "OutputsVertex with $label" for (label, cfun) in (
+        (deepcopy, deepcopy),
+        ("fmap", v -> (vc = fmap(deepcopy, v); if vc isa OutputsVertex NaiveNASlib.init!(vc, base(vc)) end; return vc)),
+    )
         iv = InputSizeVertex(InputVertex(1), 3)
 
         @test nout(iv) == 3
@@ -29,7 +35,7 @@
         @test inputs(iv) == []
         @test outputs(iv) == []
 
-        @test issame(iv, clone(iv))
+        @test issame(iv, cfun(iv))
 
         cv =  OutputsVertex(CompVertex(x -> 2x, iv))
         NaiveNASlib.init!(cv, base(cv))
@@ -37,10 +43,9 @@
         @test inputs(cv) == [iv]
         @test outputs(iv) == [base(cv)]
 
-        ivc = clone(iv)
-        cvc = clone(cv, ivc)
-        NaiveNASlib.init!(cvc,base(cvc))
-
+        cvc = cfun(cv)
+ 
+        ivc = inputs(cvc)[]
         @test issame(iv, ivc)
     end
 
