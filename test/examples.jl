@@ -394,7 +394,9 @@ end
                 hasname = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait(t, "named layer"))
                 @test name(hasname) == "named layer"
 
-                # Speaking of logging. AfterΔSizeTrait can be used to attach an AbstractAfterΔSizeStrategy to an individual vertex
+                # Speaking of logging... 
+                # AfterΔSizeTrait can be used to attach an AbstractAfterΔSizeStrategy to an individual vertex
+                # In this case we use logafterΔsize from the example above
                 verbose_vertex_info(v) = string(name(v)," with inputs=[", join(name.(inputs(v)), ", "), "] and outputs=[", join(name.(outputs(v)), ", "),']')
                 named_verbose_logging(t) = AfterΔSizeTrait(
                                                         logafterΔsize(verbose_vertex_info ;level=Logging.Info),

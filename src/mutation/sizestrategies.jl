@@ -490,23 +490,6 @@ Abstract base type for strategies which perform actions after size has changed (
 abstract type AbstractAfterΔSizeStrategy <: DecoratingJuMPΔSizeStrategy end 
 
 """
-    AfterΔSizeValidation{F, S} <: AbstractAfterΔSizeStrategy
-    AfterΔSizeValidation(basestrat::AbstractΔSizeStrategy = ThrowΔSizeFailError())
-    AfterΔSizeValidation(printfun::F, basestrat::S)
-
-Validates that all sizes are consistent after all involved vertices have been asked to change their sizes as a result of `basestrat` and throws a [`ΔSizeFailError`](@ref)
-if there is any mismatch. A vertex `v` which fails the check will be displayed as `printfun(v)` in the error message.
-"""
-struct AfterΔSizeValidation{F, S} <: AbstractAfterΔSizeStrategy
-    printfun::F
-    base::S
-end
-AfterΔSizeValidation(s::AbstractΔSizeStrategy = ThrowΔSizeFailError()) = AfterΔSizeValidation(nameorrepr, s)
-base(s::AfterΔSizeValidation) = s.base
-add_participants!(s::AfterΔSizeValidation, vs=AbstractVertex[]) = add_participants!(base(s), vs)
-fallback(s::AfterΔSizeValidation) = AfterΔSizeValidation(s.printfun, fallback(base(s)))
-
-"""
     AfterΔSizeCallback{F, S} <: AbstractAfterΔSizeStrategy
     AfterΔSizeCallback(cbfun::F, basestrat::S=ThrowΔSizeFailError())
 

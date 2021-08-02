@@ -121,25 +121,12 @@ function Base.show(io::IO, t::NamedTrait)
     print(io, ')')
 end
 
-struct SizeChangeLogger{I<: InfoStr, T<:MutationTrait} <: DecoratingTrait
-    level::LogLevel
-    infostr::I
-    base::T
-end
-SizeChangeLogger(base::MutationTrait) = SizeChangeLogger(FullInfoStr(), base)
-SizeChangeLogger(infostr::InfoStr, base::MutationTrait) = SizeChangeLogger(Logging.Info, infostr, base)
-base(t::SizeChangeLogger) = t.base
-infostr(t::SizeChangeLogger, v::AbstractVertex) = infostr(t.infostr, v)
+"""
+    AfterΔSizeTrait <: DecoratingTrait
+    AfterΔSizeTrait(strategy::S, base::T)
 
-@functor SizeChangeLogger
-
-struct SizeChangeValidation{T<:MutationTrait} <: DecoratingTrait
-    base::T
-end
-base(t::SizeChangeValidation) = t.base
-
-@functor SizeChangeValidation
-
+Calls `after_Δnin(strategy, v, Δs, ischanged)` and `after_Δnout(strategy, v, Δ, ischanged)` after a size change for the vertex `v` which this trait is attached to.
+"""
 struct AfterΔSizeTrait{S, T<:MutationTrait} <: DecoratingTrait
     strategy::S
     base::T

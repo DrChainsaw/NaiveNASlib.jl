@@ -97,19 +97,15 @@ function Δsize!(::ScalarSize, ::OnlyFor, v::InputSizeVertex, insizes::AbstractV
     end
 end
 
-after_Δnin(s::AbstractΔSizeStrategy, v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
+after_Δnin(::AbstractΔSizeStrategy, v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
 after_Δnin(t::DecoratingTrait, v, Δs, changed) = after_Δnin(base(t), v, Δs, changed)
-after_Δnin(s::AbstractAfterΔSizeStrategy, v, Δs, changed) = _after_Δnin(s, v, Δs, changed)
+after_Δnin(s::AbstractAfterΔSizeStrategy, args...) = _after_Δnin(s, args...)
 function after_Δnin(t::AfterΔSizeTrait, v, Δs, changed) 
-    _after_Δnin(t.strategy, v, Δs, changed)
+    after_Δnin(t.strategy, v, Δs, changed)
     after_Δnin(base(t), v, Δs, changed)
 end
 _after_Δnin(s::DecoratingJuMPΔSizeStrategy, args...) = _after_Δnin(base(s), args...)
 function _after_Δnin(::AbstractΔSizeStrategy, args...) end
-function _after_Δnin(s::AfterΔSizeValidation, v, Δs, changed) 
-    _after_Δnin(base(s), v, Δs, changed)
-    validate_Δnin(s.printfun, v, Δs)
-end
 function _after_Δnin(s::AfterΔSizeCallback, v, Δs, changed) 
     s.cbfun(v, Δs, :nin, changed)
     _after_Δnin(base(s), v, Δs, changed)
@@ -118,18 +114,14 @@ function after_Δnin(t, v, Δs, changed) end
 
 after_Δnout(::AbstractΔSizeStrategy, v, Δ, changed) = after_Δnout(trait(v), v, Δ, changed)
 after_Δnout(t::DecoratingTrait, v, Δ, changed) = after_Δnout(base(t), v, Δ, changed)
-after_Δnout(s::AbstractAfterΔSizeStrategy, v, Δs, changed) = _after_Δnout(s, v, Δs, changed)
+after_Δnout(s::AbstractAfterΔSizeStrategy, args...) = _after_Δnout(s, args...)
 function after_Δnout(t::AfterΔSizeTrait, v, Δs, changed) 
-    _after_Δnout(t.strategy, v, Δs, changed)
+    after_Δnout(t.strategy, v, Δs, changed)
     after_Δnout(base(t), v, Δs, changed)
 end
 
 _after_Δnout(s::DecoratingJuMPΔSizeStrategy, args...) = _after_Δnout(base(s), args...)
 function _after_Δnout(::AbstractΔSizeStrategy, args...) end
-function _after_Δnout(s::AfterΔSizeValidation, v, Δ, changed) 
-    _after_Δnout(base(s), v, Δ, changed)
-    validate_Δnout(s.printfun, v, Δ)
-end
 function _after_Δnout(s::AfterΔSizeCallback, v, Δ, changed)
     s.cbfun(v, Δ, :nout, changed)
     _after_Δnout(base(s), v, Δ, changed)

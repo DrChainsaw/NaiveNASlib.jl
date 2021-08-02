@@ -3,7 +3,7 @@ module Advanced
 # Only exports advanced stuff which one typically can't be arsed to use from the REPl
 using Reexport: @reexport
 # Traits
-@reexport using ..NaiveNASlib: NamedTrait, SizeChangeValidation, SizeChangeLogger, AfterΔSizeTrait
+@reexport using ..NaiveNASlib: NamedTrait, AfterΔSizeTrait, named, logged, validated
 
 # Size strategies
 @reexport using ..NaiveNASlib:  DefaultJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, 
@@ -22,6 +22,6 @@ using Reexport: @reexport
 
 @reexport using ..NaiveNASlib: RemoveStrategy
 
-@reexport using ..NaiveNASlib: findterminating, all_in_graph, output!, ancestors, descendants, named, logged, validated
+@reexport using ..NaiveNASlib: findterminating, all_in_graph, output!, ancestors, descendants
 
 end
