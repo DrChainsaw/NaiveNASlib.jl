@@ -7,7 +7,7 @@ import JuMP
     inpt(size, id="in") = inputvertex(id, size)
     av(in, outsize; name="av", comp = IndMem(MatMul(nout(in), outsize))) = absorbvertex(comp, in; traitdecoration = tf(name))
     sv(in, ins...; name="sv") = conc(in, ins..., dims=2, traitdecoration = tf(name), outwrap=f -> IndMem(f, ins, sum(nout, ins)))
-    sv(in; name="sv") = vertex(IndMem(identity, in, nout(in)), tf(name)(SizeStack()), in)
+    sv(in; name="sv") = vertex(tf(name)(SizeStack()), IndMem(identity, in, nout(in)), in)
     iv(ins...; name="iv") = +(VertexConf(tf(name), f -> IndMem(f, ins, nout(ins[1]))) >> ins[1], ins[2:end]...)
     imu(in, outsize; name="imu") = immutablevertex(MatMul(nout(in), outsize), in, traitdecoration= tf(name))
 

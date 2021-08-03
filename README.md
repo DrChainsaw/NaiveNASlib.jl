@@ -42,7 +42,8 @@ in1 = inputvertex("in1", 1)
 in2 = inputvertex("in2", 1)
 
 # Create a new vertex which computes the sum of in1 and in2
-# Use >> to attach a name to the vertex
+# Use >> to conveniently attach a name to the vertex when using infix operations
+# Naming vertices is completely optional, but it is quite helpful as can be seen below.
 computation = "add" >> in1 + in2
 @test computation isa NaiveNASlib.AbstractVertex
 
@@ -56,6 +57,15 @@ graph = CompGraph([in1, in2], computation);
 # The vertices function returns the vertices in topological order
 @test vertices(graph) == [in1, in2, computation]
 @test name.(vertices(graph)) == ["in1", "in2", "add"]
+
+# graphs can be indexed
+graph[begin] == graph[1] == [in1]
+graph[end] == graph[3] == [computation]
+graph[begin:end] == vertices(graph)
+
+# Vertices can be accessed as properties, but only if the name is unique
+graph.in1 === in1
+graph.add === computation
 ```
 
 Now lets look at how to make use of it to modify the structure of a neural network. Since batteries are excluded, 
@@ -356,14 +366,14 @@ invertex = inputvertex("input", 3)
 layer1 = linearvertex(invertex, 5)
 graph = CompGraph(invertex, layer1)
 
-# nv(g) is shortcut for length(vertices(g))
-@test nv(graph) == 2
+# nvertices(g) is shortcut for length(vertices(g))
+@test nvertices(graph) == 2
 @test graph(ones(3)) == [3,3,3,3,3]
 
 # Insert a layer between invertex and layer1
 @test insert!(invertex, vertex -> linearvertex(vertex, nout(vertex))) # True if success
 
-@test nv(graph) == 3
+@test nvertices(graph) == 3
 @test graph(ones(3)) == [9, 9, 9, 9, 9]
 ```
 
@@ -374,14 +384,14 @@ layer1 = linearvertex(invertex, 5)
 layer2 = linearvertex(layer1, 4)
 graph = CompGraph(invertex, layer2)
 
-@test nv(graph) == 3
+@test nvertices(graph) == 3
 @test graph(ones(3)) == [15, 15, 15, 15]
 
 # Remove layer1 and change nin of layer2 from 5 to 3
 # Would perhaps have been better to increase nout of invertex, but it is immutable
 @test remove!(layer1) # True if success
 
-@test nv(graph) == 2
+@test nvertices(graph) == 2
 @test graph(ones(3)) == [3, 3, 3, 3]
 ```
 

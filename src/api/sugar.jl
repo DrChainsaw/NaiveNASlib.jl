@@ -27,14 +27,13 @@ Return a mutable computation type vertex.
 ```julia-repl
 julia> using NaiveNASlib
 
-julia> v = vertex(x -> 5x, NaiveNASlib.SizeInvariant(), inputvertex("input", 1));
+julia> v = vertex(NaiveNASlib.SizeInvariant(), x -> 5x, inputvertex("input", 1));
 
 julia> v(3)
 15
 ```
 """
-vertex(computation, trait::MutationTrait, inputs::AbstractVertex...) = MutationVertex(CompVertex(computation, inputs...), trait)
-
+vertex(trait::MutationTrait, computation, inputs::AbstractVertex...) = MutationVertex(CompVertex(computation, inputs...), trait)
 
 """
     immutablevertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
@@ -53,7 +52,7 @@ julia> v([1 2])
 
 ```
 """
-immutablevertex(computation, inputs::AbstractVertex...; traitdecoration=identity) = vertex(computation, traitdecoration(Immutable()), inputs...)
+immutablevertex(args...; traitdecoration=identity) = vertex(traitdecoration(Immutable()), args...)
 
 """
     absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
@@ -72,7 +71,7 @@ julia> v([1 2])
 
 ```
 """
-absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity) = vertex(computation, traitdecoration(SizeAbsorb()), inputs...)
+absorbvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeAbsorb()), args...)
 
 """
     invariantvertex(computation, input; traitdecoration=identity)
@@ -97,7 +96,7 @@ julia> v([1 2])
  2  4
 ```
 """
-invariantvertex(computation, input; traitdecoration=identity) = vertex(computation, traitdecoration(SizeInvariant()), input)
+invariantvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeInvariant()), args...)
 
 """
     conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
@@ -128,7 +127,7 @@ julia> v([1], [2, 3], [4, 5, 6])
  6
 ```
 """
-conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity) = vertex(outwrap((x...) -> cat(x..., dims=dims)), traitdecoration(SizeStack()), v, vs...)
+conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity) = vertex(traitdecoration(SizeStack()), outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
 
 
 """
@@ -152,7 +151,7 @@ VertexConf(;traitdecoration = identity, outwrap = identity)= VertexConf(traitdec
 # Common wiring for all elementwise operations
 function elemwise(op, conf::VertexConf, vs::AbstractVertex...)
     all(vi -> nout(vi) == nout(vs[1]), vs) || throw(DimensionMismatch("nout of all vertices input to elementwise vertex must be equal! Got $(nout.(vs))"))
-    vertex(conf.outwrap((x...) -> op.(x...)), conf.traitdecoration(SizeInvariant()), vs...)
+    invariantvertex(conf.outwrap((x...) -> op.(x...)), vs...; conf.traitdecoration)
 end
 
 

@@ -71,16 +71,41 @@ function output!(memo::AbstractDict{AbstractVertex, Any}, v::AbstractVertex)
     # Calculate outputs which are not already calculated
     return get!(memo, v) do
         inpt = map(iv -> output!(memo, iv), inputs(v))
-        out = v(inpt...)
+        v(inpt...)
     end
 end
 
 """
-    nv(g::CompGraph)
+    nvertices(g::CompGraph)
 
-Return the total number of vertices in the graph.
+Return the number of vertices in the graph.
 """
-nv(g::CompGraph) = length(vertices(g))
+nvertices(g::CompGraph) = length(vertices(g))
+
+Base.getindex(g::CompGraph, args...) = getindex(vertices(g), args...)
+Base.firstindex(g::CompGraph) = firstindex(vertices(g))
+Base.lastindex(g) = lastindex(vertices(g))
+
+function Base.getproperty(g::CompGraph, prop::Symbol)
+    hasfield(CompGraph, prop) && return getfield(g, prop)
+    res = findvertices(g, string(prop))
+    isempty(res) && getfield(g, prop) # To throw the right error
+    length(res) > 1 && throw(KeyError("Multiple vertices with name $(string(prop)) found in graph!"))
+    return res[]
+end
+
+"""
+    findvertices(g::CompGraph, vname::AbstractString)
+
+Return all vertices for which `name(v) == vname`.
+"""
+findvertices(g::CompGraph, vname::AbstractString) = filter(v -> name(v) == vname, vertices(g))
+"""
+    findvertices(g::CompGraph, vname::Regex)
+
+Return all vertices for which `vpat` matches `name(v)`.
+"""
+findvertices(g::CompGraph, vpat::Regex) = filter(v -> match(vpat, name(v)) !== nothing, vertices(g))
 
 """
     ancestors(v::AbstractVertex)

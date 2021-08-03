@@ -11,7 +11,7 @@ import Functors
 using Functors: @functor, functor
 
 # Computation graph
-export CompGraph, nv, vertices, inputs, outputs, name
+export CompGraph, nvertices, vertices, findvertices, inputs, outputs, name
 
 # Vertex size operations
 export nin, nout, Δnin!, Δnout!, Δsize!, relaxed
@@ -20,7 +20,7 @@ export nin, nout, Δnin!, Δnout!, Δsize!, relaxed
 export remove!, insert!, create_edge!, remove_edge!
 
 # Create vertices
-export inputvertex, vertex, immutablevertex, absorbvertex, invariantvertex, conc
+export inputvertex, immutablevertex, absorbvertex, invariantvertex, conc
 
 include("vertex.jl")
 include("compgraph.jl")

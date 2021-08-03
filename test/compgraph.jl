@@ -13,8 +13,8 @@
         graph2out = CompGraph(ins, [scalevert, sumvert2])
 
         @testset "Structural tests" begin
-            @test nv(graph) == 4
-            @test nv(graph2out) == 6
+            @test nvertices(graph) == 4
+            @test nvertices(graph2out) == 6
 
             @test vertices(graph) == [ins[1], ins[2], sumvert, scalevert]
             @test vertices(graph2out) == [ins[1], ins[2], sumvert, scalevert, ins[3], sumvert2]
@@ -65,8 +65,29 @@
         end
     end
 
+    @testset "Indexing" begin
+        in1 = inputvertex("in1", 1)
+        in2 = inputvertex("in2", 1)
+        v1 = absorbvertex(MatMul(nout(in1), nout(in1)), in1; traitdecoration=named("v1"))
+        v2 = "v2" >> in2 + v1
+        v3 = absorbvertex(MatMul(nout(v2), 2), v2; traitdecoration=named("v3"))
+        v4 = conc(v1, v3; dims=2)
+
+        graph = CompGraph([in1, in2], v4)
+
+        @test graph[1:nvertices(graph)] == graph[begin:end] == vertices(graph)
+        @test graph[begin] == graph[1] == in1
+        @test graph[nvertices(graph)] == graph[end] == v4
+
+        @test findvertices(graph, "v1") == [v1]
+        @test findvertices(graph, r"^in") == [in1, in2]
+
+        @test graph.v2 == v2
+
+    end
+
     @testset "Mutation graph copy" begin
-        ins = InputSizeVertex.(InputVertex.(1:3), 1)
+        ins = inputvertex.(1:3, 1)
         v1 = ins[1] + ins[2]
         v2 = conc(v1, ins[3], dims=1)
         v3 = conc(ins[1], v1, dims=1)
