@@ -189,12 +189,12 @@ end
         @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
         @test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition
 
-        # Another popular pruning strategy is to just remove the x% of params with lowest value
-        # This can be done by just not putting any size requirements and assign negative value
+        # Another popular pruning strategy is to just remove the x% of params with lowest utility
+        # This can be done by just not putting any size requirements and assign negative utility
         graphprune40 = deepcopy(graph);
         Δsize!(graphprune40) do v
-            value = NaiveNASlib.defaultutility(v)
-            return value .- 0.4mean(value)
+            utility = NaiveNASlib.defaultutility(v)
+            return utility .- 0.4mean(utility)
         end
         @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
         # Compare to original:
@@ -236,7 +236,7 @@ end
 
             # Now, lets decrease v1 by 1 and force merged to retain its size 
             # which in turn forces v2 to grow by 1
-            # Give high value to neurons 1 and 3 of v2, same for all others...
+            # Give high utility to neurons 1 and 3 of v2, same for all others...
             @test Δnout!(v2 => -1, merged => 0) do v
                 v == v2 ? [10, 1, 10] : ones(nout(v))
             end
@@ -249,7 +249,7 @@ end
               4  8  12 ;
               0  0   0 ]
 
-            # v2 chose to drop its middle row as it was the output neuron with lowest value
+            # v2 chose to drop its middle row as it was the output neuron with lowest utility
             @test l2.W ==
             [ 1 4 7 10 ;
               3 6 9 12 ]

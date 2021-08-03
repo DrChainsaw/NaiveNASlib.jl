@@ -31,7 +31,7 @@ struct NoSizeChange <: AbstractAlignSizeStrategy end
     ChangeNinOfOutputs <: AbstractAlignSizeStrategy
     ChangeNinOfOutputs(Δoutsize)
 
-Just sets `nin` of each output to the provided value. Sometimes you just know the answer...
+Just sets `nin` of each output to the provided utility. Sometimes you just know the answer...
 """
 struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
     Δoutsize::Int

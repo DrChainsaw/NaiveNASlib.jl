@@ -621,7 +621,7 @@ import JuMP
                 v4 = iv(v1,v2, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                # Use value 0 to remove an index so we can see that the value function has any effect
+                # Use utility 0 to remove an index so we can see that the utility function has any effect
                 create_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> 0:nout(v)-1 , AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v2, v3]
@@ -1290,7 +1290,7 @@ import JuMP
             @test nin(v5) == nin(v4) == [nout(v1)] == [4]
         end
 
-        @testset "Remove with negative value IncreaseSmaller" begin
+        @testset "Remove with negative utility IncreaseSmaller" begin
             v0 = inpt(3)
             v1 = av(v0, 5, name="v1")
             v2 = av(v1, 4, name="v2")
@@ -1301,7 +1301,7 @@ import JuMP
             @test [nout(v1)] == nin(v3) == [5]
         end
 
-        @testset "Remove with negative value DecreaseBigger" begin
+        @testset "Remove with negative utility DecreaseBigger" begin
             v0 = inpt(3)
             v1 = av(v0, 5, name="v1")
             v2 = av(v1, 4, name="v2")

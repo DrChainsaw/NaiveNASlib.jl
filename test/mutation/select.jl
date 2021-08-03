@@ -103,7 +103,7 @@ import JuMP
             return v1, v2
         end
 
-        @testset "Δnout!$(use_fun ? " with value function" : "")" for use_fun in (false, true)
+        @testset "Δnout!$(use_fun ? " with utility function" : "")" for use_fun in (false, true)
             f = use_fun ? (v -> (1:nout(v)),) : ()
             @testset "Single Δnout!$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
@@ -148,7 +148,7 @@ import JuMP
             end
         end
 
-        @testset "Δnin!$(use_fun ? " with value function" : "")" for use_fun in (false, true)
+        @testset "Δnin!$(use_fun ? " with utility function" : "")" for use_fun in (false, true)
             f = use_fun ? (v -> (1:nout(v)),) : ()
             @testset "Single Δnin!$(wrap === identity ? "" : " $wrap")" for wrap in (identity, relaxed)
                 v1,v2 = graphgen()
@@ -560,7 +560,7 @@ import JuMP
         @test size.(g(ones(3))) == ((nout(v1),), (nout(v9),))
     end
 
-    @testset "Low values in not-connected" begin
+    @testset "Low utility in not-connected" begin
         inpt = iv(3)
         v1 = av(inpt, 4, "v1")
         v2 = av(v1, 5, "v2")
@@ -725,7 +725,7 @@ import JuMP
         @test modelres isa JuMP.Model
     end
 
-    @testset "All negative values $label" for (label, utilfun) in (
+    @testset "All negative utility $label" for (label, utilfun) in (
         ("scalar", v -> -1.0),
         ("array", v -> fill(-1.0, nout(v))),
     )

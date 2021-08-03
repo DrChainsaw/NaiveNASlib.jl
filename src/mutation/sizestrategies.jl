@@ -467,10 +467,10 @@ add_participants!(s::TruncateInIndsToValid, vs=AbstractVertex[]) = add_participa
     WithUtilityFun{F, S} <: AbstractΔSizeStrategy
     WithUtilityFun(utilityfun::F, strategy::S)
 
-Applies neuron indices selection with `strategy` and using `utilityfun` to compute the value of neurons indices.
+Applies neuron indices selection with `strategy` and using `utilityfun` to compute the utility of neurons indices.
 
-Note that `utilityfun` will override any value function supplied in function call. Thus it is possible use 
-`WithUtilityFun` to change value function e.g. when switching to a fallback strategy.
+Note that `utilityfun` will override any utility function supplied in function call. Thus it is possible use 
+`WithUtilityFun` to change utility function e.g. when switching to a fallback strategy.
 """
 struct WithUtilityFun{F, S} <: AbstractΔSizeStrategy
     utilityfun::F

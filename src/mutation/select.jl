@@ -94,7 +94,7 @@ Change output neurons of all vertices of graph `g` (or graph to which `v` is con
 
 Return true of operation was successful, false otherwise.
 
-Argument `utilityfun` provides a vector `value = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`.
+Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where `utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`.
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
@@ -272,7 +272,8 @@ solve_outputs_selection(s::WithUtilityFun, vs::AbstractVector{<:AbstractVertex},
 
 Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input neuron indices and `noutdict[vi]` are new output neuron indices for each vertex `vi` in `vertices`.
 
-The function generally tries to maximize `sum(utilityfun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractΔSizeStrategy s`.
+The function generally tries to maximize `sum(utilityfun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values 
+in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractΔSizeStrategy s`.
 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
@@ -453,14 +454,14 @@ end
 
 
 function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data)
-    value = valueobjective!(case, s, v, data)
-    @objective(data.model, Max, value)
+    utility = utilityobjective!(case, s, v, data)
+    @objective(data.model, Max, utility)
     # Also makes us prefer to not insert
     insertlast = insertlastobjective!(case, s, v, data)
-    return @expression(data.model, data.objexpr + value + insertlast)
+    return @expression(data.model, data.objexpr + utility + insertlast)
 end
-valueobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = valueobjective!(case, base(s), v, data)
-valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.utilityfun(v) .* data.outselectvars[v]))
+utilityobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = utilityobjective!(case, base(s), v, data)
+utilityobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.utilityfun(v) .* data.outselectvars[v]))
 
 insertlastobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = insertlastobjective!(case::NeuronIndices, base(s), v, data)
 function insertlastobjective!(::NeuronIndices, s, v, data)
