@@ -23,10 +23,6 @@ nout(f, ::MutationTrait, ::AbstractVertex) = nout(f)
 nout(f, ::SizeInvariant, v::AbstractVertex) = isempty(nin(v)) ? 0 : nin(v)[1]
 nout(f, ::SizeStack, v::AbstractVertex) = isempty(nin(v)) ? 0 : sum(nin(v))
 
-# TODO: Remove
-nout_org(v::AbstractVertex) = nout(v)
-nin_org(v::AbstractVertex) = nin(v)
-
 # Add possibly for shape traits for computations
 nout(f) = nout(shapetrait(f), f)
 nin(f) = nin(shapetrait(f), f)
@@ -333,11 +329,11 @@ function noutrelax!(case, Δs, vertices, data)
     def_obj = objective!(case, DefaultJuMPΔSizeStrategy(), setdiff(vertices, keys(Δs)), data)
 
     model = data.model
-    # Force it to change as Δ might be too small
+    # Force it to change as Δ might be too small (unless Δ is exactly 0)
     # Trick from http://lpsolve.sourceforge.net/5.1/absolute.htm
-    Δnout_const = @expression(model, [data.noutdict[v] - nout(v) for v in keys(Δs)])
+    Δnout_const = @expression(model, [data.noutdict[v] - nout(v) for v in keys(Δs) if Δs[v] != 0])
 
-    B = @variable(model, [1:length(Δs)], Bin)
+    B = @variable(model, [1:length(Δnout_const)], Bin)
     M = 1e5
     ϵ = 1e-2 # abs(Δnout_const) must be larger than this
     @constraint(model, Δnout_const .+ M .* B .>= ϵ)

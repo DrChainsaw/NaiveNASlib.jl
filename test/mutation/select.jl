@@ -241,6 +241,15 @@ import JuMP
         @test_logs (:warn, "Could not change nin of v3 by 1 and 1! Relaxing constraints...") @test_throws NaiveNASlib.ΔSizeFailError Δnin!(v3, 1, 1)
     end
 
+    @testset "Δ = $wrap(0)" for wrap in (identity, relaxed)
+        inpt = iv(3)
+        v1 = av(inpt, 5, "v1")
+        v2 = av(v1, 4, "v2")
+
+        @test Δnout!(v1 => wrap(0)) == true
+        @test [nout(v1)] == nin(v2) == [5]
+    end
+
     @testset "SizeStack duplicate" begin
         inpt = iv(3)
         v1 = av(inpt, 7, "v1")
@@ -714,5 +723,18 @@ import JuMP
         @test Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(;action); fallback=ΔSizeFailNoOp()), v3) == false
 
         @test modelres isa JuMP.Model
+    end
+
+    @testset "All negative values $label" for (label, utilfun) in (
+        ("scalar", v -> -1.0),
+        ("array", v -> fill(-1.0, nout(v))),
+    )
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2 = av(v1, 5, "v2")
+
+        @test Δsize!(utilfun, CompGraph(inpt, v2)) == true
+
+        @test [nout(v1)] == nin(v2) == [nout(v2)] == [1]
     end
 end

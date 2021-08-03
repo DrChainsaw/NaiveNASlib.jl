@@ -445,7 +445,7 @@ function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, da
     
     scale = map(v -> max(0, maximum(data.valuefun(v))), vertices)
     noutvars = map(v -> data.noutdict[v], vertices)
-    sizetargets = map(v -> nout(v) - count(<(0), data.valuefun(v)), vertices)
+    sizetargets = map(v -> max(1, nout(v) - count(<(0), data.valuefun(v))), vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), data.model, @expression(data.model, objective[i=1:length(noutvars)], scale[i] * (noutvars[i] - sizetargets[i])), sizetargets)
@@ -454,6 +454,8 @@ end
 
 function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data)
     value = valueobjective!(case, s, v, data)
+    @objective(data.model, Max, value)
+    # Also makes us prefer to not insert
     insertlast = insertlastobjective!(case, s, v, data)
     return @expression(data.model, data.objexpr + value + insertlast)
 end
@@ -467,7 +469,7 @@ function insertlastobjective!(::NeuronIndices, s, v, data)
     isempty(insvars) && return @expression(data.model, 0)
 
     preferend = collect(length(insvars) : -1 : 1)
-    scale = minimum(x -> x >= 0 ? x : typemax(x), data.valuefun(v)) / sum(preferend) 
+    scale = minimum(abs, data.valuefun(v)) / sum(preferend) 
     return @expression(data.model, -0.1scale*sum(insvars .* preferend))
 end
 
