@@ -59,10 +59,6 @@ end
         graph[begin] == graph[1] == [in1]
         graph[end] == graph[3] == [computation]
         graph[begin:end] == vertices(graph)
-
-        # Vertices can be accessed as properties, but only if the name is unique
-        graph.in1 === in1
-        graph.add === computation
     end
 
     @testset "Second and third examples" begin

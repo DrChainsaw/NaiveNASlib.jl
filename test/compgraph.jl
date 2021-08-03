@@ -81,9 +81,6 @@
 
         @test findvertices(graph, "v1") == [v1]
         @test findvertices(graph, r"^in") == [in1, in2]
-
-        @test graph.v2 == v2
-
     end
 
     @testset "Mutation graph copy" begin

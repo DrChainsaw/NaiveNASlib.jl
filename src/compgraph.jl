@@ -30,11 +30,11 @@ CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = Com
 
 function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
-    memo::Dict{AbstractVertex, Any} = Dict(zip(g.inputs, x))
-    if length(g.outputs) == 1
-        return output!(memo, g.outputs[1])
+    memo::Dict{AbstractVertex, Any} = Dict(zip(inputs(g), x))
+    if length(outputs(g)) == 1
+        return output!(memo, first(outputs(g)))
     end
-    return Tuple(map(v -> output!(memo, v), g.outputs))
+    return Tuple(map(v -> output!(memo, v), outputs(g)))
 end
 
 inputs(g::CompGraph) = g.inputs
@@ -85,14 +85,6 @@ nvertices(g::CompGraph) = length(vertices(g))
 Base.getindex(g::CompGraph, args...) = getindex(vertices(g), args...)
 Base.firstindex(g::CompGraph) = firstindex(vertices(g))
 Base.lastindex(g) = lastindex(vertices(g))
-
-function Base.getproperty(g::CompGraph, prop::Symbol)
-    hasfield(CompGraph, prop) && return getfield(g, prop)
-    res = findvertices(g, string(prop))
-    isempty(res) && getfield(g, prop) # To throw the right error
-    length(res) > 1 && throw(KeyError("Multiple vertices with name $(string(prop)) found in graph!"))
-    return res[]
-end
 
 """
     findvertices(g::CompGraph, vname::AbstractString)
