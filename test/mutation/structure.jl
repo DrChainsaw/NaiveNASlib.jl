@@ -642,7 +642,7 @@ import JuMP
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
                 # IndMem of v3 is updated before edge is added
                 @test lastins(v3) == lastouts.([v1,v1]) == [1:3, 1:3]
-                @test lastouts(v2) == [1,3,5]
+                @test lastouts(v2) == [3,4,5]
                 @test [lastins(v4)] == [lastouts(v3)] == [1:3]
             end
 

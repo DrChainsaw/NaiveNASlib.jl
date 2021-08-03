@@ -328,8 +328,8 @@ function selectmodel(case::NeuronIndices, s::TimeLimitΔSizeStrategy, vs, valuef
 end
 
 function vertexconstraints!(case::NeuronIndices, ::Immutable, v, s::AbstractJuMPΔSizeStrategy, data)
-     @constraint(data.model, data.outselectvars[v] .== 1)
-     @constraint(data.model, data.outinsertvars[v] .== 0)
+     JuMP.set_lower_bound.(data.outselectvars[v], 1)
+     JuMP.set_upper_bound.(data.outinsertvars[v], 0)
      for (vi, outsize) in zip(inputs(v), nin(v))
         @constraint(data.model, data.noutdict[vi] == outsize)
      end
@@ -362,11 +362,12 @@ Assume `select` is a set of binary variables where `select[i] = 1` means select 
 An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1]` because this results in the instruction to use existing output neurons `1 and 2` and then insert a new neuron at position `4`. 
 In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method constrains `model` so that this solution is infeasible.
 """
-function noinsertgaps!(model, select, insert, maxinsert=max(length(select) * 10, 200)) # TODO: get maxinsert from strategy instead
+function noinsertgaps!(model, select, insert, maxinsert=max(length(select) * 10, 200)) # TODO: get maxinsert from strategy instead?
     # See  https://discourse.julialang.org/t/help-with-constraints-to-select-and-or-insert-columns-to-a-matrix/63654
     insert_nogap = @variable(model, [1:length(insert)], Bin)
 
     @constraint(model, sum(insert) <= maxinsert)
+    JuMP.set_upper_bound.(filter(!JuMP.has_upper_bound, insert), maxinsert)
 
     # insert[i] == 0 if insert_nogap[i] == 1
     @constraint(model, [i=1:length(insert)], insert[i] <= 2maxinsert * insert_nogap[i])
