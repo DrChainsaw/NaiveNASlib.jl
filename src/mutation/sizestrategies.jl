@@ -464,23 +464,23 @@ add_participants!(s::TruncateInIndsToValid, vs=AbstractVertex[]) = add_participa
 
 
 """
-    WithValueFun{F, S} <: AbstractΔSizeStrategy
-    WithValueFun(valuefun::F, strategy::S)
+    WithUtilityFun{F, S} <: AbstractΔSizeStrategy
+    WithUtilityFun(utilityfun::F, strategy::S)
 
-Applies neuron indices selection with `strategy` and using `valuefun` to compute the value of neurons indices.
+Applies neuron indices selection with `strategy` and using `utilityfun` to compute the value of neurons indices.
 
-Note that `valuefun` will override any value function supplied in function call. Thus it is possible use 
-`WithValueFun` to change value function e.g. when switching to a fallback strategy.
+Note that `utilityfun` will override any value function supplied in function call. Thus it is possible use 
+`WithUtilityFun` to change value function e.g. when switching to a fallback strategy.
 """
-struct WithValueFun{F, S} <: AbstractΔSizeStrategy
-    valuefun::F
+struct WithUtilityFun{F, S} <: AbstractΔSizeStrategy
+    utilityfun::F
     strategy::S
 end
-WithValueFun(f) = s -> WithValueFun(f ,s) 
-base(s::WithValueFun) = s.strategy
-fallback(s::WithValueFun) = fallback(s.strategy)
+WithUtilityFun(f) = s -> WithUtilityFun(f ,s) 
+base(s::WithUtilityFun) = s.strategy
+fallback(s::WithUtilityFun) = fallback(s.strategy)
 
-add_participants!(s::WithValueFun, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+add_participants!(s::WithUtilityFun, vs=AbstractVertex[]) = add_participants!(base(s), vs)
 
 """
     AbstractAfterΔSizeStrategy <: DecoratingJuMPΔSizeStrategy

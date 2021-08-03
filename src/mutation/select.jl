@@ -85,44 +85,44 @@ Change size of `v` by `Δ` in direction `d`.
 Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(Δsizetype(vs), s, vs)
 
 """
-    Δsize!(valuefun, g::CompGraph)
-    Δsize!(valuefun, s::AbstractΔSizeStrategy, g::CompGraph)
-    Δsize!(valuefun, v::AbstractVertex)
-    Δsize!(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex)
+    Δsize!(utilityfun, g::CompGraph)
+    Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph)
+    Δsize!(utilityfun, v::AbstractVertex)
+    Δsize!(utilityfun, s::AbstractΔSizeStrategy, v::AbstractVertex)
 
 Change output neurons of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractΔSizeStrategy s` (default `OutSelect{Exact}`).
 
 Return true of operation was successful, false otherwise.
 
-Argument `valuefun` provides a vector `value = valuefun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`.
+Argument `utilityfun` provides a vector `value = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where `value[i] > value[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`.
 
 If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
 """
 Δsize!(g::CompGraph) = Δsize!(defaultutility, g::CompGraph)
-Δsize!(valuefun, g::CompGraph) = Δsize!(valuefun, DefaultJuMPΔSizeStrategy(), g)
+Δsize!(utilityfun, g::CompGraph) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), g)
 
 Δsize!(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(defaultutility, s::AbstractΔSizeStrategy, g::CompGraph)
-Δsize!(valuefun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(valuefun, s, vertices(g))
+Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(utilityfun, s, vertices(g))
 
 Δsize!(v::AbstractVertex) = Δsize!(defaultutility, v::AbstractVertex)
-Δsize!(valuefun, v::AbstractVertex) = Δsize!(valuefun, DefaultJuMPΔSizeStrategy(), v)
+Δsize!(utilityfun, v::AbstractVertex) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), v)
 
 Δsize!(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize!(defaultutility, s::AbstractΔSizeStrategy, v::AbstractVertex) 
-Δsize!(valuefun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize!(valuefun, s, all_in_graph(v))
+Δsize!(utilityfun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize!(utilityfun, s, all_in_graph(v))
 
 Δsize!(::Nothing, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = false
 
 Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(defaultutility, case,s , vs)
-function Δsize!(valuefun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
-    success, ins, outs = solve_outputs_selection(s, vs, valuefun)
+function Δsize!(utilityfun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
+    success, ins, outs = solve_outputs_selection(s, vs, utilityfun)
     if success
         Δsize!(case, s, ins, outs, vs)
     end
     return success
 end
 
-function Δsize!(valuefun, case::NeuronIndices, s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex})
-    success, ins, outs = solve_outputs_selection(s.strategy, vs, valuefun)
+function Δsize!(utilityfun, case::NeuronIndices, s::TruncateInIndsToValid, vs::AbstractVector{<:AbstractVertex})
+    success, ins, outs = solve_outputs_selection(s.strategy, vs, utilityfun)
     if success
         for (vv, ininds) in ins
             for innr in eachindex(ininds)
@@ -259,39 +259,39 @@ end
 parselect(::Missing, args...;kwargs...) = missing
 
 
-function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex}, valuefun)
+function solve_outputs_selection(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex}, utilityfun)
     @logmsg s.level s.msgfun(vertices[1])
-    return solve_outputs_selection(base(s), vertices, valuefun)
+    return solve_outputs_selection(base(s), vertices, utilityfun)
 end
 
 solve_outputs_selection(::ΔSizeFailNoOp, vs::AbstractVector{<:AbstractVertex}, ::Any) = false, Dict(v => [1:n for n in nin(v)] for v in vs), Dict(v => 1:nout(v) for v in vs)
 solve_outputs_selection(s::ThrowΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}, ::Any) = throw(ΔSizeFailError(s.msgfun(vertices)))
-solve_outputs_selection(s::WithValueFun, vs::AbstractVector{<:AbstractVertex}, ::Any) = solve_outputs_selection(s.strategy, vs, s.valuefun) 
+solve_outputs_selection(s::WithUtilityFun, vs::AbstractVector{<:AbstractVertex}, ::Any) = solve_outputs_selection(s.strategy, vs, s.utilityfun) 
 """
-    solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)
+    solve_outputs_selection(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, utilityfun)
 
 Returns a tuple `(success, nindict, noutdict)` where `nindict[vi]` are new input neuron indices and `noutdict[vi]` are new output neuron indices for each vertex `vi` in `vertices`.
 
-The function generally tries to maximize `sum(valuefun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractΔSizeStrategy s`.
+The function generally tries to maximize `sum(utilityfun(vi) .* selected[vi]) ∀ vi in vertices` where `selected[vi]` is all elements in `noutdict[vi]` larger than 0 (negative values in `noutdict` indicates a new output shall be inserted at that position). This however is up to the implementation of the `AbstractΔSizeStrategy s`.
 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
-function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, valuefun)
-    model = selectmodel(NeuronIndices(), s, vertices, valuefun)
+function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, utilityfun)
+    model = selectmodel(NeuronIndices(), s, vertices, utilityfun)
     case = NeuronIndices()
     # The binary variables `outselectvars` tells us which existing output indices to select
     # The integer variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
     # Thus, the result will consist of all selected indices with possibly interlaced -1s
 
-    # TODO: Cache and rescale valuefun?
-    # We use the lenght of valuefun as the number of outputs to select as we will use it to add utility to each variable, so they must not mismatch
+    # TODO: Cache and rescale utilityfun?
+    # We use the lenght of utilityfun as the number of outputs to select as we will use it to add utility to each variable, so they must not mismatch
     # They might mismatch when there are parameters attached to some size transparent vertex (e.g BatchNorm or even concatenation with some
     # computed activation utility metric) and we are in the process of aligning sizes after adding/removing an edge.
-    # Forcing the user to provide a length of valuefun matching nout(v) in this case is not really fair as it is we who caused the mismatch.
+    # Forcing the user to provide a length of utilityfun matching nout(v) in this case is not really fair as it is we who caused the mismatch.
     # TODO: The indicies alignment below will not be ideal in this case. Perhaps it can be mitigated with some strategy providing information on
     # how the edges have changed so that we can better align what hasn't changed.
     selectsizes = map(vertices) do v
-        outvals = valuefun(v)
+        outvals = utilityfun(v)
         return outvals isa Number ? nout(v) : length(outvals)
     end
 
@@ -301,9 +301,9 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
     noutdict = Dict(v => @expression(model, sum(outselectvars[v]) + sum(outinsertvars[v])) for v in vertices)
 
-    objexpr = sizeobjective!(case, s, vertices, (;model, outselectvars, outinsertvars, noutdict, valuefun))
+    objexpr = sizeobjective!(case, s, vertices, (;model, outselectvars, outinsertvars, noutdict, utilityfun))
     for v in vertices
-        data = (;model, outselectvars, outinsertvars, noutdict, objexpr, valuefun)
+        data = (;model, outselectvars, outinsertvars, noutdict, objexpr, utilityfun)
         vertexconstraints!(case, v, s, data)
         objexpr = selectobjective!(case, s, v, data)
     end
@@ -313,16 +313,16 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     JuMP.optimize!(model)
 
     !accept(case, s, model) && return   let fbstrat = fallback(s)
-                                            solve_outputs_selection(fbstrat, add_participants!(fbstrat, copy(vertices)), valuefun)
+                                            solve_outputs_selection(fbstrat, add_participants!(fbstrat, copy(vertices)), utilityfun)
                                         end
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
 end
 
-selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vs, valuefun) = selectmodel(case, base(s), vs, valuefun) 
-selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, vs, valuefun) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0, "seconds" => 20))
-function selectmodel(case::NeuronIndices, s::TimeLimitΔSizeStrategy, vs, valuefun) 
-    model = selectmodel(case, base(s), vs, valuefun)
+selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vs, utilityfun) = selectmodel(case, base(s), vs, utilityfun) 
+selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, vs, utilityfun) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0, "seconds" => 20))
+function selectmodel(case::NeuronIndices, s::TimeLimitΔSizeStrategy, vs, utilityfun) 
+    model = selectmodel(case, base(s), vs, utilityfun)
     JuMP.set_time_limit_sec(model, s.limit)
     return model
 end
@@ -443,9 +443,9 @@ function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, da
     # Or else the problem becomes infeasible
     isempty(vertices) && return @expression(data.model, 0)
     
-    scale = map(v -> max(0, maximum(data.valuefun(v))), vertices)
+    scale = map(v -> max(0, maximum(data.utilityfun(v))), vertices)
     noutvars = map(v -> data.noutdict[v], vertices)
-    sizetargets = map(v -> max(1, nout(v) - count(<(0), data.valuefun(v))), vertices)
+    sizetargets = map(v -> max(1, nout(v) - count(<(0), data.utilityfun(v))), vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), data.model, @expression(data.model, objective[i=1:length(noutvars)], scale[i] * (noutvars[i] - sizetargets[i])), sizetargets)
@@ -460,7 +460,7 @@ function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v,
     return @expression(data.model, data.objexpr + value + insertlast)
 end
 valueobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = valueobjective!(case, base(s), v, data)
-valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.valuefun(v) .* data.outselectvars[v]))
+valueobjective!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = @expression(data.model, sum(data.utilityfun(v) .* data.outselectvars[v]))
 
 insertlastobjective!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v, data) = insertlastobjective!(case::NeuronIndices, base(s), v, data)
 function insertlastobjective!(::NeuronIndices, s, v, data)
@@ -469,7 +469,7 @@ function insertlastobjective!(::NeuronIndices, s, v, data)
     isempty(insvars) && return @expression(data.model, 0)
 
     preferend = collect(length(insvars) : -1 : 1)
-    scale = minimum(abs, data.valuefun(v)) / sum(preferend) 
+    scale = minimum(abs, data.utilityfun(v)) / sum(preferend) 
     return @expression(data.model, -0.1scale*sum(insvars .* preferend))
 end
 

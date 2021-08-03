@@ -7,7 +7,7 @@ using Reexport: @reexport
 
 # Size strategies
 @reexport using ..NaiveNASlib:  DefaultJuMPΔSizeStrategy, ThrowΔSizeFailError, ΔSizeFailNoOp, LogΔSizeExec, ΔNout, ΔNoutExact, ΔNoutRelaxed, ΔNin, 
-                                ΔNinExact, ΔNinRelaxed, AlignNinToNout, TruncateInIndsToValid, WithValueFun, TimeLimitΔSizeStrategy,
+                                ΔNinExact, ΔNinRelaxed, AlignNinToNout, TruncateInIndsToValid, WithUtilityFun, TimeLimitΔSizeStrategy,
                                 TimeOutAction, AfterΔSizeCallback, logafterΔsize, validateafterΔsize
 
 # Align size strategies, e.g what to do with sizes of vertices connected to a removed vertex

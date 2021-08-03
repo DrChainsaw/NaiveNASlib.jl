@@ -245,7 +245,7 @@ import JuMP
                 @test [nout(v3)] == nin(v4) == [3+5+4+5]
             end
 
-            @testset "DecreaseBigger WithValueFun SizeInvariant" begin
+            @testset "DecreaseBigger WithUtilityFun SizeInvariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -253,7 +253,7 @@ import JuMP
                 v4 = iv(v1, v2, v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                @test remove_edge!(v3, v4, strategy=DecreaseBigger(mapstrat=WithValueFun(v -> 1:nout(v))))
+                @test remove_edge!(v3, v4, strategy=DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
                 @test inputs(v4) == [v1, v2]
                 @test nin(v4) == nout.([v1, v2]) == [4,4]
@@ -261,7 +261,7 @@ import JuMP
                 @test lastins(v4)[1:2] == lastouts.([v1,v2]) == [1:4, 1:4]
             end
 
-            @testset "PostAlign WithValueFun SizeInvariant post align" begin
+            @testset "PostAlign WithUtilityFun SizeInvariant post align" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -269,14 +269,14 @@ import JuMP
                 v4 = iv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                remove_edge!(v3, v4, strategy=PostAlign(WithValueFun(v -> 1:nout(v), AlignNinToNout())))
+                remove_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> 1:nout(v), AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v2]
                 @test nin(v4) == nout.([v1, v2]) == [4,4]
                 @test lastins(v4) == lastouts.([v1,v2]) == [1:4, 1:4]
             end
 
-            @testset "DecreaseBigger WithValueFun SizeStack" begin
+            @testset "DecreaseBigger WithUtilityFun SizeStack" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 3, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -284,7 +284,7 @@ import JuMP
                 v4 = sv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                @test remove_edge!(v2, v4, strategy=DecreaseBigger(mapstrat=WithValueFun(v -> 1:nout(v))))
+                @test remove_edge!(v2, v4, strategy=DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
                 @test inputs(v4) == [v1, v3]
                 @test nin(v4) == nout.([v1, v3]) == [1,2]
@@ -295,7 +295,7 @@ import JuMP
                 @test lastouts(v4) == lastins(v5) ==[3,7,11,12]
             end
 
-            @testset "PostAlign WithValueFun SizeStack" begin
+            @testset "PostAlign WithUtilityFun SizeStack" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 3, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -303,7 +303,7 @@ import JuMP
                 v4 = sv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                remove_edge!(v2, v4, strategy=PostAlign(WithValueFun(v -> 1:nout(v), AlignNinToNout())))
+                remove_edge!(v2, v4, strategy=PostAlign(WithUtilityFun(v -> 1:nout(v), AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v3]
                 @test nin(v4) == nout.([v1, v3]) == [3,5]
@@ -595,7 +595,7 @@ import JuMP
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
             end
 
-            @testset "DecreaseBigger WithValueFun SizeInvariant" begin
+            @testset "DecreaseBigger WithUtilityFun SizeInvariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -603,7 +603,7 @@ import JuMP
                 v4 = iv(v1, v2, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                @test create_edge!(v3, v4, strategy=DecreaseBigger(mapstrat=WithValueFun(v -> 1:nout(v))))
+                @test create_edge!(v3, v4, strategy=DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
                 @test inputs(v4) == [v1, v2, v3]
 
@@ -613,7 +613,7 @@ import JuMP
                 @test lastouts(v3) == 2:5
             end
 
-            @testset "PostAlign WithValueFun SizeInvariant" begin
+            @testset "PostAlign WithUtilityFun SizeInvariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -622,7 +622,7 @@ import JuMP
                 v5 = av(v4, 3, name="v5")
 
                 # Use value 0 to remove an index so we can see that the value function has any effect
-                create_edge!(v3, v4, strategy=PostAlign(WithValueFun(v -> 0:nout(v)-1 , AlignNinToNout())))
+                create_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> 0:nout(v)-1 , AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v2, v3]
                 @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
@@ -636,7 +636,7 @@ import JuMP
                 v3 = iv(v0,v1, name = "v3")
                 v4 = av(v3, 3, name="v4")
 
-                create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithValueFun(v -> 1:nout(v))))
+                create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
                 @test inputs(v3) == [v0, v1, v2]
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
@@ -1296,7 +1296,7 @@ import JuMP
             v2 = av(v1, 4, name="v2")
             v3 = av(v2, 3, name="v3")
 
-            @test remove!(v2, RemoveStrategy(IncreaseSmaller(;mapstrat=WithValueFun(v -> v == v1 ? -1 : 1), fallback=ΔSizeFailNoOp())))
+            @test remove!(v2, RemoveStrategy(IncreaseSmaller(;mapstrat=WithUtilityFun(v -> v == v1 ? -1 : 1), fallback=ΔSizeFailNoOp())))
 
             @test [nout(v1)] == nin(v3) == [5]
         end
@@ -1307,7 +1307,7 @@ import JuMP
             v2 = av(v1, 4, name="v2")
             v3 = av(v2, 3, name="v3")
 
-            @test remove!(v2, RemoveStrategy(DecreaseBigger(;mapstrat=WithValueFun(v -> v == v2 ? -1 : 1), fallback=ΔSizeFailNoOp())))
+            @test remove!(v2, RemoveStrategy(DecreaseBigger(;mapstrat=WithUtilityFun(v -> v == v2 ? -1 : 1), fallback=ΔSizeFailNoOp())))
 
             @test [nout(v1)] == nin(v3) == [4]
         end

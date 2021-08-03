@@ -201,7 +201,7 @@ import JuMP
             (LogΔSizeExec, s -> LogΔSizeExec("", Info, s)),
             (AlignNinToNout, s -> AlignNinToNout(vstrat=s)), 
             (TruncateInIndsToValid, TruncateInIndsToValid),
-            (WithValueFun, s -> WithValueFun(identity, s)), 
+            (WithUtilityFun, s -> WithUtilityFun(identity, s)), 
             (TimeLimitΔSizeStrategy, s -> TimeLimitΔSizeStrategy(10, s)),
             (TimeOutAction,  s -> TimeOutAction(base=s)),
         )
@@ -673,11 +673,11 @@ import JuMP
         @test lastouts(v2) == [1,2,3,-1,-1,-1,-1]
     end
 
-    @testset "WithValueFun" begin
+    @testset "WithUtilityFun" begin
         inpt = iv(3)
         v1 = av(inpt, 6, "v1")
         
-        @test Δsize!(WithValueFun(v -> v === v1 ? [-1, 1, -1, 1, -1, 1] : 1:nout(v), DefaultJuMPΔSizeStrategy()), v1)
+        @test Δsize!(WithUtilityFun(v -> v === v1 ? [-1, 1, -1, 1, -1, 1] : 1:nout(v), DefaultJuMPΔSizeStrategy()), v1)
 
         @test nout(v1) == 3
         @test lastouts(v1) == [2,4,6]
