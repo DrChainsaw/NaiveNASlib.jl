@@ -228,7 +228,7 @@ This is done through labeling vertices into three major types:
 
 To use this library to mutate architectures for some neural network library basically means annotating up the above type for each layer type and connect parameter dimensions to input and output sizes (e.g. what are the input/output channel dimensions for a convolutional layer).
 
-While we still have the complex model in scope, lets show a few more way to change the sizes. There are more examples in the built in documentation.
+While we still have the complex model in scope, lets show a few more way to change the sizes. See the built in documentation for more information.
 
 ```julia
 # Supply a utility function for telling the utility of each neuron in a vertex

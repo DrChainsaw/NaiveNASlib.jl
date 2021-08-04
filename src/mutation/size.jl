@@ -46,11 +46,6 @@ Treat vertices as having a scalar size when formulating the size change problem.
 """
 struct ScalarSize end
 
-"""
-    Δsize!(case, s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
-
-Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
-"""
 function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
@@ -58,7 +53,6 @@ function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::Abstract
     end
     return execute
 end
-
 
 Δsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = Δsize!(case, base(s), nins, nouts, vertices)
 Δsize!(case::ScalarSize, s::AbstractAfterΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, nins, nouts, vertices)

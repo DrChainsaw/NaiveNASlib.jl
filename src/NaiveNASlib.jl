@@ -37,6 +37,7 @@ include("mutation/select.jl")
 include("mutation/structure.jl")
 
 include("api/sugar.jl")
+include("api/size.jl")
 include("api/Advanced.jl")
 include("api/Extend.jl")
 

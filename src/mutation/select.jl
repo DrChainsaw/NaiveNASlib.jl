@@ -8,18 +8,6 @@ This means that individual indices will be aligned so that the function to the l
 """
 struct NeuronIndices end
 
-# Just another name for Δsize with the corresponding direction
-Δnin!(args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(ΔNin(args...))
-Δnout!(args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(ΔNout(args...))
-Δnin!(v::AbstractVertex, Δs...) = Δnin!(v => Δs)
-Δnout!(v::AbstractVertex, Δ) = Δnout!(v => Δ)
-
-Δnin!(f, args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(f, ΔNin(args...))
-Δnout!(f, args::Union{Pair{<:AbstractVertex}, AbstractDict{<:AbstractVertex}}...) = Δsize!(f, ΔNout(args...))
-Δnin!(f, v::AbstractVertex, Δs...) = Δnin!(f, v => Δs)
-Δnout!(f, v::AbstractVertex, Δ) = Δnout!(f, v => Δ)
-
-
 Δsizetype(vs::AbstractVector{<:AbstractVertex}) = partialsort!(Δsizetype.(vs), 1; by=Δsizetypeprio, rev=true)
 Δsizetype(v::AbstractVertex, seen=Set()) = v in seen ? nothing : Δsizetype(trait(v), v, push!(seen, v))
 Δsizetype(t::DecoratingTrait, v, seen) = Δsizetype(base(t), v, seen)
@@ -54,7 +42,6 @@ end;
 julia> NaiveNASlib.defaultutility(l::Affine) = mean(abs, l.W; dims=2);
 
 ```
-
 """
 defaultutility(v::AbstractVertex) = defaultutility(trait(v), v)
 defaultutility(t, v::AbstractVertex) = defaultutility(t, base(v))
@@ -66,40 +53,10 @@ struct NoDefaultUtility end
 
 defaultutility(f) = NoDefaultUtility()
 
-resolve_utility(t::DecoratingTrait, ::NoDefaultUtility) = resolve_utility(base(t), NoDefaultUtility())
+resolve_utility(t::DecoratingTrait, u::NoDefaultUtility) = resolve_utility(base(t),u)
 resolve_utility(::MutationTrait, ::NoDefaultUtility) = 1
 resolve_utility(::SizeTransparent, ::NoDefaultUtility) = 0 # rationale is that utility of other vertices will be tied to this anyways
 resolve_utility(t, val) = val
-
-
-
-"""
-    Δsize!(d::Direction, v::AbstractVertex, Δ...)
-
-Change size of `v` by `Δ` in direction `d`.
-"""
-Δsize!(s::AbstractΔSizeStrategy) = Δsize!(s, add_participants!(s))
-Δsize!(f, s::AbstractΔSizeStrategy) = Δsize!(f, s, add_participants!(s))
-
-Δsize!(f, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(f, Δsizetype(vs), s, vs)
-Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(Δsizetype(vs), s, vs)
-
-"""
-    Δsize!(utilityfun, g::CompGraph)
-    Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph)
-    Δsize!(utilityfun, v::AbstractVertex)
-    Δsize!(utilityfun, s::AbstractΔSizeStrategy, v::AbstractVertex)
-
-Change output neurons of all vertices of graph `g` (or graph to which `v` is connected) according to the provided `AbstractΔSizeStrategy s` (default `OutSelect{Exact}`).
-
-Return true of operation was successful, false otherwise.
-
-Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where `utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`.
-
-If provided, `Direction d` will narrow down the set of vertices to evaluate so that only vertices which may change as a result of changing size of `v` are considered.
-"""
-Δsize!(g::CompGraph) = Δsize!(defaultutility, g::CompGraph)
-Δsize!(utilityfun, g::CompGraph) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), g)
 
 Δsize!(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(defaultutility, s::AbstractΔSizeStrategy, g::CompGraph)
 Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(utilityfun, s, vertices(g))
