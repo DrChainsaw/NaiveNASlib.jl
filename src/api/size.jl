@@ -1,3 +1,25 @@
+
+"""
+    nout(v)
+
+Return the number of output neurons of vertex `v`. 
+
+This is typically the number of rows/columns of a parameter `Matrix` for fully connected layers or the number of output channels
+in a convolutional layer. 
+"""
+function nout end
+
+"""
+    nin(v)
+
+Return the number of input neurons of vertex `v`. 
+
+This is typically the number of rows/columns of a parameter `Matrix` for fully connected layers or the number of input channels
+in a convolutional layer. 
+"""
+function nin end
+
+
 """
     Δsize!(vs::AbstractVector{<:AbstractVertex})
     Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
@@ -56,7 +78,7 @@ Change input size of all provided vertices with the associated `Δ` and make the
 so that the graph is aligned w.r.t activations. Return `true` if successful (`false` if not successful).
 
 For `Δ`s provided as integers it must be possible to change the size by exactly `Δ` or else the attempt will be considered failed.
-A failed attempt to change the size will be retried immediately in relaxed form where the wanted size changes are moved to the objective.
+A failed attempt will be retried immediately in relaxed form where the wanted size changes are moved to the objective.
 The relaxation means that input size might not change by exactly `Δ`. Use `relaxed(Δ)` to indicate that a size change is 
 relaxed in the initial attempt. 
 
@@ -92,7 +114,7 @@ Change output size of all provided vertices with the associated `Δ` and make th
 so that the graph is aligned w.r.t activations. Return `true` if successful (`false` if not successful).
     
 For `Δ`s provided as integers it must be possible to change the size by exactly `Δ` or else the attempt will be considered failed.
-A failed attempt to change the size will be retried immediately in relaxed form where the wanted size changes are moved to the objective.
+A failed attempt will be retried immediately in relaxed form where the wanted size changes are moved to the objective.
 The relaxation means that output size might not change by exactly `Δ`. Use `relaxed(Δ)` to indicate that a size change is 
 relaxed in the initial attempt. 
 

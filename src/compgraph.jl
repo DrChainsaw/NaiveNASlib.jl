@@ -30,7 +30,7 @@ CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = Com
 
 function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
-    memo::Dict{AbstractVertex, Any} = Dict(zip(inputs(g), x))
+    memo = Dict{AbstractVertex, Any}(zip(inputs(g), x))
     if length(outputs(g)) == 1
         return output!(memo, first(outputs(g)))
     end
@@ -67,12 +67,12 @@ Dict{AbstractVertex,Any} with 4 entries:
   InputVertex(2, [CompVertex(*)])                                  => 3
 ```
 """
-function output!(memo::AbstractDict{AbstractVertex, Any}, v::AbstractVertex)
+function output!(memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
     # Calculate outputs which are not already calculated
     return get!(memo, v) do
         inpt = map(iv -> output!(memo, iv), inputs(v))
         v(inpt...)
-    end
+    end::V
 end
 
 """
