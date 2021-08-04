@@ -153,8 +153,8 @@ struct MutationVertex{V<:AbstractVertex, T<:MutationTrait} <: AbstractVertex
     base::V
     trait::T
 
-    function MutationVertex(b::OutputsVertex, t::T) where T <: MutationTrait
-        this = new{OutputsVertex, T}(b, t)
+    function MutationVertex(b::V, t::T) where {V <: OutputsVertex, T <: MutationTrait}
+        this = new{V, T}(b, t)
         init!(b, this)
         return this
     end
