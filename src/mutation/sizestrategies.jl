@@ -435,7 +435,7 @@ failtoalign(vin, vout) = ThrowΔSizeFailError(vs -> string("Could not align nout
     TruncateInIndsToValid(s::S)
 
 Ensures that all selected input indices are within range of existing input indices after applying `s` 
-(default `DefaultJuMPSelectionStrategy`).
+(default `DefaultJuMPΔSizeStrategy`).
 
 Not needed in normal cases, but certain structural mutations (e.g create_edge!) may cause this to happen 
 due to how constraints are (not) created when original sizes do not align in conjunction with how result of 

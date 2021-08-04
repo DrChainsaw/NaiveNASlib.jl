@@ -211,3 +211,8 @@ nameorrepr(v::MutationVertex) = nameorrepr(trait(v), v)
 nameorrepr(t::DecoratingTrait, v) = nameorrepr(base(t), v)
 nameorrepr(t::NamedTrait, v) = t.name
 nameorrepr(::MutationTrait, v) = repr(v)
+
+issizemutable(v::AbstractVertex) = issizemutable(trait(v))
+issizemutable(t::DecoratingTrait) = issizemutable(base(t))
+issizemutable(::MutationSizeTrait) = true
+issizemutable(::Immutable) = false

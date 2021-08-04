@@ -277,33 +277,20 @@ in `noutdict` indicates a new output shall be inserted at that position). This h
 
 Since selection of outputs is not guaranteed to work in all cases, a flag `success` is also returned. If `success` is `false` then applying the new indices may (and probably will) fail.
 """
-function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex}, utilityfun)
-    model = selectmodel(NeuronIndices(), s, vertices, utilityfun)
+function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}, orgutilityfun)
+    utilityfun = remaputilityfun(orgutilityfun, s, vs)
+    model = selectmodel(NeuronIndices(), s, vs, utilityfun)
     case = NeuronIndices()
+
+    # TODO: Cache and rescale utilityfun?
+
     # The binary variables `outselectvars` tells us which existing output indices to select
     # The integer variables `outinsertvars` tells us where in the result we shall insert -1 where -1 means "create a new output (e.g. a neuron)
     # Thus, the result will consist of all selected indices with possibly interlaced -1s
+    outselectvars, outinsertvars, noutdict = createselectvars!(case, s, vs, (;model, utilityfun))
 
-    # TODO: Cache and rescale utilityfun?
-    # We use the lenght of utilityfun as the number of outputs to select as we will use it to add utility to each variable, so they must not mismatch
-    # They might mismatch when there are parameters attached to some size transparent vertex (e.g BatchNorm or even concatenation with some
-    # computed activation utility metric) and we are in the process of aligning sizes after adding/removing an edge.
-    # Forcing the user to provide a length of utilityfun matching nout(v) in this case is not really fair as it is we who caused the mismatch.
-    # TODO: The indicies alignment below will not be ideal in this case. Perhaps it can be mitigated with some strategy providing information on
-    # how the edges have changed so that we can better align what hasn't changed.
-    selectsizes = map(vertices) do v
-        outvals = utilityfun(v)
-        return outvals isa Number ? nout(v) : length(outvals)
-    end
-
-    outselectvars = Dict(v => @variable(model, [1:nvals], Bin) for (v,nvals) in zip(vertices, selectsizes))
-    outinsertvars = Dict(v => @variable(model, [1:nout(v)], Int, lower_bound=0) for v in vertices)
-    # This is the same variable name as used when adjusting size only. It allows us to delegate alot of size changing strategies to ScalarSize. 
-    # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
-    noutdict = Dict(v => @expression(model, sum(outselectvars[v]) + sum(outinsertvars[v])) for v in vertices)
-
-    objexpr = sizeobjective!(case, s, vertices, (;model, outselectvars, outinsertvars, noutdict, utilityfun))
-    for v in vertices
+    objexpr = sizeobjective!(case, s, vs, (;model, outselectvars, outinsertvars, noutdict, utilityfun))
+    for v in vs
         data = (;model, outselectvars, outinsertvars, noutdict, objexpr, utilityfun)
         vertexconstraints!(case, v, s, data)
         objexpr = selectobjective!(case, s, v, data)
@@ -314,10 +301,79 @@ function solve_outputs_selection(s::AbstractJuMPΔSizeStrategy, vertices::Abstra
     JuMP.optimize!(model)
 
     !accept(case, s, model) && return   let fbstrat = fallback(s)
-                                            solve_outputs_selection(fbstrat, add_participants!(fbstrat, copy(vertices)), utilityfun)
+                                            solve_outputs_selection(fbstrat, add_participants!(fbstrat, copy(vs)), orgutilityfun)
                                         end
 
     return true, extract_ininds_and_outinds(s, outselectvars, outinsertvars)...
+end
+
+remaputilityfun(utilityfun, s::DecoratingJuMPΔSizeStrategy, vs, args...) = remaputilityfun(utilityfun, base(s), vs, args...)
+function remaputilityfun(utilityfun, ::AbstractJuMPΔSizeStrategy, vs, floorval=1e-2, ceilval=1e5)
+    cache = Dict{eltype(vs), Any}(v => utilityfun(v) for v in vs)
+
+    # For any problem which one thinks can be solved by writing code one will always generate new problems
+    # Learn to keep the number of moving parts in a codebase to a minimum or spend an eternity writing 
+    # code like this
+    !any(vs) do v
+        issizemutable(v) || return false
+        any(>(0), cache[v])
+    end && return v -> cache[v]
+
+    # We would prefer the range of the utility values to stay well within typical solver tolerances
+    # Not sure how to do this correctly. Some papers point towards scaling the cost/constraint matrix, 
+    # but it does not seem to be availble from JuMP
+
+    # What this ad-hoc-y algorithm tries to do is to check if the magnitudes are within bounds [floorval, ceilval]
+    # If they are not, it tries to adjust them to be so by uniform scaling.
+    # The scaling is limited so that it never pushes something out of bounds.
+    # If magnitudes outside both bounds exist (i.e both too large and too small values exist) it does not do anything. 
+    # TODO: Use quantiles to not let outliers prevent scaling? Some optimization criterion for maximizing the fraction of values within bounds? 
+
+    # Don't let 0s affect the result or else all those SizeTransparent vertices is going to push us to max scaling all the time.
+    minval, maxval = extrema(abs, Iterators.filter(!=(0), Iterators.flatten(val for (v, val) in cache if issizemutable(v))))
+    lb = max(minval, floorval)
+    ub = min(maxval, ceilval)
+    maxscaledown = lb / floorval
+    scaledown = min(maxscaledown, maxval / ub)
+    maxscaleup = ceilval / ub
+    scaleup = min(maxscaleup, lb / minval)
+
+    scal = scaledown > scaleup ? 1 / scaledown : scaleup
+
+    for (v, val) in cache
+        if issizemutable(v)
+            cache[v] = val .* scal
+        end
+    end
+    return v -> cache[v]
+end
+
+createselectvars!(case, s::DecoratingJuMPΔSizeStrategy, vs, data) = createselectvars!(case ,base(s), vs, data)
+function createselectvars!(case, ::AbstractJuMPΔSizeStrategy, vs, data)  
+    model = data.model
+    utilityfun = data.utilityfun
+    # We use the lenght of utilityfun as the number of outputs to select as we will use it to add utility to each variable,
+    # so their lenghts must not mismatch
+    # They might mismatch when there are parameters attached to some size transparent vertex (e.g BatchNorm or even
+    # concatenation with some computed activation utility metric) and we are in the process of aligning sizes after 
+    # adding/removing an edge.
+    # Forcing the user to provide a length of utilityfun matching nout(v) in this case is not really fair as it is we who 
+    # caused the mismatch.
+    # TODO: The indicies alignment below will not be ideal in this case. Perhaps it can be mitigated with some strategy 
+    # providing information on how the edges have changed so that we can better align what hasn't changed.
+    selectsizes = map(vs) do v
+        outvals = utilityfun(v)
+        return outvals isa Number ? nout(v) : length(outvals)
+    end
+
+    outselectvars = Dict(v => @variable(model, [1:nvals], Bin) for (v,nvals) in zip(vs, selectsizes))
+    outinsertvars = Dict(v => @variable(model, [1:nout(v)], Int, lower_bound=0) for v in vs)
+
+    # This is the same variable name as used when adjusting size only. It allows us to delegate alot of size changing strategies to ScalarSize. 
+    # Drawback is that it will yield a fair bit of back and forth so maybe it is too clever for its own good
+    noutdict = Dict(v => @expression(model, sum(outselectvars[v]) + sum(outinsertvars[v])) for v in vs)
+
+    return outselectvars, outinsertvars, noutdict
 end
 
 selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vs, utilityfun) = selectmodel(case, base(s), vs, utilityfun) 
@@ -444,14 +500,20 @@ function objective!(::NeuronIndices, s::AbstractJuMPΔSizeStrategy, vertices, da
     # Or else the problem becomes infeasible
     isempty(vertices) && return @expression(data.model, 0)
     
-    scale = map(v -> max(0, maximum(data.utilityfun(v))), vertices)
+    scale = map(v -> maximum(abs, data.utilityfun(v)), vertices)
     noutvars = map(v -> data.noutdict[v], vertices)
-    sizetargets = map(v -> max(1, nout(v) - count(<(0), data.utilityfun(v))), vertices)
+    sizetargets = map(v -> sizetarget(data.utilityfun, v), vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), data.model, @expression(data.model, objective[i=1:length(noutvars)], scale[i] * (noutvars[i] - sizetargets[i])), sizetargets)
 end
 
+function sizetarget(utilityfun, v)
+    util = utilityfun(v)
+    # Negative scalar utility is probably never useful, but lets make it consistent with an all negative array
+    util isa Number && return util < 0 ? 1 : nout(v)
+    return max(1, nout(v) - count(<(0), util))
+end
 
 function selectobjective!(case::NeuronIndices, s::AbstractJuMPΔSizeStrategy, v, data)
     utility = utilityobjective!(case, s, v, data)

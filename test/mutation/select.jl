@@ -72,6 +72,176 @@ import JuMP
         @test join_extracted_inds([1,2,3,4,8], [0,1,2]) == [1, 2, -1, 3, -1, -1, 4, 8]
     end
 
+    @testset "Wrap and scale utility function" begin
+        using NaiveNASlib: remaputilityfun
+        inpt = iv(8)
+        v1 = av(inpt, 9, "v1")
+        v2 = av(v1, 7, "v2")
+        v3 = av(v2, 8, "v3")
+
+        @testset "Empty valid set" begin
+            remapped = remaputilityfun(v -> 1e8, DefaultJuMPΔSizeStrategy(), [inpt], 1e-2 ,1e5)
+            @test remapped(inpt) == 1e8
+        end
+
+        @testset "All zero" begin
+            remapped = remaputilityfun(v -> 0, DefaultJuMPΔSizeStrategy(), [inpt, v1], 1e-2 ,1e5)
+            @test remapped(inpt) == 0
+            @test remapped(v1) == 0
+        end
+
+        @testset "No scaling" begin
+            remapped = remaputilityfun(v -> v == v2 ? 0.0 : ones(nout(v)), DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) 
+        
+            @test remapped(inpt) == ones(nout(inpt))
+            @test remapped(v1) == ones(nout(v1))
+            @test remapped(v2) == 0.0
+            @test remapped(v3) == ones(nout(v3))
+        end
+
+        @testset "Scale up" begin
+            remapped = remaputilityfun(v -> 2.0 .^ -(1:nout(v)), DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) 
+
+            @test remapped(inpt) == 2.0 .^ -(1:nout(inpt))
+            @test remapped(v1) == [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04, 0.02, 0.01]
+            @test remapped(v2) == [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04]
+            @test remapped(v3) == [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04, 0.02]
+        end
+        @testset "Scale down" begin
+            remapped = remaputilityfun(v -> 10.0 .^ (1:nout(v)), DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) 
+
+            @test remapped(inpt) == 10.0 .^ (1:nout(inpt))
+            @test remapped(v1) == [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1.0e6] 
+            @test remapped(v2) == [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0] 
+            @test remapped(v3) == [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0] 
+        end
+
+        @testset "Saturate upper" begin
+            # We want to scale up alot, but we hit the upper bound
+            remapped = remaputilityfun(DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) do v
+                v == inpt && return fill(100, nout(v))
+                v == v1 && return 10.0 .^-(1:nout(v))
+                v == v2 && return (1:nout(v)) .*  1e-3
+                v == v3 && return fill(10, nout(v))
+            end
+
+            @test remapped(inpt) == fill(100, nout(inpt))
+            @test remapped(v1) == 10.0 .^ (3:-1:-5)
+            @test remapped(v2) == 10.0:10.0:70.0
+            @test remapped(v3) == fill(1e5, nout(v3))
+        end
+
+        @testset "Saturate lower" begin
+            # We want to scale down alot, but we hit the upper bound
+            remapped = remaputilityfun(DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) do v
+                v == inpt && return fill(100, nout(v))
+                v == v1 && return 10.0 .^(1:nout(v))
+                v == v2 && return 1:nout(v)
+                v == v3 && return fill(10, nout(v))
+            end
+
+            @test remapped(inpt) == fill(100, nout(inpt))
+            @test remapped(v1) == [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1.0e6, 1.0e7] 
+            @test remapped(v2) == 0.01:0.01:0.07
+            @test remapped(v3) == fill(0.1, nout(v3))
+        end
+
+        @testset "Saturate both" begin
+            # We want to scale both up and down but we hit both the upper and lower bound
+            remapped = remaputilityfun(DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) do v
+                v == inpt && return 13
+                v == v1 && return 1e6
+                v == v2 && return 1e-3
+                v == v3 && return fill(10, nout(v))
+            end       
+
+            @test remapped(inpt) == 13
+            @test remapped(v1) == 1e6
+            @test remapped(v2) == 1e-3
+            @test remapped(v3) == fill(10, nout(v3))
+        end
+
+        @testset "Mixed signs" begin
+            remapped = remaputilityfun(DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) do v
+                v == inpt && return 13
+                v == v1 && return 1e3 .* repeat([1, -1], nout(v))
+                v == v2 && return 1e-3 .* repeat([1, -1], nout(v))
+                v == v3 && return fill(10, nout(v))
+            end  
+
+            @test remapped(inpt) == 13
+            @test remapped(v1) == 1e4 .* repeat([1, -1], nout(v1))
+            @test remapped(v2) == 1e-2 .* repeat([1, -1], nout(v2))
+            @test remapped(v3) == fill(100, nout(v3))
+        end
+    end
+
+    @testset "sizeobjective" begin
+
+        using NaiveNASlib: selectmodel, createselectvars!, sizeobjective!
+
+        function solvesize(utilityfun, vs; case = NaiveNASlib.NeuronIndices(), strat= DefaultJuMPΔSizeStrategy())
+            model = selectmodel(case, strat, vs, utilityfun)
+
+            outselectvars, outinsertvars, noutdict = createselectvars!(case, strat, vs, (;model, utilityfun))
+            JuMP.set_upper_bound.(Iterators.flatten(values(outinsertvars)), 20)
+
+            objexpr = sizeobjective!(case, strat, vs, (;model, outselectvars, outinsertvars, noutdict, utilityfun))
+
+            JuMP.@objective(model, Max, objexpr)
+            JuMP.optimize!(model)
+            return noutdict
+        end
+        
+        @testset "all positive utility $label" for (label, utilfun) in (
+            ("scalar", v -> 1.0),
+            ("array", v -> fill(1.0, nout(v))),
+        )
+            inpt = iv(3)
+            v1 = av(inpt, 5, "v1")
+            v2 = av(v1, 6, "v2")
+
+            vs = all_in_graph(inpt)
+            noutdict = solvesize(utilfun, vs)
+
+            @testset "Size of $(name(v))" for v in vs
+                @test JuMP.value(noutdict[v]) == nout(v)
+            end
+        end
+
+        @testset "all negative utility $label" for (label, utilfun) in (
+            ("scalar", v -> -1.0),
+            ("array", v -> fill(-1.0, nout(v))),
+        ) 
+
+            inpt = iv(3)
+            v1 = av(inpt, 5, "v1")
+            v2 = av(v1, 6, "v2")
+
+            vs = all_in_graph(inpt)
+            noutdict = solvesize(utilfun, vs)
+
+            @testset "Size of $(name(v))" for v in vs
+                @test JuMP.value(noutdict[v]) == 1
+            end
+        end
+
+        @testset "Want half size" begin
+            inpt = iv(4)
+            v1 = av(inpt, 6, "v1")
+            v2 = av(v1, 8, "v2")
+
+            vs = all_in_graph(inpt)
+            noutdict = solvesize(vs) do v
+                repeat([1, -1], nout(v) ÷ 2)
+            end
+
+            @testset "Size of $(name(v))" for v in vs
+                @test JuMP.value(noutdict[v]) == nout(v) ÷ 2
+            end
+        end
+    end
+
     @testset "Absorb 2 Absorb" begin
         inpt = iv(3)
         v1 = av(inpt, 5, "v1")
