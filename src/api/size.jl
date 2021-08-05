@@ -49,12 +49,8 @@ a scalar which will be used as utility of all neurons of `vx`. If not provided, 
 Δsize!(utilityfun, s::AbstractΔSizeStrategy) = Δsize!(utilityfun, s, add_participants!(s))
 
 """
-    Δsize!(g::CompGraph)
-    Δsize!(utilityfun, g::CompGraph)
-    Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph)
-    Δsize!(v::AbstractVertex)
-    Δsize!(utilityfun, v::AbstractVertex)
-    Δsize!(utilityfun, s::AbstractΔSizeStrategy, v::AbstractVertex)
+    Δsize!([utilityfun], [s::AbstractΔSizeStrategy], g::CompGraph)
+    Δsize!([utilityfun], [s::AbstractΔSizeStrategy], v::AbstractVertex)
 
 Change size of (potentially) all vertices of graph `g` (or graph to which `v` is connected) according to the provided 
 `AbstractΔSizeStrategy` (default `DefaultJuMPΔSizeStrategy`).
@@ -67,6 +63,13 @@ a scalar which will be used as utility of all neurons of `vx`. If not provided, 
 """
 Δsize!(g::CompGraph) = Δsize!(defaultutility, g::CompGraph)
 Δsize!(utilityfun, g::CompGraph) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), g)
+Δsize!(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(defaultutility, s::AbstractΔSizeStrategy, g::CompGraph)
+Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(utilityfun, s, vertices(g))
+
+Δsize!(v::AbstractVertex) = Δsize!(defaultutility, v::AbstractVertex)
+Δsize!(utilityfun, v::AbstractVertex) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), v)
+Δsize!(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize!(defaultutility, s::AbstractΔSizeStrategy, v::AbstractVertex) 
+Δsize!(utilityfun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize!(utilityfun, s, all_in_graph(v))
 
 
 """

@@ -58,15 +58,6 @@ resolve_utility(::MutationTrait, ::NoDefaultUtility) = 1
 resolve_utility(::SizeTransparent, ::NoDefaultUtility) = 0 # rationale is that utility of other vertices will be tied to this anyways
 resolve_utility(t, val) = val
 
-Δsize!(s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(defaultutility, s::AbstractΔSizeStrategy, g::CompGraph)
-Δsize!(utilityfun, s::AbstractΔSizeStrategy, g::CompGraph) = Δsize!(utilityfun, s, vertices(g))
-
-Δsize!(v::AbstractVertex) = Δsize!(defaultutility, v::AbstractVertex)
-Δsize!(utilityfun, v::AbstractVertex) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), v)
-
-Δsize!(s::AbstractΔSizeStrategy, v::AbstractVertex) =Δsize!(defaultutility, s::AbstractΔSizeStrategy, v::AbstractVertex) 
-Δsize!(utilityfun, s::AbstractΔSizeStrategy, v::AbstractVertex) = Δsize!(utilityfun, s, all_in_graph(v))
-
 Δsize!(::Nothing, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = false
 
 Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(defaultutility, case,s , vs)
