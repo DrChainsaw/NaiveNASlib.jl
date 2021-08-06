@@ -18,6 +18,8 @@ Its only contribution to this world is some help with the sometimes annoyingly c
 ]add NaiveNASlib
 ```
 
+See [documentation](https://DrChainsaw.github.io/NaiveNASlib.jl/stable) for usage instructions.
+
 ## Contributing
 
 All contributions are welcome. Please file an issue before creating a PR.
