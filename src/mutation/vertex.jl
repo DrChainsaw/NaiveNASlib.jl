@@ -2,9 +2,9 @@
 """
     base(v::AbstractVertex)
 
-Return base vertex
+Return the vertex wrapped in `v` (if any).
 """
-function base end
+function base(::AbstractVertex) end
 
 """
     OutputsVertex
@@ -96,7 +96,13 @@ struct SizeAbsorb <: MutationSizeTrait end
 Trait for vertices which are immutable. Typically inputs and outputs as those are fixed to the surroundings (e.g a data set).
 """
 struct Immutable <: MutationTrait end
-trait(v::AbstractVertex) = Immutable()
+
+"""
+    trait(v)
+
+Return the `MutationTrait` for a vertex `v`.
+"""
+trait(::AbstractVertex) = Immutable()
 
 """
     DecoratingTrait <: MutationTrait
@@ -105,9 +111,22 @@ Avbstract trait which wraps another trait. The wrapped trait of a `DecoratingTra
 """
 abstract type DecoratingTrait <: MutationTrait end
 
-struct NamedTrait{T<:MutationTrait, S} <: DecoratingTrait
-    base::T
+"""
+    base(t::DecoratingTrait) 
+
+Return the trait wrapped by `t`.
+"""
+base(t::DecoratingTrait) = t.base # Lets just guess if we end up here :)
+
+"""
+    NamedTrait <: DecoratingTrait
+    NamedTrait(name, base)
+
+Trait which attaches `name` to a vertex. Calling `name(v)` on a vertex with this trait returns `name`.   
+"""
+struct NamedTrait{S, T<:MutationTrait} <: DecoratingTrait
     name::S
+    base::T
 end
 base(t::NamedTrait) = t.base
 
@@ -115,9 +134,9 @@ base(t::NamedTrait) = t.base
 
 function Base.show(io::IO, t::NamedTrait) 
     print(io, "NamedTrait(")
-    show(io, t.base)
-    print(io, ", ")
     show(io, t.name)
+    print(io, ", ")
+    show(io, t.base)
     print(io, ')')
 end
 
@@ -142,8 +161,6 @@ base(t::AfterΔSizeTrait) = t.base
 Vertex which may be subject to mutation.
 
 Scope is mutations which affect the input and output sizes as such changes needs to be propagated to the neighbouring vertices.
-
-The member op describes the type of mutation, e.g if individual inputs/outputs are to be pruned vs just changing the size without selecting any particular inputs/outputs.
 
 The member trait describes the nature of the vertex itself, for example if size changes
 are absorbed (e.g changing an nin x nout matrix to an nin - Δ x nout matrix) or if they

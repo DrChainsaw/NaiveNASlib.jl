@@ -50,6 +50,9 @@ function touchfile(filename, rootdir=nndir, destdir="test/examples")
     write(filepath, "md\"\"\" # A Header \"\"\"")
 end
 
-deploydocs(
-    repo = "github.com/DrChainsaw/NaiveNASlib.jl.git",
-)
+if get(ENV, "CI", nothing) == "true"
+    deploydocs(
+        repo = "github.com/DrChainsaw/NaiveNASlib.jl.git",
+        devbranch="docs"
+    )
+end

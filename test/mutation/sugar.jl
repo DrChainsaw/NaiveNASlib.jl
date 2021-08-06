@@ -14,7 +14,7 @@
         @test nin(v) == [3]
         @test nout(v) == 2
         @test v(1:3) == [22, 28]
-        v = immutablevertex(identity, inputvertex("in", 1); traitdecoration = t -> NamedTrait(t, "v"))
+        v = immutablevertex(identity, inputvertex("in", 1); traitdecoration = named("v"))
         @test name(v) == "v"
     end
 
@@ -23,7 +23,7 @@
         @test nin(v) == [3]
         @test nout(v) == 2
         @test v(1:3) == [22, 28]
-        v = absorbvertex(identity, inputvertex("in", 1), traitdecoration = t -> NamedTrait(t, "v"))
+        v = absorbvertex(identity, inputvertex("in", 1), traitdecoration = named("v"))
         @test name(v) == "v"
     end
 
@@ -32,12 +32,12 @@
         @test nin(v) == [2]
         @test nout(v) == 2
         @test v([1 2]) == [2 4]
-        v = invariantvertex(identity, inputvertex("in", 1); traitdecoration = t -> NamedTrait(t, "v"))
+        v = invariantvertex(identity, inputvertex("in", 1); traitdecoration = named("v"))
         @test name(v) == "v"
     end
 
     @testset "Create stacking" begin
-        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = t -> NamedTrait(t, "v"), outwrap = ScaleByTwo)
+        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = named("v"), outwrap = ScaleByTwo)
         @test nin(v) == [1 ,2]
         @test nout(v) == 3
         @test v(1, [2, 3]) == [2,4,6] # Due to outwrap = ScaleByTwo
@@ -47,7 +47,7 @@
 
     @testset "Create element wise" begin
 
-        conf = traitconf(t -> NamedTrait(t, "v"))
+        conf = traitconf(named("v"))
 
         @testset "Create elemwise addition" begin
             v = conf >> inputvertex("in1", 2) + inputvertex("in2", 2) + inputvertex("in3" ,2)
@@ -153,7 +153,7 @@
     end
 
     @testset "Trait functions" begin
-        @test named("test")(SizeAbsorb()) == NamedTrait(SizeAbsorb(), "test")
+        @test named("test")(SizeAbsorb()) == NamedTrait("test", SizeAbsorb(),)
         @test validated()(SizeAbsorb()) == AfterΔSizeTrait(validateafterΔsize(), SizeAbsorb())
         @test logged()(SizeAbsorb()) == AfterΔSizeTrait(logafterΔsize(), SizeAbsorb())
     end

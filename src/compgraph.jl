@@ -1,5 +1,8 @@
 """
     CompGraph
+    CompGraph(input::AbstractVertex, output::AbstractVertex)
+    CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex)
+    CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex})
 
 Basic graph for computation. While not strictly neccessary to compute anything,
 it makes it easier to keep track of things.

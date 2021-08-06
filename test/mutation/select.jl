@@ -2,7 +2,7 @@ import JuMP
 @testset "Selection" begin
 
     # Helper methods
-    nt(name) = t -> NamedTrait(t, name)
+    nt(name) = named(name)
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
     av(in, outsize, name) = absorbvertex(IndMem(MatMul(nout(in), outsize)), in; traitdecoration=tf(name))

@@ -1,7 +1,7 @@
 @testset "Graph size queries" begin
 
     # Helper methods
-    nt(name) = t -> NamedTrait(t, name)
+    nt(name) = named(name)
     tf(name) = t -> nt(name)(t)
     iv(size, name="in") = inputvertex(name, size)
     tv(in, name) = invariantvertex(identity, in, traitdecoration=tf(name))

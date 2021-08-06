@@ -91,7 +91,7 @@ This is done by adding the argument `traitdecoration` when creating a vertex and
 noname = linearvertex(inputvertex("in", 2), 2)
 @test name(noname) == "MutationVertex::SizeAbsorb"
 # with
-hasname = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait(t, "named layer"))
+hasname = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait("named layer", t))
 @test name(hasname) == "named layer"
 
 # `AfterΔSizeTrait` can be used to attach an `AbstractAfterΔSizeStrategy` to an individual vertex.
@@ -101,7 +101,7 @@ verbose_vertex_info(v) = string(name(v),
                                 "] and outputs=[", join(name.(outputs(v)), ", "), ']')
 named_verbose_logging(t) = AfterΔSizeTrait(
                                         logafterΔsize(verbose_vertex_info),
-                                        NamedTrait(t, "layer1"))
+                                        NamedTrait("layer1", t))
 layer1 = absorbvertex(  LinearLayer(2, 3), 
                         inputvertex("in", 2), 
                         traitdecoration = named_verbose_logging)
@@ -182,7 +182,7 @@ function walk(f, v::MutationVertex)
     name = v == layer1 ? "layer1" : "layer2"
     addname(x) = x
     ## SizeAbsorb has no fields, otherwise we would have had to use walk to wrap it
-    addname(t::SizeAbsorb) = NamedTrait(t, name)
+    addname(t::SizeAbsorb) = NamedTrait(name, t)
     Functors._default_walk(v) do x
         fmap(addname, x; walk)
     end

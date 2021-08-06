@@ -71,13 +71,13 @@
 
         @testset "NamedTrait" begin
             using NaiveNASlib: MutationVertex
-            v1 = MutationVertex(CompVertex(identity, InputSizeVertex("input1", 3)), NamedTrait(SizeInvariant(), "mv"))
+            v1 = MutationVertex(CompVertex(identity, InputSizeVertex("input1", 3)), NamedTrait("mv", SizeInvariant()))
 
             @test showstr(show_less, v1) == "mv"
 
-            v2 = MutationVertex(CompVertex(+, v1, InputSizeVertex("input2", 3)), NamedTrait(SizeInvariant(), "sv"))
+            v2 = MutationVertex(CompVertex(+, v1, InputSizeVertex("input2", 3)), NamedTrait("sv",SizeInvariant()))
 
-            @test showstr(show, v2) == "MutationVertex(CompVertex(+, inputs=[mv, input2], outputs=[]), NamedTrait(SizeInvariant(), \"sv\"))"
+            @test showstr(show, v2) == "MutationVertex(CompVertex(+, inputs=[mv, input2], outputs=[]), NamedTrait(\"sv\", SizeInvariant()))"
         end
     end
 end

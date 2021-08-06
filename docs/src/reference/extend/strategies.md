@@ -20,6 +20,10 @@ DecoratingJuMPΔSizeStrategy
 ```
 
 ```@docs
+base(::DecoratingJuMPΔSizeStrategy)
+```
+
+```@docs
 AbstractAfterΔSizeStrategy
 ```
 ```@docs

@@ -2,7 +2,7 @@ import JuMP
 @testset "Structure tests" begin
 
     #Helper functions
-    nt(name) = t -> NamedTrait(t, name)
+    nt(name) = named(name)
     tf(name) = t -> nt(name)(t)
     inpt(size, id="in") = inputvertex(id, size)
     av(in, outsize; name="av", comp = IndMem(MatMul(nout(in), outsize))) = absorbvertex(comp, in; traitdecoration = tf(name))

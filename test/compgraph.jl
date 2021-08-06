@@ -156,8 +156,8 @@
 
     @testset "Graph rename" begin
         v0 = inputvertex("in", 3)
-        v1 = absorbvertex(+, v0, traitdecoration = t -> NamedTrait(t, "v1"))
-        v2 = conc(v0, v1, dims=1, traitdecoration = t -> NamedTrait(t, "v2"))
+        v1 = absorbvertex(+, v0, traitdecoration = named("v1"))
+        v2 = conc(v0, v1, dims=1, traitdecoration = named("v2"))
         graph = CompGraph(v0, v2)
 
         rename(x) = x

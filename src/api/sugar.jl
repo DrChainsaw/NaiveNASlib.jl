@@ -40,6 +40,8 @@ vertex(trait::MutationTrait, computation, inputs::AbstractVertex...) = MutationV
 
 Return an immutable computation type vertex.
 
+Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
+
 # Examples
 ```julia-repl
 julia> using NaiveNASlib
@@ -60,6 +62,8 @@ immutablevertex(args...; traitdecoration=identity) = vertex(traitdecoration(Immu
 Return a mutable computation type vertex which absorbs size changes. Typical example of this is a neural network layer
 wrapping a parameter array.
 
+Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
+
 # Examples
 ```julia-repl
 julia> using NaiveNASlib
@@ -78,6 +82,8 @@ absorbvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeAbs
     invariantvertex(computation, input; traitdecoration=identity)
 
 Return a mutable computation type vertex which is size invariant, i.e `nin == nout`.
+
+Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
 
 # Examples
 ```julia-repl
@@ -103,6 +109,11 @@ invariantvertex(args...; traitdecoration=identity) = vertex(traitdecoration(Size
     conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
 
 Return a mutable vertex which concatenates input along dimension `dim`.
+
+Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
+
+Use `outwrap=f` to wrap the concatenation function in `f`.
+
 # Examples
 ```julia-repl
 julia> using NaiveNASlib
@@ -126,6 +137,17 @@ julia> v([1], [2, 3], [4, 5, 6])
  4
  5
  6
+
+julia> v = conc(inputvertex.(["in1", "in2", "in3"], 1:3)..., dims=1, outwrap = f -> (x...) -> 2f(x...));
+ 
+julia> vv([1], [2, 3], [4, 5, 6])
+6-element Vector{Int64}:
+  2
+  4
+  6
+  8
+ 10
+ 12
 ```
 """
 conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity) = vertex(traitdecoration(SizeStack()), outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
@@ -139,7 +161,8 @@ conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, o
 Config struct to be used with element wise op syntax (`+`, `-`, `*`, `/`).
 
 `traitdecoration` allows for decorating the vertex trait with stuff like logging, validation etc.
-`outwrap` is a function which returns a function which will be applied to the computed output. For example, the following `outwrap` scales output by a factor of 2: `outwrap = f ->  (x...) -> 2f((x...)`
+`outwrap` is a function which returns a function which will be applied to the computed output. 
+For example, the following `outwrap` scales output by a factor of 2: `outwrap = f ->  (x...) -> 2f((x...)`
 """
 struct VertexConf{TD, OW}
     traitdecoration::TD
@@ -165,7 +188,7 @@ Return inputs as a tuple. Only used to enable the `conf >> v1 op v2 ...` syntax.
 
 """
 Base.:>>(conf::VertexConf, v::AbstractVertex) = (conf, v)
-Base.:>>(name::AbstractString, v::AbstractVertex) = traitconf(t -> NamedTrait(t, name)) >> v
+Base.:>>(name::AbstractString, v::AbstractVertex) = traitconf(named(name)) >> v
 Base.:>>(outwrap::Function, v::AbstractVertex) = outwrapconf(outwrap) >> v
 
 """
@@ -363,8 +386,29 @@ Base.:/((conf, v1)::Tuple{VertexConf, <:AbstractVertex}, v2::AbstractVertex) = e
 Base.:/(v1::AbstractVertex, v2::AbstractVertex) = /(VertexConf() >> v1, v2)
 
 
-# Decorate trait with extra stuff like logging of size changes or validation.
-# Meant to be composable, e.g. using ∘
-named(name) = t -> NamedTrait(t, name)
+"""
+    named(name)
+
+Return a function `t -> NamedTrait(name, t)` intended to reduce a bit of the verbosity when using `traitdecoration`.
+
+Intended to be composable with other similar functions through ∘.
+"""
+named(name) = t -> NamedTrait(name, t)
+
+"""
+    validated(args...;kwargs...)
+
+Return a function `t -> AfterΔSizeTrait(validateafterΔsize(args...;kwargs...), t)` indended to reduce a bit of the verbosity when using `traitdecoration`.
+
+Intended to be composable with other similar functions through ∘.
+"""
 validated(args...;kwargs...) = t -> AfterΔSizeTrait(validateafterΔsize(args...;kwargs...), t)
+
+"""
+    logged(args...;kwargs...)
+
+Return a function `t -> AfterΔSizeTrait(logafterΔsize(args...;kwargs...)` indended to reduce a bit of the verbosity when using `traitdecoration`.
+
+Intended to be composable with other similar functions through ∘.
+"""
 logged(args...;kwargs...) = t -> AfterΔSizeTrait(logafterΔsize(args...;kwargs...), t)

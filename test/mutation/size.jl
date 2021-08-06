@@ -30,7 +30,7 @@ end
 @testset "Size mutations" begin
 
     inpt(size, id="in") = inputvertex(id, size)
-    nt(name) = t -> NamedTrait(t, name)
+    nt(name) = named(name)
     tf(name) = t -> nt(name)(AfterΔSizeTrait(validateafterΔsize(base=ΔSizeFailNoOp()), t))
     cc(in...; name="cc") = conc(in..., dims=1, traitdecoration = tf(name))
     ea(ins...; name="ea") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
@@ -749,7 +749,7 @@ end
         end
 
         @testset "With trait" begin
-            traitfun(name) = t -> AfterΔSizeTrait(logafterΔsize(;level=Logging.Info), NamedTrait(t, name))
+            traitfun(name) = t -> AfterΔSizeTrait(logafterΔsize(;level=Logging.Info), NamedTrait(name, t))
             avlogged(in, size ;name = "av") = absorbvertex(SizeDummy(nout(in), size), in; traitdecoration=traitfun(name))
 
             v1 = inpt(3, "v1")

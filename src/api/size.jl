@@ -53,7 +53,7 @@ function nin end
     Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     Δsize!(utilityfun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
 
-Change size of (potentially) all vertices in `vs` according to the provided `AbstractΔSizeStrategy` (default `DefaultJuMPΔSizeStrategy`).
+Change size of (potentially) all vertices in `vs` according to the provided [`AbstractΔSizeStrategy`](@ref) (default [`DefaultJuMPΔSizeStrategy`](@ref)).
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
 `utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
@@ -110,11 +110,11 @@ so that the graph is aligned w.r.t activations. Return `true` if successful (`fa
 
 For `Δ`s provided as integers it must be possible to change the size by exactly `Δ` or else the attempt will be considered failed.
 A failed attempt will be retried immediately in relaxed form where the wanted size changes are moved to the objective.
-The relaxation means that input size might not change by exactly `Δ`. Use `relaxed(Δ)` to indicate that a size change is 
+The relaxation means that input size might not change by exactly `Δ`. Use [`relaxed`](@ref)`(Δ)` to indicate that a size change is 
 relaxed in the initial attempt. 
 
 For vertices with more than one input, the size change must be expressed as a tuple with one element per input. 
-Use `missing` to indicate that no special treatment is needed for an input. Both `missing` and `relaxed` can be
+Use `missing` to indicate that no special treatment is needed for an input. Both `missing` and [`relaxed`](@ref) can be
 mixed freely inside and outside the tuples (see examples).
 
 Note that the above constrain makes `Δnin!` much more cumbersome to use compared to [`Δnout!`](@ref) and in most cases
@@ -122,7 +122,7 @@ there are no direct advantages of using `Δnin!` over `Δnout!` as they both boi
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
 `utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, `defaultutility(vx)` will be used.
+a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility`](@ref)`(vx)` will be used.
 
 Note that `Δnin!([utilityfun], args...)` is equivalent to  `Δsize!([utilityfun], ΔNin(args...))`.
 
@@ -146,12 +146,12 @@ so that the graph is aligned w.r.t activations. Return `true` if successful (`fa
     
 For `Δ`s provided as integers it must be possible to change the size by exactly `Δ` or else the attempt will be considered failed.
 A failed attempt will be retried immediately in relaxed form where the wanted size changes are moved to the objective.
-The relaxation means that output size might not change by exactly `Δ`. Use `relaxed(Δ)` to indicate that a size change is 
+The relaxation means that output size might not change by exactly `Δ`. Use [`relaxed`](@ref)`(Δ)` to indicate that a size change is 
 relaxed in the initial attempt. 
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
 `utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, `defaultutility(vx)` will be used.
+a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility`](@ref)`(vx)` will be used.
 
 Note that `Δnout!([utilityfun], args...)` is equivalent to `Δsize!([utilityfun], ΔNout(args...))`.
 

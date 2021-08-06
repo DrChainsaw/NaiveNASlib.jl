@@ -31,6 +31,13 @@ More concretely: If `s` is a `DecoratingJuMPΔSizeStrategy` then `base(s)` will 
 abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
 """
+    base(s::DecoratingJuMPΔSizeStrategy)
+
+Return the strategy wrapped by `s`.
+"""
+base(s::DecoratingJuMPΔSizeStrategy) = s.base # Just make a wild guess rather than throwing an error
+
+"""
     ΔSizeFailError <: Exception
 
 Size change could not be solved.
