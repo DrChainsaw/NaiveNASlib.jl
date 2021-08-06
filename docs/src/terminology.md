@@ -22,14 +22,14 @@ what is the proper way to deal with the neighboring vertices when mutating a ver
 
 This is done through labeling vertices into three major types:
 * `SizeAbsorb`: Assumes `nout(v)` and `nin(v)` may change independently. This means that size changes are absorbed by this
- vertex in the sense they don't propagate further. Most typical neural network layers with parameter arrays fall into this
- category.
+    vertex in the sense they don't propagate further. Most typical neural network layers with parameter arrays fall into this
+    category.
 
 * `SizeStack`: Assumes `nout(v) == sum(nin(v))`. This means that size changes propagate forwards (i.e. input -> output and
- output -> input). The main operation in this category is concatenation of activations. 
+    output -> input). The main operation in this category is concatenation of activations. 
 
 * `SizeInvariant`: Assumes `[nout(v)] == unique(nin(v))`. This means that size changes propagate both forwards and backwards
- as changing any input size or the output size means all others must change as well. In this category we find typically find
+    as changing any input size or the output size means all others must change as well. In this category we find typically find
   element wise operations, but also normalization and pooling operations tend to fall into this category. 
 
 NaiveNASlib also uses the term `SizeTransparent` to denote the latter two (i.e any vertex which is not `SizeAbsorb`).
@@ -52,7 +52,7 @@ if one vertex `v` takes a vector of size `N` as input and returns a vector of si
 and `M` output neurons. This is synonymous with saying that `v` has input size `N` and output size `M` and `nin(v) == N` and
 `nout(v) == M`.
 
-When changing input or output size, `v` will be given an indices of the neurons to keep as well as
+When changing input or output size `v` will be given indices of the neurons to keep as well as
 where to insert new neurons. NaiveNASlib has then made sure that other vertices have gotten indices so that all remaining 
 neurons stay connected to the same neurons they were connected to previously. See [Closer look at how weights are modified](@ref)
 for a concrete example.
