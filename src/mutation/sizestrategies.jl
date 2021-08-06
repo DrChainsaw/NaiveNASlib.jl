@@ -4,6 +4,8 @@
     AbstractΔSizeStrategy
 
 Abstract base type for strategies for how to change the size.
+
+See [`Δsize!`](@ref).
 """
 abstract type AbstractΔSizeStrategy end
 
@@ -24,9 +26,9 @@ abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
 """
     DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
 
-Abstract type for AbstractJuMPΔSizeStrategies which wants to delegate some parts of the problem formulation to another strategy.
+Abstract type for [`AbstractJuMPΔSizeStrategies`](@ref AbstractJuMPΔSizeStrategy) which wants to delegate some parts of the problem formulation to another strategy.
 
-More concretely: If `s` is a `DecoratingJuMPΔSizeStrategy` then `base(s)` will be used unless explicitly stated through dispatch.
+More concretely: If `s` is a [`DecoratingJuMPΔSizeStrategy`](@ref) then [`base`](@ref)`(s)` will be used unless explicitly stated through dispatch.
 """
 abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
@@ -51,7 +53,7 @@ Base.showerror(io::IO, e::ΔSizeFailError) = print(io, "ΔSizeFailError: ", e.ms
     ThrowΔSizeFailError <: AbstractJuMPΔSizeStrategy
     ThrowΔSizeFailError(msg::String)
 
-Throws an `ErrorException` with message `msg`.
+Throws an `ΔSizeFailError` with message `msg`.
 """
 struct ThrowΔSizeFailError{F} <: AbstractJuMPΔSizeStrategy
     msgfun::F
@@ -77,7 +79,7 @@ add_participants!(::ΔSizeFailNoOp, vs=AbstractVertex[]) = vs
     LogΔSizeExec(msgfun, level::Logging.LogLevel)
     LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrategy)
 
-Logs `msgfun(v)` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen` for vertex `v`.
+Logs `msgfun(v)` at log level `level`, then executes [`AbstractJuMPΔSizeStrategy`](@ref) `andthen` for vertex `v`.
 """
 struct LogΔSizeExec{F, S} <: DecoratingJuMPΔSizeStrategy
     msgfun::F
@@ -217,7 +219,7 @@ $(generic_Δnout_docstring_examples(args -> "ΔNout{Exact}($args; fallback=Throw
 """
     ΔNoutExact(args...; fallback)
 
-Return a ΔNout{Exact} with `fallback` set to give a warning and then try again with `ΔNoutRelaxed(args...)`.
+Return a ΔNout{Exact} with `fallback` set to give a warning and then try again with [`ΔNoutRelaxed`](@ref)`(args...)`.
 
 Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pair`s or a generator).
 
@@ -228,7 +230,7 @@ $(generic_Δnout_docstring_examples("ΔNoutExact"))
 """
     ΔNoutRelaxed(args...;fallback)
 
-Return a ΔNout{Relaxed} with `fallback` set to `ThrowΔSizeFailError`.
+Return a ΔNout{Relaxed} with `fallback` set to [`ThrowΔSizeFailError`](@ref).
 
 Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pair`s or a generator).
 
@@ -260,7 +262,7 @@ Use `missing` to indicate that no special treatment is needed for an input.
 
 Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pair`s or a generator).
 
-By default, `fallback` is set to give a warning and then try again with `ΔNinRelaxed(args...)`.
+By default, `fallback` is set to give a warning and then try again with [`ΔNinRelaxed`](@ref)`(args...)`.
 
 $(generic_Δnin_docstring_examples("ΔNinExact"))
 """
@@ -269,7 +271,7 @@ $(generic_Δnin_docstring_examples("ΔNinExact"))
 """
     ΔNinRelaxed(args...; fallback)
 
-Same as [`ΔNinExact`](@ref) except `Exact` is replaced by `Relaxed` and `fallback` set to `ThrowΔSizeFailError` by default.
+Same as [`ΔNinExact`](@ref) except `Exact` is replaced by `Relaxed` and `fallback` set to [`ThrowΔSizeFailError`](@ref) by default.
 
 $(generic_Δnin_docstring_examples("ΔNinRelaxed"))
 """
@@ -386,7 +388,7 @@ Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
 
 Generally useful when doing structural changes such are removing/adding vertices or edges.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ThrowΔSizeFailError`).
+If it fails, the operation will be retried with the `fallback` strategy (default [`ThrowΔSizeFailError`](@ref)).
 """
 struct AlignNinToNout{S, F} <: DecoratingJuMPΔSizeStrategy
     nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
@@ -409,11 +411,12 @@ end
     AlignNinToNoutVertices(vin::V1, vout::V2, inds; vstrat::S=AlignNinToNout(), fallback::F=ThrowΔSizeFailError())
     AlignNinToNoutVertices(vin::V1, vout::V2, inds, vstrat::S, fallback::F)
 
-Same as [`AlignNinToNout`](@ref) with an additional constraint that `nin(s.vin)[s.ininds] == nout(s.vout)` where `s` is a `AlignNinToNoutVertices`.
+Same as [`AlignNinToNout`](@ref) with an additional constraint that [`nin`](@ref)`(s.vin)[s.ininds] ==` [`nout`](@ref)`(s.vout)` 
+where `s` is a [`AlignNinToNoutVertices`](@ref).
 
 Useful in the context of adding edges to vertices to align sizes before the edge has been added.
 
-If it fails, the operation will be retried with the `fallback` strategy (default `ThrowΔSizeFailError`).
+If it fails, the operation will be retried with the `fallback` strategy (default [`ThrowΔSizeFailError`](@ref)).
 """
 struct AlignNinToNoutVertices{V1,V2,S,F} <: DecoratingJuMPΔSizeStrategy
     vin::V1
@@ -442,17 +445,17 @@ failtoalign(vin, vout) = ThrowΔSizeFailError(vs -> string("Could not align nout
     TruncateInIndsToValid(s::S)
 
 Ensures that all selected input indices are within range of existing input indices after applying `s` 
-(default `DefaultJuMPΔSizeStrategy`).
+(default [`DefaultJuMPΔSizeStrategy`](@ref)).
 
 Not needed in normal cases, but certain structural mutations (e.g create_edge!) may cause this to happen 
 due to how constraints are (not) created when original sizes do not align in conjunction with how result of 
 selection is interpreted.
 
 An example of when it is needed is when adding an edge from vertex `vi` to an invariant vertex `vo` where 
-`nout(vi) > nout(vo)`.In this case it is expected that the result of the optimization is that the indices 
-`1:nout(vi)` of `vi` shall be kept. However, this will propagate to `vo` which will be instructed to keep 
-indices it does not have. With this strategy, all indices which are larger than `nout(vo)` will be replaced
-by `-1` (which indicates that new parameters shall be created) 
+[`nout`](@ref)`(vi) >` [`nout`](@ref)`(vo)`.In this case it is expected that the result of the optimization
+is that the indices `1:nout(vi)` of `vi` shall be kept. However, this will propagate to `vo` which will be 
+instructed to keep indices it does not have. With this strategy, all indices which are larger than `nout(vo)`
+will be replaced by `-1` (which indicates that new parameters shall be created) 
 
 While this may be considered a flaw in the output selection procedure, it is rare enough so that in most cases 
 when it happens it is the result of a user error or lower level bug. Therefore this strategy is left optional 
@@ -514,7 +517,7 @@ fallback(s::AfterΔSizeCallback) = fallback(base(s))
 """
     logafterΔsize(printfun=nameorrepr;level=Logging.Info, base=DefaultJuMPΔSizeStrategy()) 
 
-Return an [`AfterΔSizeCallback`] configured to log size changes with log level `level`.
+Return an [`AfterΔSizeCallback`](@ref) configured to log size changes with log level `level`.
 
 For a given vertex `v`, `printfun(v)` will be used in the logged string.
 
@@ -533,7 +536,8 @@ end
 """
     validateafterΔsize(printfun=nameorrepr; base=DefaultJuMPΔSizeStrategy())
 
-Return an [`AfterΔSizeCallback`] configured to validate that sizes (nin and nout) are consistent after a size change and throw a `ΔSizeFailError` if validation fails.
+Return an [`AfterΔSizeCallback`](@ref) configured to validate that sizes (nin and nout) are consistent
+after a size change and throw a `ΔSizeFailError` if validation fails.
 
 For a given vertex `v`, `printfun(v)` will be used in the error message should the size validation fail.
 

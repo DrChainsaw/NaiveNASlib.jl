@@ -5,6 +5,10 @@ Imported to namespace by
 using NaiveNASlib.Extend
 ```
 
+
+```@docs
+Δsize!(::Any, ::AbstractVector, ::AbstractVector)
+```
 ```@docs
 parselect
 ```
@@ -14,3 +18,4 @@ vertex
 ```@docs
 NaiveNASlib.compconstraint!
 ```
+

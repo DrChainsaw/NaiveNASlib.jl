@@ -15,11 +15,11 @@ md"""
 
 For more or less all operations which mutate the graph, it is possible achieve fine grained control of the operation through selecting a strategy.
 
-Here is an example of strategies for changing the size:
+Here is an example of strategies for changing the size. 
 """
 
 @testset "Strategies" begin #hide
-# A simple graph where one vertex has a constraint for changing the size.
+# First we make a simple graph where one vertex has a constraint for changing the size.
 invertex = inputvertex("in", 3)
 layer1 = linearvertex(invertex, 4)
 # `joined` can only change in steps of 2.
@@ -28,7 +28,7 @@ joined = conc(scalarmult(layer1, 2), scalarmult(layer1, 3), dims=1)
 # Strategy to try to change it by one and throw an error when not successful.
 exact_or_fail = ΔNoutExact(joined => 1; fallback=ThrowΔSizeFailError("Size change failed!!"))
 
-# Note that we now call `Δsize!` instead of `Δnout!` as the wanted action is given by the strategy.
+# Note that we now call [`Δsize!`](@ref) instead of [`Δnout!`](@ref) as the wanted action is given by the strategy.
 @test_throws NaiveNASlib.ΔSizeFailError Δsize!(exact_or_fail)
 @test nout(joined) == 2*nout(layer1) == 8 # No change was made.
 

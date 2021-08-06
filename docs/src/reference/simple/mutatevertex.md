@@ -9,7 +9,13 @@
 ```
 
 ```@docs
-Δsize!
+Δsize!(::AbstractΔSizeStrategy)
+Δsize!(::CompGraph)
+Δsize!(::AbstractVector{<:AbstractVertex}) 
+```
+
+```@docs
+relaxed
 ```
 
 ```@docs

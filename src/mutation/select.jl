@@ -139,6 +139,16 @@ end
 
 Δsize!(case::NeuronIndices, s::OnlyFor, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector) = Δsize!(case, s, base(v), ins, outs)
 Δsize!(::NeuronIndices, ::OnlyFor, v::CompVertex, ins::AbstractVector, outs::AbstractVector) = Δsize!(v.computation, ins, outs)
+
+"""
+    Δsize!(f::F, ins::AbstractVector, outs::AbstractVector) 
+
+Apply the changes to `f` so that input neurons in `ins` and output neurons in `outs` are selected and/or inserted.
+
+Shall be implemented for any type `F` which holds parameters for which the shape shall be modified by NaiveNASlib.
+
+Tip: the function [`parselect`](@ref) can be used to change parameter arrays according to `ins` and `outs`.
+"""
 function Δsize!(f, ins::AbstractVector, outs::AbstractVector) end
 
 function Δsize!(::NeuronIndices, ::OnlyFor, v::InputSizeVertex, ins::AbstractVector, outs::AbstractVector) 
@@ -153,7 +163,7 @@ end
 """
     parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = zeros) where {T, N}
 
-Return a new `AbstractArray{T, N}` which has a subset of the elements of `pars`.
+Return a new array of same type as `pars` which has a subset of the elements of `pars`.
 
 Which elements to select is determined by `elements_per_dim` which is a `Pair{Int, Vector{Int}}` mapping dimension (first memeber) to which elements to select in that dimension (second memeber).
 

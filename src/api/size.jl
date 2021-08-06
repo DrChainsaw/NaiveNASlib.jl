@@ -81,7 +81,7 @@ a scalar which will be used as utility of all neurons of `vx`. If not provided, 
     Δsize!([utilityfun], [s::AbstractΔSizeStrategy], v::AbstractVertex)
 
 Change size of (potentially) all vertices of graph `g` (or graph to which `v` is connected) according to the provided 
-`AbstractΔSizeStrategy` (default `DefaultJuMPΔSizeStrategy`).
+[`AbstractΔSizeStrategy`](@ref) (default [`DefaultJuMPΔSizeStrategy`](@ref)).
 
 Return true of operation was successful, false otherwise.
 

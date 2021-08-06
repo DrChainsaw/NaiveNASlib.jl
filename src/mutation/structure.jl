@@ -11,7 +11,7 @@ struct ConnectNone <: AbstractConnectStrategy end
 """
     AbstractAlignSizeStrategy
 
-Base type for strategies for how to align size (`nin`/`nout`) when doing structural mutation.
+Base type for strategies for how to align size ([`nin`](@ref)/[`nout`](@ref)) when doing structural mutation.
 
 Note that all strategies are not guaranteed to work in all cases.
 
@@ -31,7 +31,7 @@ struct NoSizeChange <: AbstractAlignSizeStrategy end
     ChangeNinOfOutputs <: AbstractAlignSizeStrategy
     ChangeNinOfOutputs(Δoutsize)
 
-Just sets `nin` of each output to the provided utility. Sometimes you just know the answer...
+Just sets [`nin`](@ref) of each output to the provided utility. Sometimes you just know the answer...
 """
 struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
     Δoutsize::Int
@@ -62,7 +62,7 @@ Base.showerror(io::IO, e::SizeAlignFailError) = print(io, "SizeAlignFailError: "
     FailAlignSizeError <: AbstractAlignSizeStrategy
     FailAlignSizeError()
 
-Throws SizeAlignFailError.
+Throws `SizeAlignFailError`.
 """
 struct FailAlignSizeError <: AbstractAlignSizeStrategy end
 
@@ -85,7 +85,7 @@ FailAlignSizeWarn(;andthen=FailAlignSizeNoOp(), msgfun=(vin,vout) -> "Could not 
     AlignSizeBoth(fallback)
 
 Align sizes by changing both input and output.
-Fallback to another strategy (default `FailAlignSizeError`) if size change is not possible.
+Fallback to another strategy (default [`FailAlignSizeError`](@ref)) if size change is not possible.
 """
 struct AlignSizeBoth{S, F} <: AbstractAlignSizeStrategy
     fallback::S
@@ -99,7 +99,7 @@ AlignSizeBoth(;fallback=FailAlignSizeError(),mapstrat=identity) = AlignSizeBoth(
     DecreaseBigger(fallback)
 
 Try to align size by decreasing in the direction (in/out) which has the bigger size.
-Fallback to another strategy (default `AlignSizeBoth`) if size change is not possible.
+Fallback to another strategy (default [`AlignSizeBoth`](@ref)) if size change is not possible.
 """
 struct DecreaseBigger{S, F} <: AbstractAlignSizeStrategy
     fallback::S
@@ -113,7 +113,7 @@ DecreaseBigger(;fallback=AlignSizeBoth(),mapstrat=identity) = DecreaseBigger(fal
     IncreaseSmaller(fallback)
 
 Try to align size by increasing in the direction (in/out) which has the smaller size.
-Fallback to another strategy (default `DecreaseBigger`) if size change is not possible.
+Fallback to another strategy (default [`DecreaseBigger`](@ref)) if size change is not possible.
 """
 struct IncreaseSmaller{S,F} <: AbstractAlignSizeStrategy
     fallback::S
@@ -126,10 +126,13 @@ IncreaseSmaller(;fallback=DecreaseBigger(),mapstrat=identity) = IncreaseSmaller(
     CheckNoSizeCycle()
     CheckNoSizeCycle(;ifok, ifnok)
 
-Check if a size change in one direction causes a change in the other direction and execute strategy `ifnok` (default `FailAlignSizeWarn`) if this is the case.
-Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
+Check if a size change in one direction causes a change in the other direction and execute
+strategy `ifnok` (default [`FailAlignSizeWarn`](@ref)) if this is the case.
+Motivation is that removing will result in the computation graph being in an invalid state
+as one of the vertices must fulfill the impossible criterion 
+[`nout`](@ref)`(v) ==` [`nout`](@ref)`(v) + a` where `a > 0`.
 
-If no such cycle is detected, then proceed to execute strategy `ifok` (default `IncreaseSmaller`).
+If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`]](@ref)).
 
 Will execute strategy `ifok` if vertex shall not to be removed.
 """
@@ -144,10 +147,12 @@ CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,
     CheckCreateEdgeNoSizeCycle()
     CheckCreateEdgeNoSizeCycle(;ifok, ifnok)
 
-Check if adding an edge creates the same type of size cycle that `CheckNoSizeCycle` checks for and execute `ifnok` (default `FailAlignSizeWarn`) if this is the case.
-Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
+Check if adding an edge creates the same type of size cycle that [`CheckNoSizeCycle`](@ref) checks for 
+and execute `ifnok` (default [`FailAlignSizeWarn`](@ref)) if this is the case.
+Motivation is that removing will result in the computation graph being in an invalid state as one of 
+the vertices must fulfill the impossible criterion [`nout`](@ref)`(v) ==` [`nout`](@ref)`(v) + a` where `a > 0`.
 
-If no such cycle is detected, then proceed to execute strategy `ifok` (default `IncreaseSmaller`).
+If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`](@ref)).
 
 Will check both at `prealignsizes` (i.e before edge is added) and at `postalignsizes` (i.e after edge is added).
 """
@@ -163,7 +168,7 @@ CheckCreateEdgeNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgf
     CheckAligned(ifnot)
 
 Check if sizes are already aligned before making a change and return "go ahead" (`true`) if this is the case.
-If not, proceed to execute another strategy (default `CheckNoSizeCycle`).
+If not, proceed to execute another strategy (default [`CheckNoSizeCycle`](@ref)).
 """
 struct CheckAligned{S} <:AbstractAlignSizeStrategy
     ifnot::S
@@ -176,7 +181,7 @@ CheckAligned() = CheckAligned(CheckNoSizeCycle())
     PostAlign(s::AbstractAlignSizeStrategy)
     PostAlign(s::AbstractAlignSizeStrategy, fallback)
 
-Align sizes using a `AbstractΔSizeStrategy`.
+Align sizes using a [`AbstractΔSizeStrategy`]](@ref).
 
 This is a post-align strategy, i.e it will be applied after a structural change has been made.
 """
@@ -198,8 +203,8 @@ PostAlign(s; fallback=FailAlignSizeError()) = PostAlign(s, fallback)
 
 Strategy for removal of a vertex.
 
-Consists of an `AbstractConnectStrategy` for how to treat inputs and outputs of
-the removed vertex and an `AbstractAlignSizeStrategy` for how to align sizes of
+Consists of an [`AbstractConnectStrategy`]](@ref) for how to treat inputs and outputs of
+the removed vertex and an [`AbstractAlignSizeStrategy`]](@ref) for how to align sizes of
 inputs and outputs.
 """
 struct RemoveStrategy{SC<:AbstractConnectStrategy, SA<:AbstractAlignSizeStrategy}
@@ -213,13 +218,13 @@ RemoveStrategy(as::AbstractAlignSizeStrategy) = RemoveStrategy(ConnectAll(), as)
 """
     remove!(v::MutationVertex, strategy=RemoveStrategy())
 
-Removes `v` from the graph by removing it from its `inputs` and `outputs`.
+Removes `v` from the graph by removing it from its [`inputs`](@ref) and [`outputs`](@ref).
 
 It is possible to supply a strategy for how to 1) reconnect the inputs and outputs
 of `v` and 2) align the input and output sizes of the `inputs` and `outputs` of `v`.
 
-Default strategy is to first set `nin==nout` for `v` and then connect all its `inputs`
-to all its `outputs`.
+Default strategy is to first set `nin==nout` for `v` and then connect all its 
+[`inputs`](@ref) to all its [`outputs`](@ref).
 """
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v, vx -> vx == v) || return false
@@ -468,7 +473,7 @@ end
 """
     create_edge!(from::AbstractVertex, to::AbstractVertex; [pos], [strategy])
 
-Create and edge from `from` to `to` at index `pos` in `inputs(to)`.
+Create and edge from `from` to `to` at index `pos` in [`inputs`](@ref)`(to)`.
 
 Sizes will be adjusted based on given `strategy`.
 """
