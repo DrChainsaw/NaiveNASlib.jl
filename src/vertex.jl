@@ -7,7 +7,7 @@ abstract type AbstractVertex end
 Base.Broadcast.broadcastable(v::AbstractVertex) = Ref(v)
 
 """
-    inputs(v::AbstractVertex)
+    inputs(v)
 
 Return an Array of vertices which are input to the given vertex.
 
@@ -20,10 +20,10 @@ julia> inputs(CompVertex(identity, InputVertex(1)))
  InputVertex(1, [CompVertex(identity)])
 ```
 """
-function inputs end
+function inputs(::AbstractVertex) end
 
 """
-    outputs(v::AbstractVertex)
+    outputs(v)
 
 Return an Array of vertices for which the given vertex is input to.
 
@@ -40,7 +40,7 @@ julia> outputs(iv)
  CompVertex(identity, [InputVertex(1)], [])
 ```
 """
-function outputs end
+function outputs(::AbstractVertex) end
 
 """
     InputVertex
@@ -130,5 +130,13 @@ end
 
 # Stuff for logging
 
+"""
+    name(v)
+
+Return a the name of the vertex `v`. 
+Will return a generic string describing `v` if no name has been given to `v`. 
+
+Note that names in a graph don't have to be unique. 
+"""
 name(v::AbstractVertex) = string(nameof(typeof(v)))
 name(v::InputVertex) = v.name

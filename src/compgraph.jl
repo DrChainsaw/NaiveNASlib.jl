@@ -37,7 +37,18 @@ function (g::CompGraph)(x...)
     return Tuple(map(v -> output!(memo, v), outputs(g)))
 end
 
+"""
+    inputs(g::CompGraph) 
+
+Return the inputs vertices of `g`.
+"""
 inputs(g::CompGraph) = g.inputs
+
+"""
+    outputs(g::CompGraph) 
+
+Return the output vertices of `g`.
+"""
 outputs(g::CompGraph) = g.outputs
 
 """

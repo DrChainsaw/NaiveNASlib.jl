@@ -57,7 +57,8 @@ immutablevertex(args...; traitdecoration=identity) = vertex(traitdecoration(Immu
 """
     absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
 
-Return a mutable computation type vertex which absorbs size changes. Typical example of this is a neural network layer.
+Return a mutable computation type vertex which absorbs size changes. Typical example of this is a neural network layer
+wrapping a parameter array.
 
 # Examples
 ```julia-repl
@@ -76,7 +77,7 @@ absorbvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeAbs
 """
     invariantvertex(computation, input; traitdecoration=identity)
 
-Return a mutable computation type vertex which is size invariant, i.e nin == nout.
+Return a mutable computation type vertex which is size invariant, i.e `nin == nout`.
 
 # Examples
 ```julia-repl
@@ -157,14 +158,14 @@ end
 
 """
     >>(conf::VertexConf, v::AbstractVertex)
-    >>(name::String, v::AbstractVertex)
+    >>(name::AbstractString, v::AbstractVertex)
     >>(outwrap::Function, v::AbstractVertex)
 
 Return inputs as a tuple. Only used to enable the `conf >> v1 op v2 ...` syntax.
 
 """
 Base.:>>(conf::VertexConf, v::AbstractVertex) = (conf, v)
-Base.:>>(name::String, v::AbstractVertex) = traitconf(t -> NamedTrait(t, name)) >> v
+Base.:>>(name::AbstractString, v::AbstractVertex) = traitconf(t -> NamedTrait(t, name)) >> v
 Base.:>>(outwrap::Function, v::AbstractVertex) = outwrapconf(outwrap) >> v
 
 """
@@ -172,7 +173,10 @@ Base.:>>(outwrap::Function, v::AbstractVertex) = outwrapconf(outwrap) >> v
 
 Return a mutable vertex which performs (broadcasted) elementwise addition of its inputs.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
+An `AbstractString`, `Function` or `VertexConf` can be supplied through the `>>` operator. 
+An `AbstractString` will be used as the name of the vertex, a `Function f` will wrap the 
+output so that the vertex computation becomes `f(+.(x...))` and `VertexConf` can be used
+to supply both a name and a function.
 
 # Examples
 
@@ -195,21 +199,10 @@ julia> v([1, 2], [3, 4], [5, 6])
   9
  12
 
-julia> name(v)
-"MutationVertex::SizeInvariant"
-
-julia> typeof(op(v))
-IoChange
-
-julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
-
-julia> v = conf >> inputvertex("in1", 3) + inputvertex("in2", 3);
+julia> v = "v" >> inputvertex("in1", 3) + inputvertex("in2", 3);
 
 julia> name(v)
 "v"
-
-julia> typeof(op(v))
-IoSize
 ```
 """
 Base.:+((conf, v)::Tuple{VertexConf, <:AbstractVertex}, vs::AbstractVertex...) = elemwise(+, conf, v, vs...)
@@ -221,7 +214,10 @@ Base.:+(v::AbstractVertex, vs::AbstractVertex...) = +(VertexConf() >> v, vs...)
 
 Return a mutable vertex which performs (broadcasted) elementwise multiplication of its inputs.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
+An `AbstractString`, `Function` or `VertexConf` can be supplied through the `>>` operator. 
+An `AbstractString` will be used as the name of the vertex, a `Function f` will wrap the 
+output so that the vertex computation becomes `f(*.(x...))` and `VertexConf` can be used
+to supply both a name and a function.
 
 # Examples
 
@@ -244,22 +240,10 @@ julia> v([1, 2], [3, 4], [5, 6])
  15
  48
 
-julia> name(v)
-"MutationVertex::SizeInvariant"
-
-julia> typeof(op(v))
-IoChange
-
-julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
-
-julia> v = conf >> inputvertex("in1", 3) * inputvertex("in2", 3);
+julia> v = "v" >> inputvertex("in1", 3) * inputvertex("in2", 3);
 
 julia> name(v)
 "v"
-
-julia> typeof(op(v))
-IoSize
-
 ```
 """
 Base.:*((conf, v)::Tuple{VertexConf, <:AbstractVertex}, vs::AbstractVertex...) = elemwise(*, conf, v, vs...)
@@ -270,7 +254,10 @@ Base.:*(v::AbstractVertex, vs::AbstractVertex...) = *(VertexConf() >> v, vs...)
 
 Return a mutable vertex which performs (broadcasted) elementwise subtraction of its inputs.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
+An `AbstractString`, `Function` or `VertexConf` can be supplied through the `>>` operator. 
+An `AbstractString` will be used as the name of the vertex, a `Function f` will wrap the 
+output so that the vertex computation becomes `f(-.(x...))` and `VertexConf` can be used
+to supply both a name and a function.
 
 # Examples
 
@@ -292,21 +279,11 @@ julia> v([1, 2], [3, 4])
  -2
  -2
 
-julia> name(v)
-"MutationVertex::SizeInvariant"
 
-julia> typeof(op(v))
-IoChange
-
-julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
-
-julia> v = conf >> inputvertex("in1", 3) - inputvertex("in2", 3);
+julia> v = "v" >> inputvertex("in1", 3) - inputvertex("in2", 3);
 
 julia> name(v)
 "v"
-
-julia> typeof(op(v))
-IoSize
 ```
 """
 Base.:-((conf, v1)::Tuple{VertexConf, <:AbstractVertex}, v2::AbstractVertex) = elemwise(-, conf, v1, v2)
@@ -318,7 +295,11 @@ Base.:-(v1::AbstractVertex, v2::AbstractVertex) = -(VertexConf() >> v1, v2)
 
 Return a mutable vertex which performs elementwise negation of its input.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator. Due to operator precedence, this has to be done in the following order: `-(conf >> v)`
+An `AbstractString`, `Function` or `VertexConf` can be supplied through the `>>` operator. 
+An `AbstractString` will be used as the name of the vertex, a `Function f` will wrap the 
+output so that the vertex computation becomes `f(-.(x...))` and `VertexConf` can be used
+to supply both a name and a function.
+Due to operator precedence, this has to be done in the following order: `-(conf >> v)`
 
 #Examples
 
@@ -332,15 +313,10 @@ julia> v([1,2])
  -1
  -2
 
-julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
-
-julia> v = -(conf >> inputvertex("in", 2));
+julia> v = -("v" >> inputvertex("in", 2));
 
 julia> name(v)
 "v"
-
-julia> typeof(op(v))
-IoSize
 ```
 """
 Base.:-((conf, v)::Tuple{VertexConf, <:AbstractVertex}) = elemwise(-, conf, v)
@@ -352,7 +328,10 @@ Base.:-(v::AbstractVertex) = -(VertexConf() >> v)
 
 Return a mutable vertex which performs (broadcasted) elementwise division of its inputs.
 
-A `VertexConf` with functions to create `MutationState` and `MutationTrait` can be supplied through the `>>` operator.
+An `AbstractString`, `Function` or `VertexConf` can be supplied through the `>>` operator. 
+An `AbstractString` will be used as the name of the vertex, a `Function f` will wrap the 
+output so that the vertex computation becomes `f(/.(x...))` and `VertexConf` can be used
+to supply both a name and a function.
 
 # Examples
 
@@ -374,21 +353,10 @@ julia> v([6, 8], [2, 4])
  3
  2
 
-julia> name(v)
-"MutationVertex::SizeInvariant"
-
-julia> typeof(op(v))
-IoChange
-
-julia> conf = VertexConf(IoSize, t -> NamedTrait(t, "v"));
-
-julia> v = conf >> inputvertex("in1", 3) / inputvertex("in2", 3);
+julia> v = "v" >> inputvertex("in1", 3) / inputvertex("in2", 3);
 
 julia> name(v)
 "v"
-
-julia> typeof(op(v))
-IoSize
 ```
 """
 Base.:/((conf, v1)::Tuple{VertexConf, <:AbstractVertex}, v2::AbstractVertex) = elemwise(/, conf, v1, v2)
