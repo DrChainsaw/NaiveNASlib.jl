@@ -52,6 +52,7 @@ end
 
 if get(ENV, "CI", nothing) == "true"
     deploydocs(
-        repo = "github.com/DrChainsaw/NaiveNASlib.jl.git"
+        repo = "github.com/DrChainsaw/NaiveNASlib.jl.git",
+        push_preview=true
     )
 end
