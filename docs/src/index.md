@@ -26,7 +26,7 @@ constraints turned out to give a quite declarative way of formulating the alignm
 nested architectures stay aligned after mutation. 
 
 While MILPs are known for being quite difficult it also seems like the abundance of equality constraints creates a quite tight
- formulation (don't qoute me on this though :)) so that even models with 10000s of neurons are often solved in sub-second time. 
+formulation (don't quote me on this though :)) so that even models with 10000s of neurons are often solved in sub-second time. 
 
 The price one has to pay is that the model must be explicitly defined as a computation graph in the "language" of this library, 
 similar to what some older frameworks using less modern programming languages used to do. In its defense, the main reason anyone
@@ -34,7 +34,7 @@ would use this library to begin with is to not have to create computation graphs
 
 ## Reading Guideline
 
-The [Quick Tutorial](@ref) followed by the [Advanced Tutorial](@ref) are written to gradually introduce newcomers to the ideas
+The [Quick Tutorial](@ref) followed by the [Advanced Tutorial](@ref) are written to gradually introduce the ideas
 of NaiveNASlib and should serve as a good starting point to tell if this library is useful to you. 
 
 The [Terminology](@ref) section is meant to clear things up if some recurring word or concept induces uncertainty but 
@@ -42,4 +42,4 @@ should be entirely skippable otherwise.
 
 The API reference is split up into the basic API which is the one introduced in the [Quick Tutorial](@ref), the advanced API
 which is introduced in [Advanced Tutorial](@ref) and the API for extending NaiveNASlib. Each section is further split up into
-categories in an attempt to make it easy to answer the question of "how do I achieve X?".
+categories in an attempt to make it easy to answer "how do I achieve X?"-type questions.
