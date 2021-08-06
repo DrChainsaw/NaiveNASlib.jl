@@ -49,3 +49,7 @@ function touchfile(filename, rootdir=nndir, destdir="test/examples")
     isfile(filepath) && return
     write(filepath, "md\"\"\" # A Header \"\"\"")
 end
+
+deploydocs(
+    repo = "github.com/DrChainsaw/NaiveNASlib.jl.git",
+)
