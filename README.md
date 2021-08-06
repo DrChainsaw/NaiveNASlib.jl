@@ -1,7 +1,7 @@
 # NaiveNASlib
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://USER_NAME.github.io/PACKAGE_NAME.jl/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://USER_NAME.github.io/PACKAGE_NAME.jl/dev)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://DrChainsaw.github.io/NaiveNASlib.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://DrChainsaw.github.io/NaiveNASlib.jl/dev)
 [![Build status](https://github.com/DrChainsaw/NaiveNASlib.jl/workflows/CI/badge.svg?branch=master)](https://github.com/DrChainsaw/NaiveNASlib.jl/actions)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/DrChainsaw/NaiveNASlib.jl?svg=true)](https://ci.appveyor.com/project/DrChainsaw/NaiveNASlib-jl)
 [![Codecov](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl)
