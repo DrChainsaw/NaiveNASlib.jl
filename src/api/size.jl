@@ -18,8 +18,7 @@ There are three ways to implement `nin` for a function/callable `f` of type `F`:
 
 While `1` is the most straight forward, `2` can be useful of there are many different `f`s which happen to share a common method
 for determining the size.
-Option `3` is when the implementation might want to use other information from `v` or `t`. Example of this is `SizeTransparent` 
-functions which do not allow for the default method (e.g if `f` is batch normalization).
+Option `3` is when the implementation might want to use other information from `v` or `t` and is left as an escape hatch.
 """
 function nout end
 
@@ -42,8 +41,7 @@ There are three ways to implement `nin` for a function/callable `f` of type `F`:
 
 While `1` is the most straight forward, `2` can be useful of there are many different `f`s which happen to share a common method
 for determining the size.
-Option `3` is when the implementation might want to use other information from `v` or `t`. Example of this is `SizeTransparent` 
-functions which do not allow for the default method (e.g if `f` is batch normalization).
+Option `3` is when the implementation might want to use other information from `v` or `t` and is left as an escape hatch.
 """
 function nin end
 

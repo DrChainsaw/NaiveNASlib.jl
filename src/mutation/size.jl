@@ -2,16 +2,21 @@
 
 nin(v::AbstractVertex) = nin(trait(v), v)
 nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
+nin(t::FixedSizeTrait, v::AbstractVertex) = nin(t, base(v), v)
+
 nin(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nin(t, base(v), vo)
 nin(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nin(v.computation, t, vo)
 nin(::MutationTrait, ::InputSizeVertex) = []
 
 # Give users a chance to fallback to smoe generic property of the vertex
 nin(f, ::MutationTrait, ::AbstractVertex) = nin(f)
+nin(f, ::FixedSizeTrait, ::AbstractVertex) = nin(f)
 nin(f, ::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
 
 nout(v::AbstractVertex) = nout(trait(v), v)
 nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
+nout(t::FixedSizeTrait, v::AbstractVertex) = nout(t, base(v), v)
+
 nout(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nout(t, base(v), vo)
 nout(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nout(v.computation, t, vo)
 nout(::MutationTrait, v::InputSizeVertex) = v.size

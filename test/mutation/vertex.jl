@@ -24,7 +24,7 @@
         @test issame(iv, ivc)
     end
 
-    @testset "OutputsVertex with $label" for (label, cfun) in (
+    @testset "InputSizeVertex with $label" for (label, cfun) in (
         (deepcopy, deepcopy),
         ("fmap", v -> (vc = fmap(deepcopy, v); if vc isa OutputsVertex NaiveNASlib.init!(vc, base(vc)) end; return vc)),
     )
@@ -47,6 +47,21 @@
  
         ivc = inputs(cvc)[]
         @test issame(iv, ivc)
+    end
+
+    @testset "Fixed size trait" begin
+        using NaiveNASlib: vertex
+        struct FixedSizeDummy end
+        NaiveNASlib.nout(::FixedSizeDummy) = 5
+        NaiveNASlib.nin(f::FixedSizeDummy) = [nout(f)]
+
+        @testset "Fixed Size $stype" for stype in (SizeStack, SizeInvariant)
+            iv = inputvertex("in", nout(FixedSizeDummy()) - 1)
+            v1 = vertex(FixedSizeTrait(stype()), FixedSizeDummy(), iv)
+
+            @test nout(v1) == nout(FixedSizeDummy())
+            @test nin(v1) == nin(FixedSizeDummy())
+        end
     end
 
     @testset "Pretty printing" begin
