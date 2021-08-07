@@ -72,7 +72,7 @@ abstract type MutationSizeTrait <: MutationTrait end
     SizeTransparent
 Base type for mutation traits which are transparent w.r.t size, i.e size changes propagate both forwards and backwards.
 
-Tip: Use with [`FixedSizeTrait`] if the function has parameters which must be aligned with the input and output sizes.
+Tip: Use with [`FixedSizeTrait`](@ref) if the function has parameters which must be aligned with the input and output sizes.
 """
 abstract type SizeTransparent <: MutationSizeTrait end
 """
@@ -150,7 +150,9 @@ Trait which indicates that a vertex is [`SizeTransparent`](@ref) while still hav
 This prevents NaiveNASlib from inferring the size from neighbouring vertices.
 
 As an example, the function `x -> 2 .* x` accepts any size of `x`, while the function `x -> [1,2,3] .* x`
-is `SizeInvariant` but has a fixed size of 3.
+is [`SizeInvariant`](@ref) but has a fixed size of 3.
+
+Note that `FixedSizeTrait` does not imply that the vertex can't change size.
 """
 struct FixedSizeTrait{T<:SizeTransparent} <: DecoratingTrait
     base::T

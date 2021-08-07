@@ -18,4 +18,5 @@ SizeAbsorb
 SizeTransparent
 SizeStack
 SizeInvariant
+FixedSizeTrait
 ```

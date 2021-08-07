@@ -36,6 +36,9 @@ NaiveNASlib also uses the term `SizeTransparent` to denote the latter two (i.e a
 To use this library to mutate architectures for some neural network library basically means annotating up the above type for 
 each layer type and connect parameter dimensions to input and output sizes.
 
+Note one typically does not need to interact with the traits when just using NaiveNASlib and they are not exported by default.
+The functions for [Vertex Creation](@ref) attaches the proper trait to the vertex when creating it.
+
 While the above covers a substantial set of operations, it is possible to implement special rules for individual computations
 as well.
 

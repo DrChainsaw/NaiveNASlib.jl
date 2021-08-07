@@ -68,20 +68,17 @@ exact_or_log_then_relax_verbose = logafterΔsize(v -> "some vertex";base=exact_o
 end #hide
 
 md"""
-A similar pattern is used for most other mutating operations. Use the built-in documentation to explore the options until I
-find the energy and time to write proper documentation. As I could not let go of the OO habit of having abstract base types for 
-everything, the existing strategies can be discovered using `subtypes` as a stop-gap solution.
+A similar pattern is used for most other mutating operations. See the advanced reference documentation for the complete set.
 """
 md"""
 ## Traits
 
 A variant (bastardization?) of the [holy trait](https://docs.julialang.org/en/v1/manual/methods/#Trait-based-dispatch-1) pattern is used to 
-annotate the type of a vertex. In the examples above the three 'core' types `SizeAbsorb`, `SizeStack` and `SizeInvariant` are shown, but it is 
+annotate the type of a vertex. The core idea is discussed a bit in the [`Terminology`](@ref) section, but it is 
 also possible to attach other information and behaviors by freeriding on this mechanism.
 
 This is done by adding the argument `traitdecoration` when creating a vertex and supplying a function which takes a trait and return a new trait 
 (which typically wraps the input).
-
 """
 
 @testset "Traits" begin #hide
@@ -117,7 +114,7 @@ layer2 = absorbvertex(  LinearLayer(nout(layer1), 4),
 (:info, "Change nin of layer2 by [1, 2, 3, -1]"), 
 Δnout!(layer1, 1))
 
-# For more elaborate traits with elementwise operations one can use traitconf and `>>`
+# For more elaborate traits with elementwise operations one can use traitconf and `>>`.
 add = traitconf(logged(verbose_vertex_info) ∘ named("layer1+layer2")) >> layer1 + layer2
 @test name(add) == "layer1+layer2"
 
@@ -129,9 +126,7 @@ add = traitconf(logged(verbose_vertex_info) ∘ named("layer1+layer2")) >> layer
 (:info, "Change nout of layer1+layer2 with inputs=[layer1, layer2] and outputs=[] by [1, 2, 3, 4, -1]"),
 Δnout!(layer1, 1))
 
-# When creating own trait wrappers, remember to subtype `DecoratingTrait` or else there will be pain!
-#
-# Wrong!! Not a subtype of `DecoratingTrait`
+# When creating own trait wrappers, remember to subtype `DecoratingTrait` or else there will be pain.
 struct PainfulTrait{T<:MutationTrait} <: MutationTrait
     base::T
 end
@@ -139,13 +134,16 @@ painlayer = absorbvertex(   LinearLayer(2, 3),
                             inputvertex("in", 2);
                             traitdecoration = PainfulTrait)
 
-# Now one must implement a lot of methods for `PainfulTrait`...
+# Wrong! Not a subtype of `DecoratingTrait`.
 @test_throws MethodError Δnout!(painlayer, 1)
 
-# Right!! Is a subtype of `DecoratingTrait`.
+# Now one must implement a lot of methods for `PainfulTrait`...
+#
+# Lets try that again:
 struct SmoothSailingTrait{T<:MutationTrait} <: DecoratingTrait
     base::T
 end
+# Right! Is a subtype of `DecoratingTrait`.
 # Just implement `base` and all will be fine.
 NaiveNASlib.base(t::SmoothSailingTrait) = t.base
 
