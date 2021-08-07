@@ -814,10 +814,10 @@ import JuMP
         g = CompGraph(inpt, v4)
         @test size(g(ones(Float32, 3))) == (nout(v4),)
 
-        @test remove!(v3, RemoveStrategy(DecreaseBigger()))
+        @test remove!(v3, RemoveStrategy(DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v)))))
 
-        @test lastins(v4) == [[1, 2, 3, 4], [2, 4, 5]]
-        @test lastouts(v4) == [1, 2, 3, 4, 6, 8, 9] 
+        @test lastins(v4) == [[1, 2, 3, 4], [3, 4, 5]]
+        @test lastouts(v4) == [1, 2, 3, 4, 7, 8, 9]  
 
         # v2 and v1 did not change
         @test [lastouts(v2), lastouts(v1)] == [[1,2,3,4], [1,2,3]]
