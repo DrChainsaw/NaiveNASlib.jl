@@ -114,7 +114,7 @@ struct TimeLimitΔSizeStrategy{S,F} <: DecoratingJuMPΔSizeStrategy
     base::S
     fallback::F
 end
-TimeLimitΔSizeStrategy(limit::Number, base=DefaultJuMPΔSizeStrategy(); fallback=ThrowΔSizeFailError("Solver failed!")) = TimeLimitΔSizeStrategy(limit, base, fallback)
+TimeLimitΔSizeStrategy(limit::Number, base=DefaultJuMPΔSizeStrategy(); fallback=default_sizefallback("Solver failed!")) = TimeLimitΔSizeStrategy(limit, base, fallback)
 TimeLimitΔSizeStrategy(limit::Number, base::S, fallback::F) where {S,F} = TimeLimitΔSizeStrategy{S,F}(Float64(limit), base, fallback)
 base(s::TimeLimitΔSizeStrategy) = s.base
 fallback(s::TimeLimitΔSizeStrategy) = s.fallback
@@ -127,7 +127,7 @@ add_participants!(s::TimeLimitΔSizeStrategy, vs=AbstractVertex[]) = add_partici
 
 Calls `action(model)` if JuMP model `model` has status `MOI.TIME_LIMIT` after optimization stops. Use strategy `base` for all other aspects.
 
-Default action is to display a warning and then apply `fallback` (default [`ThrowΔSizeFailError`](@ref)).
+Default action is to display a warning and then apply `fallback` (default [`ΔSizeFailNoOp`](@ref)).
 """
 struct TimeOutAction{S,A,F} <: DecoratingJuMPΔSizeStrategy
     action::A
@@ -135,7 +135,7 @@ struct TimeOutAction{S,A,F} <: DecoratingJuMPΔSizeStrategy
     fallback::F
 end
 base(s::TimeOutAction) = s.base
-function TimeOutAction(;action=default_timeout, base::AbstractJuMPΔSizeStrategy=DefaultJuMPΔSizeStrategy(), fallback=ThrowΔSizeFailError("Solver failed!")) 
+function TimeOutAction(;action=default_timeout, base::AbstractJuMPΔSizeStrategy=DefaultJuMPΔSizeStrategy(), fallback=default_sizefallback("Solver failed!")) 
     TimeOutAction(action, base, fallback)
 end
 fallback(s::TimeOutAction) = s.fallback
@@ -211,7 +211,7 @@ Also helps creating a `Dict{V, Int}` from e.g. a `Dict{Any, Any}` as a convenien
 
 `T` is typically either `Exact` or `Relaxed`.
 
-$(generic_Δnout_docstring_examples(args -> "ΔNout{Exact}($args; fallback=ThrowΔSizeFailError()"))
+$(generic_Δnout_docstring_examples(args -> "ΔNout{Exact}($args; fallback=ΔSizeFailNoOp()"))
 """
 ΔNout{T}(v::AbstractVertex, Δ::Integer; fallback) where T = ΔNout{T}(v=>Int(Δ); fallback)
 ΔNout{T}(args...; fallback) where T = ΔNout{T}(Dict(args...); fallback)
@@ -232,7 +232,7 @@ $(generic_Δnout_docstring_examples("ΔNoutExact"))
 """
     ΔNoutRelaxed(args...;fallback)
 
-Return a `ΔNout{Relaxed}` with `fallback` set to [`ThrowΔSizeFailError`](@ref).
+Return a `ΔNout{Relaxed}` with `fallback` set to [`ΔSizeFailNoOp`](@ref).
 
 Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pair`s or a generator).
 
@@ -252,7 +252,8 @@ function default_noutfallback(nextfallback, dirstr, args)
     return LogΔSizeExec(msgfun, Logging.Warn, nextfallback(args...))
 end
 
-default_noutfallback(dirstr, args) = ThrowΔSizeFailError(vs -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "!!"))
+default_noutfallback(dirstr, args) = LogΔSizeExec(vs -> string("Could not change ", dirstr, " of ", Δnout_err_info(args...), "! Attempt aborted!"), Logging.Warn)
+default_sizefallback(msg) = LogΔSizeExec(msg, Logging.Warn)
 
 """
     ΔNinExact(args...; fallback)
@@ -273,7 +274,7 @@ $(generic_Δnin_docstring_examples("ΔNinExact"))
 """
     ΔNinRelaxed(args...; fallback)
 
-Same as [`ΔNinExact`](@ref) except `Exact` is replaced by `Relaxed` and `fallback` set to [`ThrowΔSizeFailError`](@ref) by default.
+Same as [`ΔNinExact`](@ref) except `Exact` is replaced by `Relaxed` and `fallback` set to [`ΔSizeFailNoOp`](@ref) by default.
 
 $(generic_Δnin_docstring_examples("ΔNinRelaxed"))
 """
@@ -390,14 +391,14 @@ Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
 
 Generally useful when doing structural changes such are removing/adding vertices or edges.
 
-If it fails, the operation will be retried with the `fallback` strategy (default [`ThrowΔSizeFailError`](@ref)).
+If it fails, the operation will be retried with the `fallback` strategy (default [`ΔSizeFailNoOp`](@ref)).
 """
 struct AlignNinToNout{S, F} <: DecoratingJuMPΔSizeStrategy
     nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
     vstrat::S
     fallback::F
 end
-AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ThrowΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
+AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=default_sizefallback("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
 AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, Vector{JuMP.VariableRef}}(), vstrat, fallback)
 fallback(s::AlignNinToNout) = s.fallback
 base(s::AlignNinToNout) = s.vstrat
@@ -410,7 +411,7 @@ end
 
 """
     AlignNinToNoutVertices{V1,V2,S,F} <: AbstractJuMPΔSizeStrategy
-    AlignNinToNoutVertices(vin::V1, vout::V2, inds; vstrat::S=AlignNinToNout(), fallback::F=ThrowΔSizeFailError())
+    AlignNinToNoutVertices(vin::V1, vout::V2, inds; vstrat::S=AlignNinToNout(), fallback::F=ΔSizeFailNoOp())
     AlignNinToNoutVertices(vin::V1, vout::V2, inds, vstrat::S, fallback::F)
 
 Same as [`AlignNinToNout`](@ref) with an additional constraint that [`nin(s.vin)`](@ref)`[s.ininds] ==` [`nout(s.vout)`](@ref) 
@@ -418,7 +419,7 @@ where `s` is a [`AlignNinToNoutVertices`](@ref).
 
 Useful in the context of adding edges to vertices to align sizes before the edge has been added.
 
-If it fails, the operation will be retried with the `fallback` strategy (default [`ThrowΔSizeFailError`](@ref)).
+If it fails, the operation will be retried with the `fallback` strategy (default [`ΔSizeFailNoOp`](@ref)).
 """
 struct AlignNinToNoutVertices{V1,V2,S,F} <: DecoratingJuMPΔSizeStrategy
     vin::V1
@@ -439,7 +440,7 @@ function add_participants!(s::AlignNinToNoutVertices, vs=AbstractVertex[])
 end
 
 
-failtoalign(vin, vout) = ThrowΔSizeFailError(vs -> string("Could not align nout of ", nameorrepr(vin), " to nin of ", nameorrepr(vout), "!!"))
+failtoalign(vin, vout) = LogΔSizeExec(vs -> string("Could not align nout of ", nameorrepr(vin), " to nin of ", nameorrepr(vout), "!!"), Logging.Warn)
 
 """
     TruncateInIndsToValid{S} <: AbstractΔSizeStrategy

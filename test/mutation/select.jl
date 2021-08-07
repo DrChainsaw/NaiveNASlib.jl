@@ -407,8 +407,14 @@ import JuMP
         v2 = av(v0, 3, "v2")
         v3 = "v3" >> v2 + v1
         @test Δnout!(v0, 1) == false
-        @test_logs (:warn, "Could not change nout of v3 by 1! Relaxing constraints...") @test_throws NaiveNASlib.ΔSizeFailError Δnout!(v3, 1)
-        @test_logs (:warn, "Could not change nin of v3 by 1 and 1! Relaxing constraints...") @test_throws NaiveNASlib.ΔSizeFailError Δnin!(v3, 1, 1)
+        @test @test_logs(
+                (:warn, "Could not change nout of v3 by 1! Relaxing constraints..."),
+                (:warn, "Could not change nout of v3 by 1! Attempt aborted!"),
+                Δnout!(v3, 1)) == false
+        @test @test_logs(
+                (:warn, "Could not change nin of v3 by 1 and 1! Relaxing constraints..."),
+                (:warn, "Could not change nin of v3 by 1 and 1! Attempt aborted!"),
+                 Δnin!(v3, 1, 1)) == false
     end
 
     @testset "Δ = $wrap(0)" for wrap in (identity, relaxed)

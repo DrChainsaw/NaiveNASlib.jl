@@ -172,7 +172,8 @@ graph = CompGraph(invertex, layer2)
 
 @test name.(vertices(graph)) == ["in", "MutationVertex::SizeAbsorb", "MutationVertex::SizeAbsorb"]
 
-# Ok, lets add names to `layer1` and `layer2` and change the name of `invertex`
+# Ok, lets add names to `layer1` and `layer2` and change the name of `invertex` by using `Functors`.
+import Functors
 
 # Add a name to `layer1` and `layer2`
 function walk(f, v::MutationVertex)
@@ -182,7 +183,7 @@ function walk(f, v::MutationVertex)
     ## SizeAbsorb has no fields, otherwise we would have had to use walk to wrap it
     addname(t::SizeAbsorb) = NamedTrait(name, t)
     Functors._default_walk(v) do x
-        fmap(addname, x; walk)
+        Functors.fmap(addname, x; walk)
     end
 end
 
@@ -193,7 +194,7 @@ function walk(f, v::InputVertex)
     rename(x) = x
     rename(s::String) = "in changed"
     Functors._default_walk(v) do x
-        fmap(rename, x; walk)
+        Functors.fmap(rename, x; walk)
     end
 end
 
@@ -201,7 +202,7 @@ end
 walk(f, x) = Functors._default_walk(f, x) 
 
 # I must admit that thinking about what this does makes me a bit dizzy...
-namedgraph = fmap(identity, graph; walk)
+namedgraph = Functors.fmap(identity, graph; walk)
 
 @test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
 end #hide
