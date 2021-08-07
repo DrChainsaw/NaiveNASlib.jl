@@ -102,18 +102,18 @@ import JuMP
         @testset "Scale up" begin
             remapped = remaputilityfun(v -> 2.0 .^ -(1:nout(v)), DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) 
 
-            @test remapped(inpt) == 2.0 .^ -(1:nout(inpt))
-            @test remapped(v1) == [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04, 0.02, 0.01]
-            @test remapped(v2) == [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04]
-            @test remapped(v3) == [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04, 0.02]
+            @test remapped(inpt) ≈ 2.0 .^ -(1:nout(inpt))
+            @test remapped(v1) ≈ [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04, 0.02, 0.01]
+            @test remapped(v2) ≈ [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04]
+            @test remapped(v3) ≈ [2.56, 1.28, 0.64, 0.32, 0.16, 0.08, 0.04, 0.02]
         end
         @testset "Scale down" begin
             remapped = remaputilityfun(v -> 10.0 .^ (1:nout(v)), DefaultJuMPΔSizeStrategy(), [inpt, v1, v2, v3], 1e-2, 1e5) 
 
-            @test remapped(inpt) == 10.0 .^ (1:nout(inpt))
-            @test remapped(v1) == [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1.0e6] 
-            @test remapped(v2) == [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0] 
-            @test remapped(v3) == [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0] 
+            @test remapped(inpt) ≈ 10.0 .^ (1:nout(inpt))
+            @test remapped(v1) ≈ [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1.0e6] 
+            @test remapped(v2) ≈ [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0] 
+            @test remapped(v3) ≈ [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0] 
         end
 
         @testset "Saturate upper" begin
@@ -126,9 +126,9 @@ import JuMP
             end
 
             @test remapped(inpt) == fill(100, nout(inpt))
-            @test remapped(v1) == 10.0 .^ (3:-1:-5)
-            @test remapped(v2) == 10.0:10.0:70.0
-            @test remapped(v3) == fill(1e5, nout(v3))
+            @test remapped(v1) ≈ 10.0 .^ (3:-1:-5)
+            @test remapped(v2) ≈ 10.0:10.0:70.0
+            @test remapped(v3) ≈ fill(1e5, nout(v3))
         end
 
         @testset "Saturate lower" begin
@@ -140,10 +140,10 @@ import JuMP
                 v == v3 && return fill(10, nout(v))
             end
 
-            @test remapped(inpt) == fill(100, nout(inpt))
-            @test remapped(v1) == [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1.0e6, 1.0e7] 
-            @test remapped(v2) == 0.01:0.01:0.07
-            @test remapped(v3) == fill(0.1, nout(v3))
+            @test remapped(inpt) ≈ fill(100, nout(inpt))
+            @test remapped(v1) ≈ [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1.0e6, 1.0e7] 
+            @test remapped(v2) ≈ 0.01:0.01:0.07
+            @test remapped(v3) ≈ fill(0.1, nout(v3))
         end
 
         @testset "Saturate both" begin
@@ -156,8 +156,8 @@ import JuMP
             end       
 
             @test remapped(inpt) == 13
-            @test remapped(v1) == 1e6
-            @test remapped(v2) == 1e-3
+            @test remapped(v1) ≈ 1e6
+            @test remapped(v2) ≈ 1e-3
             @test remapped(v3) == fill(10, nout(v3))
         end
 
@@ -170,8 +170,8 @@ import JuMP
             end  
 
             @test remapped(inpt) == 13
-            @test remapped(v1) == 1e4 .* repeat([1, -1], nout(v1))
-            @test remapped(v2) == 1e-2 .* repeat([1, -1], nout(v2))
+            @test remapped(v1) ≈ 1e4 .* repeat([1, -1], nout(v1))
+            @test remapped(v2) ≈ 1e-2 .* repeat([1, -1], nout(v2))
             @test remapped(v3) == fill(100, nout(v3))
         end
     end
