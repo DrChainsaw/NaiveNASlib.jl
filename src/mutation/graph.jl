@@ -99,9 +99,9 @@ end
     findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [], visited = [])
 
 Return an array of all vertices which terminate size changes (i.e does not propagate them) seen through the given direction
- (typically `inputs` or `outputs`). A vertex will be present once for each unique path through which its seen.
+ (typically [`inputs`](@ref) or [`outputs`](@ref)). A vertex will be present once for each unique path through which its seen.
 
-The `other` direction may be specified and will be traversed if a `SizeInvariant` vertex is encountered.
+The `other` direction may be specified and will be traversed if a [`SizeInvariant`](@ref) vertex is encountered.
 
 Will return the given vertex if it is terminating.
 

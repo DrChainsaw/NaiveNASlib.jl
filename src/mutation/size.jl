@@ -290,7 +290,7 @@ ninconstraint!(case, s, ::SizeInvariant, v, data) = @constraint(data.model, geta
 """
     compconstraint!(case, s, v, data)
 
-Add constraints on the computation (e.g. neural network layer) for `AbstractVertex v` using strategy `s`.
+Add constraints on the computation (e.g. neural network layer) for [`AbstractVertex`](@ref) `v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """

@@ -100,14 +100,14 @@ struct Immutable <: MutationTrait end
 """
     trait(v)
 
-Return the `MutationTrait` for a vertex `v`.
+Return the [`MutationTrait`](@ref) for a vertex `v`.
 """
 trait(::AbstractVertex) = Immutable()
 
 """
     DecoratingTrait <: MutationTrait
 
-Avbstract trait which wraps another trait. The wrapped trait of a `DecoratingTrait t` is accessible through `base(t)`.
+Avbstract trait which wraps another trait. The wrapped trait of a [`DecoratingTrait`](@ref) `t` is accessible through [`base(t)`](@ref).
 """
 abstract type DecoratingTrait <: MutationTrait end
 
@@ -122,7 +122,7 @@ base(t::DecoratingTrait) = t.base # Lets just guess if we end up here :)
     NamedTrait <: DecoratingTrait
     NamedTrait(name, base)
 
-Trait which attaches `name` to a vertex. Calling `name(v)` on a vertex with this trait returns `name`.   
+Trait which attaches `name` to a vertex. Calling [`name(v)`](@ref) on a vertex with this trait returns `name`.   
 """
 struct NamedTrait{S, T<:MutationTrait} <: DecoratingTrait
     name::S
@@ -160,10 +160,8 @@ base(t::AfterΔSizeTrait) = t.base
 
 Vertex which may be subject to mutation.
 
-Scope is mutations which affect the input and output sizes as such changes needs to be propagated to the neighbouring vertices.
-
 The member trait describes the nature of the vertex itself, for example if size changes
-are absorbed (e.g changing an nin x nout matrix to an nin - Δ x nout matrix) or if they
+are absorbed (e.g changing an `nin x nout` matrix to an `nin - Δ x nout` matrix) or if they
 propagate to neighbouring vertices (and if so, how).
 """
 struct MutationVertex{V<:AbstractVertex, T<:MutationTrait} <: AbstractVertex

@@ -9,22 +9,10 @@ using NaiveNASlib.Extend
 
 ```@docs
 base(::AbstractVertex)
-```
-```@docs
 AbstractVertex
-```
-```@docs
 InputVertex
-```
-```@docs
 InputSizeVertex
-```
-```@docs
 CompVertex
-```
-```@docs
 MutationVertex
-```
-```@docs
 OutputsVertex
 ```

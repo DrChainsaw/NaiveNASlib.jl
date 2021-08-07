@@ -1,6 +1,7 @@
 """
     AbstractVertex
-Vertex base type
+
+Vertex base type.
 """
 abstract type AbstractVertex end
 
@@ -46,7 +47,7 @@ function outputs(::AbstractVertex) end
     InputVertex
 
 Acts as a source of data to the graph and therefore does not need
-any input vertices to feed it
+any input vertices to feed it.
 
 # Examples
 ```julia-repl
@@ -69,8 +70,12 @@ inputs(::InputVertex)::AbstractArray{AbstractVertex,1} = []
 
 """
     CompVertex
+    CompVertex(c, ins::AbstractVertex...)
+    CompVertex(c, ins::AbstractArray{<:AbstractVertex}) =
 
-Maps input from input vertices to output. Must have at least one input vertex
+Maps input from input vertices to output through `output = c(input...)`. 
+
+Must have at least one input vertex.
 
 # Examples
 ```julia-repl

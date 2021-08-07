@@ -5,23 +5,10 @@ Imported to namespace by
 using NaiveNASlib.Advanced
 ```
 
-
 ```@docs
 NamedTrait
-```
-
-```@docs
 AfterΔSizeTrait
-```
-
-```@docs
 named
-```
-
-```@docs
 logged
-```
-
-```@docs
 validated
 ```

@@ -9,24 +9,9 @@ using NaiveNASlib.Advanced
 
 ```@docs
 findterminating
-```
-
-```@docs
 all_in_graph
-```
-
-```@docs
 output!
-```
-
-```@docs
 ancestors
-```
-
-```@docs
 descendants
-```
-
-```@docs
 defaultutility
 ```

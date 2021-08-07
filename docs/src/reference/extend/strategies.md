@@ -9,27 +9,10 @@ using NaiveNASlib.Extend
 
 ```@docs
 AbstractΔSizeStrategy
-```
-
-```@docs
 AbstractJuMPΔSizeStrategy
-```
-
-```@docs
 DecoratingJuMPΔSizeStrategy
-```
-
-```@docs
 base(::DecoratingJuMPΔSizeStrategy)
-```
-
-```@docs
 AbstractAfterΔSizeStrategy
-```
-```@docs
 AbstractAlignSizeStrategy
-```
-
-```@docs
 AbstractConnectStrategy
 ```

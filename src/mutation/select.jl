@@ -27,9 +27,10 @@ struct NeuronIndices end
 """
     defaultutility(v::AbstractVertex) 
 
-Default function used to calculate utility of output neurons when `NeuronIndices` is used and no function is provided.
+Default function used to calculate utility of output neurons.
 
-Implement `defaultutility(f)` where `f` is the computation performed by `CompVertex` to set the default for `f`. 
+Implement either `defaultutility(f)` or `defaultutility(t, f)` where `f` is the computation performed 
+by `CompVertex` and `t` is [`trait(v)`](@ref) to set the default for `f`. 
 
 # Examples
 

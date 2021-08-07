@@ -130,9 +130,9 @@ Check if a size change in one direction causes a change in the other direction a
 strategy `ifnok` (default [`FailAlignSizeWarn`](@ref)) if this is the case.
 Motivation is that removing will result in the computation graph being in an invalid state
 as one of the vertices must fulfill the impossible criterion 
-[`nout`](@ref)`(v) ==` [`nout`](@ref)`(v) + a` where `a > 0`.
+[`nout(v)`](@ref) `==` [`nout(v)`](@ref) `+ a` where `a > 0`.
 
-If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`]](@ref)).
+If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`](@ref)).
 
 Will execute strategy `ifok` if vertex shall not to be removed.
 """
@@ -150,7 +150,7 @@ CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,
 Check if adding an edge creates the same type of size cycle that [`CheckNoSizeCycle`](@ref) checks for 
 and execute `ifnok` (default [`FailAlignSizeWarn`](@ref)) if this is the case.
 Motivation is that removing will result in the computation graph being in an invalid state as one of 
-the vertices must fulfill the impossible criterion [`nout`](@ref)`(v) ==` [`nout`](@ref)`(v) + a` where `a > 0`.
+the vertices must fulfill the impossible criterion [`nout(v)`](@ref) `==` [`nout(v)`](@ref) `+ a` where `a > 0`.
 
 If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`](@ref)).
 
@@ -181,7 +181,7 @@ CheckAligned() = CheckAligned(CheckNoSizeCycle())
     PostAlign(s::AbstractAlignSizeStrategy)
     PostAlign(s::AbstractAlignSizeStrategy, fallback)
 
-Align sizes using a [`AbstractΔSizeStrategy`]](@ref).
+Align sizes using a [`AbstractΔSizeStrategy`](@ref).
 
 This is a post-align strategy, i.e it will be applied after a structural change has been made.
 """
@@ -203,8 +203,8 @@ PostAlign(s; fallback=FailAlignSizeError()) = PostAlign(s, fallback)
 
 Strategy for removal of a vertex.
 
-Consists of an [`AbstractConnectStrategy`]](@ref) for how to treat inputs and outputs of
-the removed vertex and an [`AbstractAlignSizeStrategy`]](@ref) for how to align sizes of
+Consists of an [`AbstractConnectStrategy`](@ref) for how to treat inputs and outputs of
+the removed vertex and an [`AbstractAlignSizeStrategy`](@ref) for how to align sizes of
 inputs and outputs.
 """
 struct RemoveStrategy{SC<:AbstractConnectStrategy, SA<:AbstractAlignSizeStrategy}
@@ -473,7 +473,7 @@ end
 """
     create_edge!(from::AbstractVertex, to::AbstractVertex; [pos], [strategy])
 
-Create and edge from `from` to `to` at index `pos` in [`inputs`](@ref)`(to)`.
+Create and edge from `from` to `to` at index `pos` in [`inputs(to)`](@ref).
 
 Sizes will be adjusted based on given `strategy`.
 """

@@ -55,7 +55,7 @@ Return the output vertices of `g`.
 outputs(g::CompGraph) = g.outputs
 
 """
-    output!(memo::Dict{AbstractVertex, Any}, v::AbstractVertex)
+    output!(memo::AbstractDict{K, V}, v::AbstractVertex) where {K,V}
 
 Return the output from v given any input in memo by traversing the graph.
 Intermediate results from all visited vertices will be stored in memo after
@@ -103,13 +103,13 @@ Base.lastindex(g) = lastindex(vertices(g))
 """
     findvertices(g::CompGraph, vname::AbstractString)
 
-Return all vertices for which `name(v) == vname`.
+Return all vertices for which [`name(v)`](@ref) == vname`.
 """
 findvertices(g::CompGraph, vname::AbstractString) = filter(v -> name(v) == vname, vertices(g))
 """
     findvertices(g::CompGraph, vname::Regex)
 
-Return all vertices for which `vpat` matches `name(v)`.
+Return all vertices for which `vpat` matches [`name(v)`](@ref).
 """
 findvertices(g::CompGraph, vpat::Regex) = filter(v -> match(vpat, name(v)) !== nothing, vertices(g))
 
@@ -120,11 +120,11 @@ Return an array of all ancestors of `v`, including `v` itself.
 
 # Examples
 ```julia-repl
-julia> ancestors(CompVertex(+, InputVertex.(1:2)...))
-3-element Array{AbstractVertex,1}:
- InputVertex(1)
- InputVertex(2)
- CompVertex(+, [InputVertex(1), InputVertex(2)])
+julia> ancestors(invariantvertex(+, inputvertex("in", 1)))
+2-element Vector{AbstractVertex}:
+ InputSizeVertex{OutputsVertex}(InputVertex(in, outputs=[CompVertex(+)]), 1)
+ MutationVertex(CompVertex(+, inputs=[in], outputs=[]), SizeInvariant())
+```
 """
 ancestors(v::AbstractVertex,args...) = collect_vertices_from(inputs, v, args...)
 
@@ -135,11 +135,11 @@ Return an array of all descendants of `v`, including `v` itself.
 
 # Examples
 ```julia-repl
-julia> descendants(CompVertex(+, InputVertex.(1:2)...))
-3-element Array{AbstractVertex,1}:
- InputVertex(1)
- InputVertex(2)
- CompVertex(+, [InputVertex(1), InputVertex(2)])
+julia> descendants(invariantvertex(+, inputvertex("in", 1)) |> inputs |> first)
+2-element Vector{AbstractVertex}:
+ MutationVertex(CompVertex(+, inputs=[in], outputs=[]), SizeInvariant())
+ InputSizeVertex{OutputsVertex}(InputVertex(in, outputs=[CompVertex(+)]), 1)
+```
 """
 descendants(v::AbstractVertex,args...) = collect_vertices_from(outputs, v, args...)
 
@@ -147,7 +147,9 @@ function collect_vertices_from(f, v::AbstractVertex, vertices::Vector{AbstractVe
     v in vertices && return vertices
     if !(v in visited)
         push!(visited, v)
-        foreach(iv -> collect_vertices_from(f, iv, vertices), f(v))
+        fvs = f(v)
+        fvs === nothing && return vertices
+        foreach(fv -> collect_vertices_from(f, fv, vertices), fvs)
     end
     push!(vertices, v)
     return vertices
