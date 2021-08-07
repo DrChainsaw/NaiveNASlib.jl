@@ -803,7 +803,7 @@ import JuMP
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1]
-                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeError())) 
                 end
 
                 @testset "Warn for impossible size constraint and revert" begin
@@ -816,7 +816,7 @@ import JuMP
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
 
-                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
+                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3) == false
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -897,7 +897,7 @@ import JuMP
 
                     @test inputs(v3) == [v1]
 
-                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3,  strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeError()))
                 end
 
                 @testset "Warn for impossible size constraint and ignore" begin
@@ -910,7 +910,7 @@ import JuMP
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
 
-                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
+                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3) == false
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -997,7 +997,7 @@ import JuMP
 
                     @test inputs(v3) == [v1, v2]
 
-                    @test_throws NaiveNASlib.SizeAlignFailError remove_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError remove_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeError()))
                 end
 
                 @testset "Warn for impossible size constraint and revert" begin
@@ -1011,7 +1011,7 @@ import JuMP
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
                     @test [nout(v3)] == nin(v4) == [19]
 
-                    @test @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn())) == false
+                    @test @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3) == false
 
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
@@ -1344,7 +1344,7 @@ import JuMP
             v2 = av(v1, 5, name="v2")
             v3 = imu(v2, 4, name="v3")
 
-            @test_throws NaiveNASlib.SizeAlignFailError remove!(v2)
+            @test_throws NaiveNASlib.SizeAlignFailError remove!(v2, RemoveStrategy(AlignSizeBoth(;fallback=FailAlignSizeError())))
         end
 
         @testset "Warn for impossible removal and ignore" begin
@@ -1352,7 +1352,7 @@ import JuMP
             v2 = av(v1, 5, name="v2")
             v3 = imu(v2, 4, name="v3")
 
-            @test @test_logs (:warn, r"Could not align sizes") remove!(v2, RemoveStrategy(AlignSizeBoth(;fallback=FailAlignSizeWarn()))) == false
+            @test @test_logs (:warn, r"Could not align sizes") remove!(v2) == false
 
             @test outputs(v1) == [v2]
             @test inputs(v2) == [v1]

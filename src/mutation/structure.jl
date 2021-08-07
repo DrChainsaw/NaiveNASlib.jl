@@ -79,27 +79,35 @@ struct FailAlignSizeWarn{S, F} <: AbstractAlignSizeStrategy
 end
 FailAlignSizeWarn(;andthen=FailAlignSizeNoOp(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
 
+const doc_mapstrat = """
+`mapstrat` can be used to wrap the [`AbstractΔSizeStrategy`](@ref) in a [`DecoratingJuMPΔSizeStrategy`](@ref). Main intended usecase is [`WithUtilityFun`](@ref). 
+"""
+
 """
     AlignSizeBoth <: AbstractAlignSizeStrategy
     AlignSizeBoth()
-    AlignSizeBoth(fallback)
+    AlignSizeBoth(;fallback, mapstrat)
 
 Align sizes by changing both input and output.
-Fallback to another strategy (default [`FailAlignSizeError`](@ref)) if size change is not possible.
+Fallback to another strategy (default [`FailAlignSizeWarn`](@ref)) if size change is not possible.
+
+$doc_mapstrat
 """
 struct AlignSizeBoth{S, F} <: AbstractAlignSizeStrategy
     fallback::S
     mapstrat::F
 end
-AlignSizeBoth(;fallback=FailAlignSizeError(),mapstrat=identity) = AlignSizeBoth(fallback, mapstrat)
+AlignSizeBoth(;fallback=FailAlignSizeWarn(),mapstrat=identity) = AlignSizeBoth(fallback, mapstrat)
 
 """
     DecreaseBigger <: AbstractAlignSizeStrategy
     DecreaseBigger()
-    DecreaseBigger(fallback)
+    DecreaseBigger(;fallback, mapstrat)
 
 Try to align size by decreasing in the direction (in/out) which has the bigger size.
 Fallback to another strategy (default [`AlignSizeBoth`](@ref)) if size change is not possible.
+
+$doc_mapstrat
 """
 struct DecreaseBigger{S, F} <: AbstractAlignSizeStrategy
     fallback::S
@@ -110,10 +118,12 @@ DecreaseBigger(;fallback=AlignSizeBoth(),mapstrat=identity) = DecreaseBigger(fal
 """
     IncreaseSmaller <: AbstractAlignSizeStrategy
     IncreaseSmaller()
-    IncreaseSmaller(fallback)
+    IncreaseSmaller(;fallback, mapstrat)
 
 Try to align size by increasing in the direction (in/out) which has the smaller size.
 Fallback to another strategy (default [`DecreaseBigger`](@ref)) if size change is not possible.
+
+$doc_mapstrat
 """
 struct IncreaseSmaller{S,F} <: AbstractAlignSizeStrategy
     fallback::S
@@ -190,9 +200,9 @@ struct PostAlign{S,F} <: AbstractAlignSizeStrategy
     fallback::F
 end
 PostAlign() = PostAlign(DefaultJuMPΔSizeStrategy())
-PostAlign(s::AbstractJuMPΔSizeStrategy; fallback = FailAlignSizeError()) = PostAlign(AlignNinToNout(s, ΔSizeFailNoOp()), fallback)
-PostAlign(s::AlignNinToNout; fallback=FailAlignSizeError()) = PostAlign(s, fallback)
-PostAlign(s; fallback=FailAlignSizeError()) = PostAlign(s, fallback)
+PostAlign(s::AbstractJuMPΔSizeStrategy; fallback = FailAlignSizeWarn()) = PostAlign(AlignNinToNout(s, ΔSizeFailNoOp()), fallback)
+PostAlign(s::AlignNinToNout; fallback=FailAlignSizeWarn()) = PostAlign(s, fallback)
+PostAlign(s; fallback=FailAlignSizeWarn()) = PostAlign(s, fallback)
 
 """
     RemoveStrategy
