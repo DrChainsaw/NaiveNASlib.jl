@@ -21,6 +21,7 @@ DefaultJuMPΔSizeStrategy
 
 ΔNout
 WithUtilityFun
+WithKwargs
 LogΔSizeExec
 ThrowΔSizeFailError
 ΔSizeFailNoOp

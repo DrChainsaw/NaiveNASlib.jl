@@ -768,4 +768,35 @@ end
             @test @test_logs (:info, "Change nin of v5 by [1,…, 34, -1×10] and [1,…, 34, -1×10]") (:info, "Change nout of v5 by [1,…, 34, -1×10]") (:info, "Change nout of v3 by [1,…, 34, -1×10]") (:info, "Change nout of v4 by [1,…, 34, -1×10]") Δsize!(NeuronIndices(), ΔNoutExact(v5, 10))
         end
     end
+
+    @testset "WithKwargs" begin
+        mutable struct WantKwargsSize
+            insize::Int
+            outsize::Int
+        end
+        NaiveNASlib.nout(w::WantKwargsSize) = w.outsize
+        NaiveNASlib.nin(w::WantKwargsSize) = [w.insize]
+        NaiveNASlib.Δsizetype(::WantKwargsSize) = NaiveNASlib.ScalarSize()
+
+        seenkwargs = Dict()
+        function NaiveNASlib.Δsize!(w::WantKwargsSize, ins::AbstractVector{<:Integer}, outs::Integer; kwargs...) 
+            if ins[] !== missing
+                w.insize = ins[]
+            end
+            w.outsize =outs
+            merge!(seenkwargs, kwargs)
+        end
+
+        iv = inpt(3)
+        v1 = absorbvertex(WantKwargsSize(3, 5), iv; traitdecoration=tf("v1"))
+
+        @test Δsize!(WithKwargs(ΔNout(v1 => 2); a=3, b=4)) == true
+
+        @test nout(v1) == 7
+        @test seenkwargs == Dict(:a => 3, :b => 4)
+
+        @test Δsize!(validateafterΔsize(base=WithKwargs(ΔNout(v1 =>-2); c = 5))) == true
+        @test nout(v1) == 5
+        @test seenkwargs == Dict(:a => 3, :b => 4, :c=>5)
+    end
 end

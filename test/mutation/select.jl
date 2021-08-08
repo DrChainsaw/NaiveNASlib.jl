@@ -925,4 +925,34 @@ import JuMP
 
         @test [nout(v1)] == nin(v2) == [nout(v2)] == [1]
     end
+
+    @testset "WithKwargs" begin
+        mutable struct WantKwargs
+            insize::Int
+            outsize::Int
+        end
+        NaiveNASlib.nout(w::WantKwargs) = w.outsize
+        NaiveNASlib.nin(w::WantKwargs) = [w.insize]
+
+        seenkwargs = Dict()
+        function NaiveNASlib.Δsize!(w::WantKwargs, ins::AbstractVector, outs::AbstractVector; kwargs...) 
+            if ins[] !== missing
+                w.insize = length(ins[])
+            end
+            w.outsize = length(outs)
+            merge!(seenkwargs, kwargs)
+        end
+
+        inpt = iv(3)
+        v1 = absorbvertex(WantKwargs(3, 5), inpt; traitdecoration=tf("v1"))
+
+        @test Δsize!(WithKwargs(ΔNout(v1 => 2); a=3, b=4)) == true
+
+        @test nout(v1) == 7
+        @test seenkwargs == Dict(:a => 3, :b => 4)
+
+        @test Δsize!(validateafterΔsize(base=WithKwargs(ΔNout(v1 => relaxed(-2)); c = 5))) == true
+        @test nout(v1) == 5
+        @test seenkwargs == Dict(:a => 3, :b => 4, :c=>5)
+    end
 end

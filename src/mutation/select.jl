@@ -134,7 +134,7 @@ function _Δsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict,
     Δnouts = [length(outs[vi]) != nout(vi) for vi in vs]
 
     for vi in vs
-        Δsize!(case, OnlyFor(), vi, ins[vi], outs[vi])
+        Δsize!(case, s, vi, ins[vi], outs[vi])
     end
 
     for (i, vi) in enumerate(vs)
@@ -143,21 +143,31 @@ function _Δsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict,
     end
 end
 
-Δsize!(case::NeuronIndices, s::OnlyFor, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector) = Δsize!(case, s, base(v), ins, outs)
-Δsize!(::NeuronIndices, ::OnlyFor, v::CompVertex, ins::AbstractVector, outs::AbstractVector) = Δsize!(v.computation, ins, outs)
+function Δsize!(case::NeuronIndices, s::WithKwargs, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) 
+    Δsize!(case, base(s), v, ins, outs; kws..., s.kwargs...)
+end
+Δsize!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) = Δsize!(case, base(s), v, ins, outs; kws...)
+Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) = Δsize!(case, v, ins, outs; kws...)
 
+Δsize!(case::NeuronIndices, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) = Δsize!(case, base(v), ins, outs; kwargs...)
+Δsize!(case::NeuronIndices, v::CompVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) = Δsize!(case, v.computation, ins, outs; kwargs...)
+Δsize!(::NeuronIndices, f, ins::AbstractVector, outs::AbstractVector; kwargs...) = Δsize!(f, ins, outs; kwargs...)
 """
-    Δsize!(f::F, ins::AbstractVector, outs::AbstractVector) 
+    Δsize!(f::F, ins::AbstractVector, outs::AbstractVector; kwargs...) 
 
 Apply the changes to `f` so that input neurons in `ins` and output neurons in `outs` are selected and/or inserted.
+
+Argument `outs` is a vector of indices to select/insert while `ins` has one vector of indices per input vertex.
 
 Shall be implemented for any type `F` which holds parameters for which the shape shall be modified by NaiveNASlib.
 
 Tip: the function [`parselect`](@ref) can be used to change parameter arrays according to `ins` and `outs`.
-"""
-function Δsize!(f, ins::AbstractVector, outs::AbstractVector) end
 
-function Δsize!(::NeuronIndices, ::OnlyFor, v::InputSizeVertex, ins::AbstractVector, outs::AbstractVector) 
+Tip: `kwargs` can be passed using [`WithKwargs`](@ref).
+"""
+function Δsize!(f, ins::AbstractVector, outs::AbstractVector; kwargs...) end
+
+function Δsize!(::NeuronIndices, v::InputSizeVertex, ins::AbstractVector, outs::AbstractVector) 
     if !all(isempty, skipmissing(ins))
         throw(ArgumentError("Try to change input neurons of InputVertex $(name(v)) to $ins"))
     end 

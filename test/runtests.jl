@@ -1,4 +1,4 @@
-using Test, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend, Documenter
+using Test, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
 
 include("testutil.jl")
 
@@ -31,6 +31,7 @@ include("testutil.jl")
 	include("examples.jl")
 
 	if Int !== Int32
-		doctest(NaiveNASlib)
+		import Documenter
+		Documenter.doctest(NaiveNASlib)
 	end
 end

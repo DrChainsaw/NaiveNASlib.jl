@@ -10,13 +10,6 @@ See [`Δsize!`](@ref).
 abstract type AbstractΔSizeStrategy end
 
 """
-OnlyFor <: AbstractΔSizeStrategy
-
-Change size only for the provided vertex.
-"""
-struct OnlyFor <: AbstractΔSizeStrategy end
-
-"""
     AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
 
 Abstract type for strategies to change or align the sizes of vertices using JuMP.
@@ -527,6 +520,22 @@ add_participants!(s::WithUtilityFun, vs=AbstractVertex[]) = add_participants!(ba
 Abstract base type for strategies which perform actions after size has changed (e.g validation and logging).
 """
 abstract type AbstractAfterΔSizeStrategy <: DecoratingJuMPΔSizeStrategy end 
+
+"""
+    WithKWargs{KW, S} <: AbstractAfterΔSizeStrategy
+    WithKwargs(strategy; kwargs...)
+
+Adds keyword argument `kwargs` to any calls to [`Δsize!`](@ref Δsize!(::Any, ::AbstractVector, ::AbstractVector)) after sizes have been determined.
+"""
+struct WithKwargs{KW, S} <: AbstractAfterΔSizeStrategy
+    kwargs::KW
+    strategy::S
+end
+WithKwargs(strategy; kwargs...) = WithKwargs(kwargs, strategy) 
+base(s::WithKwargs) = s.strategy
+fallback(s::WithKwargs) = fallback(s.strategy)
+
+add_participants!(s::WithKwargs, vs=AbstractVertex[]) = add_participants!(base(s), vs)
 
 """
     AfterΔSizeCallback{F, S} <: AbstractAfterΔSizeStrategy

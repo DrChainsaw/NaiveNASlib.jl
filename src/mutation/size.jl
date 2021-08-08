@@ -70,7 +70,7 @@ function _Δsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector
     for (i, vi) in enumerate(vertices)
         insizes = get(() -> nin(vi), nins, vi)
         insizes = coalesce.(insizes, nin(vi))
-        Δsize!(case, OnlyFor(), vi, insizes, nouts[i])
+        Δsize!(case, s, vi, insizes, nouts[i])
     end
 
     for (i, vi) in enumerate(vertices)
@@ -79,11 +79,21 @@ function _Δsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector
     end
 end
 
-Δsize!(case::ScalarSize, s::OnlyFor, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize!(case, s, base(v), insizes, outsize)
-Δsize!(::ScalarSize, ::OnlyFor, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer) = Δsize!(v.computation, insizes, outsize)
-function Δsize!(f, ins::AbstractVector{<:Integer}, outs::Integer) end
+function Δsize!(case::ScalarSize, s::WithKwargs, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    Δsize!(case, v, insizes, outsize; kws..., s.kwargs...)
+end
+function Δsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+     Δsize!(case, base(s), v, insizes, outsize; kws...)
+end
+function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    Δsize!(case, v, insizes, outsize; kws...)
+end
+Δsize!(case::ScalarSize, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(case, base(v), insizes, outsize; kws...)
+Δsize!(case::ScalarSize, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(case, v.computation, insizes, outsize; kws...)
+Δsize!(::ScalarSize, f, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(f, insizes, outsize; kws...)
+function Δsize!(f, ins::AbstractVector{<:Integer}, outs::Integer; kws...) end
 
-function Δsize!(::ScalarSize, ::OnlyFor, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer) 
+function Δsize!(::ScalarSize, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer) 
     if !all(isempty, skipmissing(ins))
         throw(ArgumentError("Try to change input size of InputVertex $(name(v)) to $insizes"))
     end 
