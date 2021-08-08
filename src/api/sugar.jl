@@ -7,11 +7,11 @@ Return an immutable input type vertex with the given `name` and `size`.
 Typically used as "entry" point to a computation graph.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> inputvertex("input", 5)
-InputSizeVertex(InputVertex("input"), outputs=[], 5)
+InputSizeVertex(InputVertex(input, outputs=[]), 5)
 
 ```
 """
@@ -24,10 +24,10 @@ inputvertex(name, size) = InputSizeVertex(name, size)
 Return a mutable computation type vertex.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
-julia> v = vertex(NaiveNASlib.SizeInvariant(), x -> 5x, inputvertex("input", 1));
+julia> v = NaiveNASlib.vertex(NaiveNASlib.SizeInvariant(), x -> 5x, inputvertex("input", 1));
 
 julia> v(3)
 15
@@ -43,13 +43,13 @@ Return an immutable computation type vertex.
 Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = immutablevertex(x -> x * [1 2 3; 4 5 6], inputvertex("input", 2));
 
 julia> v([1 2])
-1×3 Array{Int64,2}:
+1×3 Matrix{Int64}:
  9  12  15
 
 ```
@@ -65,13 +65,13 @@ wrapping a parameter array.
 Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = absorbvertex(x -> x * [1 2 3; 4 5 6], inputvertex("input", 2));
 
 julia> v([1 2])
-1×3 Array{Int64,2}:
+1×3 Matrix{Int64}:
  9  12  15
 
 ```
@@ -86,20 +86,20 @@ Return a mutable computation type vertex which is size invariant, i.e `nin == no
 Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = invariantvertex(x -> 2 .* x, inputvertex("input", 2));
 
 julia> nin(v)
-1-element Array{Int64,1}:
+1-element Vector{Int64}:
  2
 
 julia> nout(v)
 2
 
 julia> v([1 2])
-1×2 Array{Int64,2}:
+1×2 Matrix{Int64}:
  2  4
 ```
 """
@@ -115,13 +115,13 @@ Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`
 Use `outwrap=f` to wrap the concatenation function in `f`.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = conc(inputvertex.(["in1", "in2", "in3"], 1:3)..., dims=1);
 
 julia> nin(v)
-3-element Array{Int64,1}:
+3-element Vector{Int64}:
  1
  2
  3
@@ -130,7 +130,7 @@ julia> nout(v)
 6
 
 julia> v([1], [2, 3], [4, 5, 6])
-6-element Array{Int64,1}:
+6-element Vector{Int64}:
  1
  2
  3
@@ -140,7 +140,7 @@ julia> v([1], [2, 3], [4, 5, 6])
 
 julia> v = conc(inputvertex.(["in1", "in2", "in3"], 1:3)..., dims=1, outwrap = f -> (x...) -> 2f(x...));
  
-julia> vv([1], [2, 3], [4, 5, 6])
+julia> v([1], [2, 3], [4, 5, 6])
 6-element Vector{Int64}:
   2
   4
@@ -203,13 +203,13 @@ to supply both a name and a function.
 
 # Examples
 
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = inputvertex("in1", 2) + inputvertex("in2", 2) + inputvertex("in3" ,2);
 
 julia> nin(v)
-3-element Array{Int64,1}:
+3-element Vector{Int64}:
  2
  2
  2
@@ -218,7 +218,7 @@ julia> nout(v)
 2
 
 julia> v([1, 2], [3, 4], [5, 6])
-2-element Array{Int64,1}:
+2-element Vector{Int64}:
   9
  12
 
@@ -244,13 +244,13 @@ to supply both a name and a function.
 
 # Examples
 
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = inputvertex("in1", 2) * inputvertex("in2", 2) * inputvertex("in3" ,2);
 
 julia> nin(v)
-3-element Array{Int64,1}:
+3-element Vector{Int64}:
  2
  2
  2
@@ -259,7 +259,7 @@ julia> nout(v)
 2
 
 julia> v([1, 2], [3, 4], [5, 6])
-2-element Array{Int64,1}:
+2-element Vector{Int64}:
  15
  48
 
@@ -284,13 +284,13 @@ to supply both a name and a function.
 
 # Examples
 
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
-julia> v = inputvertex("in1", 2) - inputvertex("in2", 2)
+julia> v = inputvertex("in1", 2) - inputvertex("in2", 2);
 
 julia> nin(v)
-2-element Array{Int64,1}:
+2-element Vector{Int64}:
  2
  2
 
@@ -298,7 +298,7 @@ julia> nout(v)
 2
 
 julia> v([1, 2], [3, 4])
-2-element Array{Int64,1}:
+2-element Vector{Int64}:
  -2
  -2
 
@@ -326,13 +326,13 @@ Due to operator precedence, this has to be done in the following order: `-(conf 
 
 #Examples
 
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
 julia> v = -inputvertex("in", 2);
 
 julia> v([1,2])
-2-element Array{Int64,1}:
+2-element Vector{Int64}:
  -1
  -2
 
@@ -358,13 +358,13 @@ to supply both a name and a function.
 
 # Examples
 
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
-julia> v = inputvertex("in1", 2) / inputvertex("in2", 2)
+julia> v = inputvertex("in1", 2) / inputvertex("in2", 2);
 
 julia> nin(v)
-2/element Array{Int64,1}:
+2-element Vector{Int64}:
  2
  2
 
@@ -372,9 +372,9 @@ julia> nout(v)
 2
 
 julia> v([6, 8], [2, 4])
-2/element Array{Int64,1}:
- 3
- 2
+2-element Vector{Float64}:
+ 3.0
+ 2.0
 
 julia> v = "v" >> inputvertex("in1", 3) / inputvertex("in2", 3);
 

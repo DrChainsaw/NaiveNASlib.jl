@@ -1,4 +1,4 @@
-using Test, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
+using Test, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend, Documenter
 
 include("testutil.jl")
 
@@ -29,4 +29,5 @@ include("testutil.jl")
 
 	@info "Testing doc examples"
 	include("examples.jl")
+	doctest(NaiveNASlib)
 end

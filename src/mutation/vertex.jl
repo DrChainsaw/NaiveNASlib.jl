@@ -38,8 +38,8 @@ struct InputSizeVertex{V<:AbstractVertex} <: AbstractVertex
     base::V
     size::Int
 
-    function InputSizeVertex(b::OutputsVertex, size::Integer)
-        this = new{OutputsVertex}(b, Int(size))
+    function InputSizeVertex(b::V, size::Integer) where V <:OutputsVertex
+        this = new{V}(b, Int(size))
         init!(b, this)
         return this
     end
@@ -54,6 +54,12 @@ inputs(v::InputSizeVertex) = inputs(base(v))
 outputs(v::InputSizeVertex) = outputs(base(v))
 
 @functor InputSizeVertex
+
+function Base.show(io::IO, v::InputSizeVertex)
+    print(io, "InputSizeVertex(")
+    show(io, base(v))
+    print(io, ", ", v.size, ')')
+end
 
 """
     MutationTrait
