@@ -191,15 +191,17 @@ generic_Δnout_docstring_examples(fgen; footer = "```", header="```julia-repl") 
 $header
 julia> using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
 
-julia> mutable struct Affine{T} W::Matrix{T} end;
+julia> module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=>ins[1], 1=>outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
 
-julia> affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in);
-
-julia> NaiveNASlib.nout(a::Affine) = size(a.W, 1);
-
-julia> NaiveNASlib.nin(a::Affine) = [size(a.W, 2)];
-
-julia> NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=>ins[1], 1=>outs);
+julia> using .TestNNLib;
 
 julia> iv = affine(inputvertex("in", 3), 6);
 
