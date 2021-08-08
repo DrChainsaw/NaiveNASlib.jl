@@ -7,7 +7,7 @@ Just to get started, lets create a simple graph for the summation of two numbers
 NaiveNASlib uses a special immutable type of vertex to annotate inputs so that one
 can be certain that size mutations won't suddenly change the input shape of the model.
 """
-@testset "First example" begin #hide
+@testset "First example" begin #src
 using NaiveNASlib, Test
 in1 = inputvertex("in1", 1)
 in2 = inputvertex("in2", 1)
@@ -39,8 +39,8 @@ graph = CompGraph([in1, in2], add);
 @test graph[end] == graph[3] == add
 @test graph[begin:end] == vertices(graph)
 # This is a bit slow though as it traverses the whole graph each time. It is better to 
-# call `vertices` first and then apply the indexing if one needs to do this many times.
-end #hide
+# call [`vertices`](@ref) first and then apply the indexing if one needs to do this many times.
+end #src
 
 # ## Modify a graph
 # Now lets look at how to make use of it to modify the structure of a neural network. Since batteries are excluded, 
@@ -94,14 +94,14 @@ themselves are not mutable.
 Lets do a super simple example where we make use of the tiny neural network library to create a model and then modify it:
 """
 
-@testset "Second example" begin #hide
+@testset "Second example" begin #src
 using .TinyNNlib
 invertex = inputvertex("input", 3)
 layer1 = linearvertex(invertex, 4);
 layer2 = linearvertex(layer1, 5);
 
 # Vertices may be called to execute their computation alone.
-# We generally outsource this work to `CompGraph`, but now we are trying to illustrate how things work.
+# We generally outsource this work to [`CompGraph`](@ref), but now we are trying to illustrate how things work.
 batchsize = 2;
 batch = randn(nout(invertex), batchsize);
 y1 = layer1(batch);
@@ -109,7 +109,7 @@ y1 = layer1(batch);
 y2 = layer2(y1);
 @test size(y2) == (nout(layer2), batchsize) == (5, 2)
 
-# Lets change the output size of layer1. First check the input sizes so we have some thing to compare to
+# Lets change the output size of `layer1`. First check the input sizes so we have something to compare to.
 @test [nout(layer1)] == nin(layer2) == [4]
 @test Δnout!(layer1 => -2) # Returns true if successful
 @test [nout(layer1)] == nin(layer2) == [2]
@@ -121,7 +121,7 @@ y1 = layer1(batch);
 @test size(y1) == (nout(layer1), batchsize) == (2, 2)
 y2 = layer2(y1);
 @test size(y2) == (nout(layer2), batchsize) == (5 ,2)
-end #hide
+end #src
 
 md"""
 ## A more elaborate example
@@ -132,12 +132,12 @@ when being executed.
 
 Besides the very simple graph, this mutation was trivial because the sizes of the input and output dimensions 
 of `LinearLayer`'s parameters can change independently as they are the rows and columns of the weight matrix. 
-This is expressed by giving the layers the mutation size trait `SizeAbsorb` in the lingo of NaiveNASlib, 
+This is expressed by giving the layers the mutation size trait [`SizeAbsorb`](@ref) in the lingo of NaiveNASlib, 
 meaning that a change in number of input/output neurons does not propagate further in the graph.
 
 On to the next example! As hinted before, things can quickly get out of hand when using:
 
-* Layers which require nin==nout, e.g. batch normalization and pooling.
+* Layers which require `nin==nout`, e.g. batch normalization and pooling.
 * Element wise operations such as activation functions or just element wise arithmetics (e.g `+` used in residual connections).
 * Concatenation of activations.  
 
@@ -145,9 +145,9 @@ Lets use a small but non-trivial model including all of the above. We begin by m
 """
 scalarmult(v, s::Number) = invariantvertex(x -> x .* s, v)
 # When multiplying with a scalar, the output size is the same as the input size.
-# This vertex type is said to be size invariant (in lack of better words), hence the name `invariantvertex`.
+# This vertex type is said to be size invariant (in lack of better words), hence the name [`invariantvertex`](@ref).
 
-@testset "More elaborate example" begin #hide
+@testset "More elaborate example" begin #src
 # Ok, lets create the model:
 ## First a few "normal" layers
 invertex = inputvertex("input", 6);
@@ -195,7 +195,7 @@ parentgraph = deepcopy(graph)
 #
 # Lets evaluate the graph just to verify that we don't get a dimension mismatch error. 
 @test graph((ones(6))) == [78, 78, 0, 114, 114, 0, 186, 186, 0]
-# `TinyNNlib` uses `parselect` which will insert zeros when size increases by default. 
+# `TinyNNlib` uses [`parselect`](@ref) which will insert zeros when size increases by default. 
 # This helps the graph maintain the same function after mutation.
 # In this case we changed the size of the output layer so we don't have 
 # the exact same function though, but hopefully it is clear why e.g. a 
@@ -256,20 +256,21 @@ v1, v2 = graphΔnin[end-1:end];
 @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
 @test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition
 
-# Another popular pruning strategy is to just remove the x% of params with lowest utility.
+# A popular pruning strategy is to just remove the x% of params with lowest utility.
 # This can be done by just not putting any size requirements and assign negative utility.
 graphprune40 = deepcopy(graph);
 Δsize!(graphprune40) do v
     utility = NaiveNASlib.defaultutility(v)
+    ## We make some strong assumptions on weight distribution here for breviety :)
     return utility .- 0.4mean(utility)
 end
 @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
 ## Compare to original:
 @test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]
 
-end #hide
+end #src
 
-@testset "Weight modification example" begin #hide
+@testset "Weight modification example" begin #src
 
 # ## Closer look at how weights are modified
 # Here we take a closer look at how the weight matrices are changed.
@@ -331,14 +332,17 @@ end
 @test l3.W ==
 [  1  3  5  7  0   9  13 ;
    2  4  6  8  0  10  14 ]
-end #hide
+end #src
 
 
 # ## Other modifications
 # Lets just do a few quick examples of the other types of modifications.
 
 # ### Add a vertex
-@testset "Add vertex example" begin #hide
+
+# Using [`insert!`](@ref):
+
+@testset "Add vertex example" begin #src
 invertex = inputvertex("input", 3)
 layer1 = linearvertex(invertex, 5)
 graph = CompGraph(invertex, layer1)
@@ -352,10 +356,12 @@ graph = CompGraph(invertex, layer1)
 
 @test nvertices(graph) == 3
 @test graph(ones(3)) == [9, 9, 9, 9, 9]
-end #hide
+end #src
 
 # ### Remove a vertex
-@testset "Remove vertex example" begin #hide
+
+# Using [`remove!`](@ref):
+@testset "Remove vertex example" begin #src
 invertex = inputvertex("input", 3)
 layer1 = linearvertex(invertex, 5)
 layer2 = linearvertex(layer1, 4)
@@ -370,9 +376,11 @@ graph = CompGraph(invertex, layer2)
 
 @test nvertices(graph) == 2
 @test graph(ones(3)) == [3, 3, 3, 3]
-end #hide
+end #src
 
 # ### Add an edge
+
+# Using [`create_edge!`](@ref):
 @testset "Add edge example" begin
 invertices = inputvertex.(["input1", "input2"], [3, 2])
 layer1 = linearvertex(invertices[1], 4)
@@ -394,10 +402,12 @@ layer3 = linearvertex(invertices[2], 6)
 ## NaiveNASlib will try to increase the size in case of a mismatch by default
 @test nin(add) == [6, 6, 6]
 @test graph(ones(3), ones(2)) == [28, 28, 28, 28, 28] 
-end #hide
+end #src
 
 # ### Remove an edge
-@testset "Remove edge example" begin #hide
+
+# Using [`remove_edge!`](@ref):
+@testset "Remove edge example" begin #src
 invertex = inputvertex("input", 4)
 layer1 = linearvertex(invertex, 3)
 layer2 = linearvertex(invertex, 5)
@@ -412,6 +422,6 @@ graph = CompGraph(invertex, out)
 
 @test nin(merged) == [5, 3]
 @test graph(ones(4)) == [32, 32, 32]
-end #hide
+end #src
 #
 

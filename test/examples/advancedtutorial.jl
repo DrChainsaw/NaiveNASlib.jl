@@ -18,7 +18,7 @@ For more or less all operations which mutate the graph, it is possible achieve f
 Here is an example of strategies for changing the size. 
 """
 
-@testset "Strategies" begin #hide
+@testset "Strategies" begin #src
 # First we make a simple graph where one vertex has a constraint for changing the size.
 invertex = inputvertex("in", 3)
 layer1 = linearvertex(invertex, 4)
@@ -56,7 +56,7 @@ exact_or_log_then_relax = ΔNoutExact(joined=>1;
 @test_logs (:info, "Exact failed, relaxing") Δsize!(exact_or_log_then_relax)
 @test nout(joined) == 2*nout(layer1) == 12
 
-# If one wants to see every size change we can set up an `AfterΔSizeCallback` strategy to log it for us like this:
+# If one wants to see every size change we can set up an [`AfterΔSizeCallback`](@ref) strategy to log it for us like this:
 exact_or_log_then_relax_verbose = logafterΔsize(v -> "some vertex";base=exact_or_log_then_relax)
 
 @test_logs( 
@@ -65,7 +65,7 @@ exact_or_log_then_relax_verbose = logafterΔsize(v -> "some vertex";base=exact_o
     (:info, r"Change nout of some vertex"),
     match_mode=:any,
     Δsize!(exact_or_log_then_relax_verbose))    
-end #hide
+end #src
 
 md"""
 A similar pattern is used for most other mutating operations. See the advanced reference documentation for the complete set.
@@ -74,25 +74,25 @@ md"""
 ## Traits
 
 A variant (bastardization?) of the [holy trait](https://docs.julialang.org/en/v1/manual/methods/#Trait-based-dispatch-1) pattern is used to 
-annotate the type of a vertex. The core idea is discussed a bit in the [`Terminology`](@ref) section, but it is 
+annotate the type of a vertex. The core idea is discussed a bit in the [Terminology](@ref) section, but it is 
 also possible to attach other information and behaviors by freeriding on this mechanism.
 
 This is done by adding the argument `traitdecoration` when creating a vertex and supplying a function which takes a trait and return a new trait 
 (which typically wraps the input).
 """
 
-@testset "Traits" begin #hide
+@testset "Traits" begin #src
 # Naming vertices is so useful for logging and debugging I almost made it mandatory. 
 #
-# If a vertex does not have the named trait, `name` will return a generic string. Compare
+# If a vertex does not have the named trait, [`name`](@ref) will return a generic string. Compare
 noname = linearvertex(inputvertex("in", 2), 2)
 @test name(noname) == "MutationVertex::SizeAbsorb"
 # with
 hasname = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait("named layer", t))
 @test name(hasname) == "named layer"
 
-# `AfterΔSizeTrait` can be used to attach an `AbstractAfterΔSizeStrategy` to an individual vertex.
-# In this case we use `logafterΔsize` from the example above.
+# [`AfterΔSizeTrait`](@ref) can be used to attach an [`AbstractAfterΔSizeStrategy`](@ref) to an individual vertex.
+# In this case we use [`logafterΔsize`](@ref) from the example above.
 verbose_vertex_info(v) = string(name(v),
                                  " with inputs=[", join(name.(inputs(v)),  ", "), 
                                 "] and outputs=[", join(name.(outputs(v)), ", "), ']')
@@ -102,7 +102,7 @@ named_verbose_logging(t) = AfterΔSizeTrait(
 layer1 = absorbvertex(  LinearLayer(2, 3), 
                         inputvertex("in", 2), 
                         traitdecoration = named_verbose_logging)
-# The above is a mouthful, but `NaiveNASlib.Advanced` exports the `named` and `logged` functions for convenience
+# The above is a mouthful, but `NaiveNASlib.Advanced` exports the [`named`](@ref) and [`logged`](@ref) functions for convenience
 layer2 = absorbvertex(  LinearLayer(nout(layer1), 4), 
                         layer1; 
                         traitdecoration = logged(name) ∘ named("layer2"))
@@ -126,7 +126,8 @@ add = traitconf(logged(verbose_vertex_info) ∘ named("layer1+layer2")) >> layer
 (:info, "Change nout of layer1+layer2 with inputs=[layer1, layer2] and outputs=[] by [1, 2, 3, 4, -1]"),
 Δnout!(layer1, 1))
 
-# When creating own trait wrappers, remember to subtype `DecoratingTrait` or else there will be pain.
+# When creating own trait wrappers, remember to subtype [`DecoratingTrait`](@ref) or else there will be pain.
+
 struct PainfulTrait{T<:MutationTrait} <: MutationTrait
     base::T
 end
@@ -134,7 +135,7 @@ painlayer = absorbvertex(   LinearLayer(2, 3),
                             inputvertex("in", 2);
                             traitdecoration = PainfulTrait)
 
-# Wrong! Not a subtype of `DecoratingTrait`.
+# Wrong! Not a subtype of [`DecoratingTrait`](@ref).
 @test_throws MethodError Δnout!(painlayer, 1)
 
 # Now one must implement a lot of methods for `PainfulTrait`...
@@ -143,8 +144,8 @@ painlayer = absorbvertex(   LinearLayer(2, 3),
 struct SmoothSailingTrait{T<:MutationTrait} <: DecoratingTrait
     base::T
 end
-# Right! Is a subtype of `DecoratingTrait`.
-# Just implement `base` and all will be fine.
+# Right! Is a subtype of [`DecoratingTrait`](@ref).
+# Just implement [`base`](@ref base(t::DecoratingTrait)) and all will be fine.
 NaiveNASlib.base(t::SmoothSailingTrait) = t.base
 
 smoothlayer = absorbvertex( LinearLayer(2, 3), 
@@ -153,7 +154,7 @@ smoothlayer = absorbvertex( LinearLayer(2, 3),
 
 @test Δnout!(smoothlayer, 1)
 @test nout(smoothlayer) == 4
-end #hide
+end #src
 
 md"""
 ## Graph instrumentation and modification
@@ -163,7 +164,7 @@ In many cases it is desirable to change things like traits of an existing graph.
 Depending on what one wants to achieve, it can be more or less messy. Here is a pretty messy example:
 """
 
-@testset "Graph instrumentation and modification" begin #hide
+@testset "Graph instrumentation and modification" begin #src
 invertex = inputvertex("in", 2)
 layer1 = linearvertex(invertex, 3)
 layer2 = linearvertex(layer1, 4)
@@ -189,7 +190,7 @@ end
 
 # Change name of `invertex` once we get there.
 # We could also just have made a string version of `addname` above 
-# since there are no other Strings in the graph, but this is safer.
+# since there are no other strings in the graph, but this is safer.
 function walk(f, v::InputVertex)
     rename(x) = x
     rename(s::String) = "in changed"
@@ -205,5 +206,5 @@ walk(f, x) = Functors._default_walk(f, x)
 namedgraph = Functors.fmap(identity, graph; walk)
 
 @test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
-end #hide
+end #src
 

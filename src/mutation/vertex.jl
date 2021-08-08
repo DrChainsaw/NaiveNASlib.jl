@@ -109,7 +109,7 @@ trait(::AbstractVertex) = Immutable()
 """
     DecoratingTrait <: MutationTrait
 
-Avbstract trait which wraps another trait. The wrapped trait of a [`DecoratingTrait`](@ref) `t` is accessible through [`base(t)`](@ref).
+Avbstract trait which wraps another trait. The wrapped trait of a [`DecoratingTrait`](@ref) `t` is accessible through [`base(t)`](@ref base(t::DecoratingTrait)).
 """
 abstract type DecoratingTrait <: MutationTrait end
 

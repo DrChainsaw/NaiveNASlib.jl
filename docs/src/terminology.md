@@ -21,18 +21,18 @@ possible primitive. The core idea of NaiveNASlib is basically to annotate the ty
 what is the proper way to deal with the neighboring vertices when mutating a vertex.
 
 This is done through labeling vertices into three major types:
-* `SizeAbsorb`: Assumes `nout(v)` and `nin(v)` may change independently. This means that size changes are absorbed by this
-    vertex in the sense they don't propagate further. Most typical neural network layers with parameter arrays fall into this
-    category.
+* [`SizeAbsorb`](@ref): Assumes [`nout(v)`](@ref) and [`nin(v)`](@ref) may change independently. This means that size changes
+    are absorbed by this vertex in the sense they don't propagate further. Most typical neural network layers with parameter
+    arrays fall into this category.
 
-* `SizeStack`: Assumes `nout(v) == sum(nin(v))`. This means that size changes propagate forwards (i.e. input -> output and
+* [`SizeStack`](@ref): Assumes [`nout(v)`](@ref) `==` [`sum(nin(v))`](@ref nin). This means that size changes propagate forwards (i.e. input -> output and
     output -> input). The main operation in this category is concatenation of activations. 
 
-* `SizeInvariant`: Assumes `[nout(v)] == unique(nin(v))`. This means that size changes propagate both forwards and backwards
+* [`SizeInvariant`](@ref): Assumes [`[nout(v)]`](@ref nout) `==` [`unique(nin(v))`](@ref nin). This means that size changes propagate both forwards and backwards
     as changing any input size or the output size means all others must change as well. In this category we find typically find
   element wise operations, but also normalization and pooling operations tend to fall into this category. 
 
-NaiveNASlib also uses the term `SizeTransparent` to denote the latter two (i.e any vertex which is not `SizeAbsorb`).
+NaiveNASlib also uses the term [`SizeTransparent`](@ref) to denote the latter two (i.e any vertex which is not [`SizeAbsorb`](@ref)).
 To use this library to mutate architectures for some neural network library basically means annotating up the above type for 
 each layer type and connect parameter dimensions to input and output sizes.
 
@@ -52,8 +52,8 @@ constraints for keeping the graph size aligned.
 
 Neuron is the name NaiveNASlib uses for the indices of the relevant dimension of the arrays passed between vertices. For example,
 if one vertex `v` takes a vector of size `N` as input and returns a vector of size `M` it has `N` input neurons
-and `M` output neurons. This is synonymous with saying that `v` has input size `N` and output size `M` and `nin(v) == N` and
-`nout(v) == M`.
+and `M` output neurons. This is synonymous with saying that `v` has input size `N` and output size `M` and [`nin(v)`](@ref) `== N` and
+[`nout(v)`](@ref) `== M`.
 
 When changing input or output size `v` will be given indices of the neurons to keep as well as
 where to insert new neurons. NaiveNASlib has then made sure that other vertices have gotten indices so that all remaining 

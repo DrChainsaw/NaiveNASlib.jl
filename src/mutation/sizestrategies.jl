@@ -28,7 +28,7 @@ abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
 
 Abstract type for [`AbstractJuMPΔSizeStrategies`](@ref AbstractJuMPΔSizeStrategy) which wants to delegate some parts of the problem formulation to another strategy.
 
-More concretely: If `s` is a [`DecoratingJuMPΔSizeStrategy`](@ref) then [`base(s)`](@ref) will be used unless explicitly stated through dispatch.
+More concretely: If `s` is a [`DecoratingJuMPΔSizeStrategy`](@ref) then [`base(s)`](@ref base(s::DecoratingJuMPΔSizeStrategy)) will be used unless explicitly stated through dispatch.
 """
 abstract type DecoratingJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 
