@@ -8,7 +8,7 @@ This is typically the number of rows/columns of a parameter `Matrix` for fully c
 in a convolutional layer. 
 
 Note that NaiveNASlib does not have the capability to figure this out by itself so this must be provided by the function wrapped
-in the vertex. For `SizeTransparent` vertices, NaiveNASlib will default to computing `nout(v)` from the sizes of the inputs.
+in the vertex. For [`SizeTransparent`](@ref) vertices, NaiveNASlib will default to computing `nout(v)` from the sizes of the inputs.
 
 There are three ways to implement `nin` for a function/callable `f` of type `F`:
 
@@ -31,7 +31,7 @@ This is typically the number of rows/columns of a parameter `Matrix` for fully c
 in a convolutional layer. 
 
 Note that NaiveNASlib does not have the capability to figure this out by itself so this must be provided by the function wrapped
-in the vertex. For `SizeTransparent` vertices, NaiveNASlib will default to computing `nin(v)` from the sizes of the inputs.
+in the vertex. For [`SizeTransparent`](@ref) vertices, NaiveNASlib will default to computing `nin(v)` from the sizes of the inputs.
 
 There are three ways to implement `nin` for a function/callable `f` of type `F`:
 
@@ -116,7 +116,7 @@ Use `missing` to indicate that no special treatment is needed for an input. Both
 mixed freely inside and outside the tuples (see examples).
 
 Note that the above constrain makes `Δnin!` much more cumbersome to use compared to [`Δnout!`](@ref) and in most cases
-there are no direct advantages of using `Δnin!` over `Δnout!` as they both boil down to the same thing. 
+there are no direct advantages of using `Δnin!` over [`Δnout!`](@ref) as they both boil down to the same thing. 
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
 `utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
