@@ -90,7 +90,7 @@ LogΔSizeExec(msgfun, level=Logging.Info) = LogΔSizeExec(msgfun, level, ΔSizeF
 LogΔSizeExec(msg::String, level::LogLevel=Logging.Info, andthen=ΔSizeFailNoOp()) = LogΔSizeExec(v -> msg, level, andthen)
 LogSelectionFallback(nextstr, andthen; level=Logging.Warn) = LogΔSizeExec(v -> "Size change for vertex $(nameorrepr(v)) failed! $nextstr", level, andthen)
 base(s::LogΔSizeExec) = s.andthen
-fallback(s::LogΔSizeExec) = base(s)
+fallback(s::LogΔSizeExec) = fallback(base(s))
 
 add_participants!(s::LogΔSizeExec, vs=AbstractVertex[]) = add_participants!(s.andthen, vs)
 
@@ -327,9 +327,11 @@ relaxed(Δ::Integer) = Δ => Relaxed()
 relaxed(Δs::Tuple{Vararg{<:Maybe{Int}}}) = Δs => Relaxed()
 
 """
-    ΔNout(args...)
+    ΔNout(args...;[fallback])
 
 Splits `args` into relaxed and exact size changes and creates the appropriate strategy (one of `ΔNout{Exact}, ΔNout{Relaxed} or ΔNoutMix`).
+
+Fallback strategy may be supplied through the `fallback` keyword. Defaults to `ΔNoutRelaxed` for all given vertices.
 
 $(generic_Δnout_docstring_examples("ΔNout"; footer=""))
 julia> ΔNout(v1, relaxed(2));
@@ -337,15 +339,17 @@ julia> ΔNout(v1, relaxed(2));
 julia> ΔNout(v1 => relaxed(2), v2 => -1)
 ``` 
 """
-function ΔNout(args...) 
+function ΔNout(args...;kwargs...) 
     exact, relaxed = split_exact_relaxed(args)
-    return ΔNout(exact, relaxed)
+    return ΔNout(exact, relaxed; kwargs...)
 end
 
 """
-    ΔNin(args...)
+    ΔNin(args...;[fallback])
 
 Splits `args` into relaxed and exact size changes and creates the appropriate strategy (one of `ΔNout{Exact}, ΔNout{Relaxed} or ΔNoutMix`).
+
+Fallback strategy may be supplied through the `fallback` keyword. Defaults to `ΔNinRelaxed` for all given vertices.
 
 $(generic_Δnin_docstring_examples("ΔNin"; footer=""))
 julia> ΔNin(v1, relaxed(3), missing, 2);
@@ -353,17 +357,23 @@ julia> ΔNin(v1, relaxed(3), missing, 2);
 julia> ΔNin(v1 => (relaxed(3), missing, 2), v2 => relaxed(-2, 0))
 ``` 
 """
-function ΔNin(args...) 
+function ΔNin(args...;fallback=nothing) 
     exact,relaxed = split_exact_relaxed(Δnin2Δnout(args...)) # To support mixed cases, e.g. Δnin!(v => (2, relaxed(4)))
-    fallback = default_noutfallback((args...) -> ΔNoutRelaxed(merge(exact, relaxed); fallback=default_noutfallback("nin", args)), "nin", args)
-    return ΔNout(exact, relaxed, fallback)
+    fallback = fallback === nothing ? default_noutfallback((args...) -> ΔNoutRelaxed(merge(exact, relaxed); fallback=default_noutfallback("nin", args)), "nin", args) : fallback
+    return ΔNout(exact, relaxed; fallback)
 end
 
-function ΔNout(exact::Dict, relaxed::Dict, fb = default_noutfallback(ΔNoutRelaxed, "nout", merge(exact,relaxed)))
-    isempty(relaxed) && return ΔNoutExact(exact;fallback=fb)
-    isempty(exact) && return ΔNoutRelaxed(relaxed; fallback=fallback(fb))
-    return ΔNoutMix(ΔNoutExact(exact;fallback=fb), ΔNoutRelaxed(relaxed;fallback=fb), fb)
+function ΔNout(exact::Dict, relaxed::Dict; fallback = default_noutfallback(ΔNoutRelaxed, "nout", merge(exact,relaxed)))
+    isempty(relaxed) && return ΔNoutExact(exact;fallback)
+    isempty(exact) && return ΔNoutRelaxed(relaxed; fallback=_relaxed_fallback(relaxed, fallback))
+    return ΔNoutMix(ΔNoutExact(exact;fallback), ΔNoutRelaxed(relaxed;fallback), fallback)
 end
+
+_relaxed_fallback(Δs, fb) = _is_same_fallback(Δs, fb) ? fallback(fb) : fb
+
+_is_same_fallback(Δs, fb::LogΔSizeExec) = _is_same_fallback(Δs, base(fb))
+_is_same_fallback(Δs, fb::ΔNout{Relaxed}) = fb.Δs == Δs
+_is_same_fallback(Δs, fb) = false
 
 split_exact_relaxed(p::Tuple{AbstractVertex, Any}) = split_exact_relaxed(tuple(Pair(p...)))
 split_exact_relaxed(d::Tuple{Dict}) = split_exact_relaxed(first(d))

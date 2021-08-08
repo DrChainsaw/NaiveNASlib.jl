@@ -37,18 +37,22 @@ import JuMP
     end
 
     @testset "Make ΔNout" begin
-        import NaiveNASlib: Exact, Relaxed
+        import NaiveNASlib: Exact, Relaxed, fallback
         @testset "All Exact" begin
             res = ΔNout(:a => 2, :b => 3 => Exact())
             @test res isa ΔNout{Exact} 
-            @test res.Δs == Dict(:a => 2, :b => 3)           
+            @test res.Δs == Dict(:a => 2, :b => 3)  
+            
+            @test base(fallback(res)) isa ΔNout{Relaxed}
         end
 
         @testset "All Relaxed" begin
             import NaiveNASlib: Exact, Relaxed
             res = ΔNout(:a => 2 => Relaxed(), :b => relaxed(3))
             @test res isa ΔNout{Relaxed} 
-            @test res.Δs == Dict(:a => 2, :b => 3)           
+            @test res.Δs == Dict(:a => 2, :b => 3)
+            
+            @test base(fallback(res)) isa ΔSizeFailNoOp
         end
 
         @testset "Mix" begin
@@ -57,6 +61,14 @@ import JuMP
             @test res isa ΔNoutMix
             @test res.exact.Δs == Dict(:a => 2, :c => 4)
             @test res.relax.Δs == Dict(:b => 3, :d => 5)
+
+            @test base(fallback(res)) isa ΔNout{Relaxed}
+        end
+
+        @testset "Fallback" begin
+            @test fallback(ΔNout(:a => 2; fallback=ThrowΔSizeFailError())) isa ThrowΔSizeFailError 
+            @test fallback(ΔNout(:a => relaxed(2); fallback=ThrowΔSizeFailError())) isa ThrowΔSizeFailError 
+            @test fallback(ΔNout(:a => relaxed(2), :b => 3; fallback=ThrowΔSizeFailError())) isa ThrowΔSizeFailError 
         end
     end
 
