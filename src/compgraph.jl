@@ -8,15 +8,17 @@ Basic graph for computation. While not strictly neccessary to compute anything,
 it makes it easier to keep track of things.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
-julia> cv = (CompVertex(+, InputVertex(1), InputVertex(2)));
+julia> v1 = inputvertex("in1", 1) + inputvertex("in2", 1);
 
-julia> CompGraph(inputs(cv), [CompVertex(x -> 3x, cv)])(2,3) # (2 + 3) * 3
+julia> v2 = invariantvertex(x -> 3x, v1);
+
+julia> CompGraph(inputs(v1), v2)(2,3) # (2 + 3) * 3
 15
 
-julia> CompGraph(inputs(cv), [cv, CompVertex(x -> 3x, cv)])(2,3)
+julia> CompGraph(inputs(v1), [v1, v2])(2,3)
 (5, 15)
 ```
 
@@ -62,23 +64,25 @@ Intermediate results from all visited vertices will be stored in memo after
 function exits.
 
 # Examples
-```julia-repl
-julia> using NaiveNASlib
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
 
 julia> ivs = InputVertex.(1:2);
 
-julia> cv = CompVertex(*, ivs...);
+julia> v1 = CompVertex(*, ivs...);
+
+julia> v2 = CompVertex(-, v1, ivs[1]);
 
 julia> results = Dict{AbstractVertex, Any}(zip(ivs, [2,3]));
 
-julia> output!(results, CompVertex(-, cv, ivs[1]))
+julia> output!(results, v2)
 4
-julia> results
-Dict{AbstractVertex,Any} with 4 entries:
-  CompVertex(*, [InputVertex(1), InputVertex(2)], [CompVertex(-)]) => 6
-  CompVertex(-, [CompVertex(*), InputVertex(1)], [])               => 4
-  InputVertex(1, [CompVertex(*), CompVertex(-)])                   => 2
-  InputVertex(2, [CompVertex(*)])                                  => 3
+julia> Pair{AbstractVertex, Int}[v=>results[v] for v in ancestors(v2)]
+4-element Vector{Pair{AbstractVertex, Int64}}:
+                                         InputVertex(1) => 2
+                                         InputVertex(2) => 3
+ CompVertex(*, inputs=[InputVertex(1), InputVertex(2)]) => 6
+  CompVertex(-, inputs=[CompVertex(*), InputVertex(1)]) => 4
 ```
 """
 function output!(memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}

@@ -29,5 +29,8 @@ include("testutil.jl")
 
 	@info "Testing doc examples"
 	include("examples.jl")
-	doctest(NaiveNASlib)
+
+	if Int !== Int32
+		doctest(NaiveNASlib)
+	end
 end

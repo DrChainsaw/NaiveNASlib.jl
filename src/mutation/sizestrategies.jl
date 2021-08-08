@@ -174,31 +174,44 @@ add_participants!(s::ΔNout, vs=AbstractVertex[]) = append!(vs, filter(v -> v �
 
 
 generic_Δnin_docstring_examples(fname::String; kwargs...) = generic_Δnin_docstring_examples(args ->  "$fname($args)"; kwargs...)
-generic_Δnin_docstring_examples(fgen; footer = "```") = generic_Δnout_docstring_examples(fgen; footer="") * """
+generic_Δnin_docstring_examples(fgen; footer = "```", kwargs...) = generic_Δnout_docstring_examples(fgen; footer="", kwargs...) * """
 
-# Assume v1 has three inputs and v2 has two inputs instead
-julia> NaiveNASlib.inputs(v::DummyVertex) = v === v1 ? [v,v,v] : [v,v]
+julia> v3 = conc(affine(iv, 4), affine(iv, 5), affine(iv, 6); dims=2);
 
-julia> $(fgen("v1, 3, missing, 2"));
+julia> v4 = conc(affine(iv, 7), affine(iv, 8); dims=2);
 
-julia> $(fgen("v1 => (3, missing, 2), v2 => (-2, 0)"));
+julia> $(fgen("v3, 3, missing, 2"));
+
+julia> $(fgen("v3 => (3, missing, 2), v4 => (-2, 0)"));
 """ * footer
 
 generic_Δnout_docstring_examples(fname::String; kwargs...) = generic_Δnout_docstring_examples(args -> "$fname($args)"; kwargs...)
-generic_Δnout_docstring_examples(fgen; footer = "```") = """
+generic_Δnout_docstring_examples(fgen; footer = "```", header="```julia-repl") = """
 ### Examples
-```julia-repl
-julia> struct DummyVertex <: NaiveNASlib.AbstractVertex id::Int end
+$header
+julia> using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
 
-julia> NaiveNASlib.inputs(v::DummyVertex) = [v]
+julia> mutable struct Affine{T} W::Matrix{T} end;
 
-julia> v1,v2 = DummyVertex(1), DummyVertex(2)
+julia> affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in);
+
+julia> NaiveNASlib.nout(a::Affine) = size(a.W, 1);
+
+julia> NaiveNASlib.nin(a::Affine) = [size(a.W, 2)];
+
+julia> NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=>ins[1], 1=>outs);
+
+julia> iv = affine(inputvertex("in", 3), 6);
+
+julia> v1 = affine(iv, 4);
+
+julia> v2 = affine(iv, 5);
 
 julia> $(fgen("v1, 3"));
 
-julia> $(fgen("v1 => 3, v2 => -2"));
+julia> $(fgen("v1 => -3, v2 => -2"));
 
-julia> $(fgen("Dict(v1 => 3, v2 => -2)"));
+julia> $(fgen("Dict(v1 => 3, v2 => 2)"));
 """ * footer
 
 """

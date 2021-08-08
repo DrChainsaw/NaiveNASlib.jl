@@ -13,12 +13,12 @@ Base.Broadcast.broadcastable(v::AbstractVertex) = Ref(v)
 Return an Array of vertices which are input to the given vertex.
 
 # Examples
-```julia-repl
-julia> using NaiveNASlib
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Extend
 
 julia> inputs(CompVertex(identity, InputVertex(1)))
-1-element Array{AbstractVertex,1}:
- InputVertex(1, [CompVertex(identity)])
+1-element Vector{AbstractVertex}:
+ InputVertex(1)
 ```
 """
 function inputs(::AbstractVertex) end
@@ -29,16 +29,16 @@ function inputs(::AbstractVertex) end
 Return an Array of vertices for which the given vertex is input to.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
-julia> iv = InputVertex(1);
+julia> iv = inputvertex("in", 3);
 
-julia> cv = (CompVertex(identity, iv));
+julia> cv = invariantvertex(identity, iv);
 
 julia> outputs(iv)
-1-element Array{AbstractVertex,1}:
- CompVertex(identity, [InputVertex(1)], [])
+1-element Vector{NaiveNASlib.AbstractVertex}:
+ MutationVertex(CompVertex(identity, inputs=[in], outputs=[]), NaiveNASlib.SizeInvariant()) 
 ```
 """
 function outputs(::AbstractVertex) end

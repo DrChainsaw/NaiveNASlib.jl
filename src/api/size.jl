@@ -124,12 +124,12 @@ a scalar which will be used as utility of all neurons of `vx`. If not provided, 
 
 Note that `Δnin!([utilityfun], args...)` is equivalent to  `Δsize!([utilityfun], ΔNin(args...))`.
 
-$(generic_Δnin_docstring_examples("Δnin!"; footer=""))
-julia> Δnin!(v1, relaxed(3), missing, 2);
+$(generic_Δnin_docstring_examples("Δnin!"; header="```jldoctest", footer=""))
+julia> Δnin!(v3, relaxed(3), missing, 2);
 
-julia> Δnin!(v1 => (relaxed(3), missing, 2), v2 => relaxed(-2, 0)) do v
-    randn(nout(v))
-end
+julia>  Δnin!(v3 => (relaxed(3), missing, 2), v4 => relaxed((-2, 0))) do v
+            randn(nout(v))
+        end;
 ```
 """
 function Δnin! end
@@ -153,12 +153,12 @@ a scalar which will be used as utility of all neurons of `vx`. If not provided, 
 
 Note that `Δnout!([utilityfun], args...)` is equivalent to `Δsize!([utilityfun], ΔNout(args...))`.
 
-$(generic_Δnout_docstring_examples("Δnout!"; footer=""))
+$(generic_Δnout_docstring_examples("Δnout!"; header="```jldoctest", footer=""))
 julia> Δnout!(v1, relaxed(2));
 
-julia> Δnout!(v1 => relaxed(2), v2 => -1) do v
-    randn(nout(v))
-end
+julia>  Δnout!(v1 => relaxed(2), v2 => -1) do v
+            randn(nout(v))
+        end;
 ```
 """
 function Δnout! end
