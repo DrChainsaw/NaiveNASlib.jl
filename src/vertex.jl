@@ -50,14 +50,14 @@ Acts as a source of data to the graph and therefore does not need
 any input vertices to feed it.
 
 # Examples
-```julia-repl
-julia> using NaiveNASlib
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Extend
 
 julia> InputVertex(1)
 InputVertex(1)
 
 julia> InputVertex("input")
-InputVertex("input")
+InputVertex(input)
 ```
 """
 struct InputVertex{N} <: AbstractVertex
@@ -78,16 +78,16 @@ Maps input from input vertices to output through `output = c(input...)`.
 Must have at least one input vertex.
 
 # Examples
-```julia-repl
-julia> using NaiveNASlib
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Extend
 
 julia> CompVertex(+, InputVertex(1), InputVertex(2))
-CompVertex(+, [InputVertex(1), InputVertex(2)])
+CompVertex(+, inputs=[InputVertex(1), InputVertex(2)])
 
 julia> CompVertex(x -> 4x, InputVertex(1))(2)
 8
 
-julia>CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
+julia> CompVertex(*, InputVertex(1), InputVertex(2))(2,3)
 6
 ```
 """

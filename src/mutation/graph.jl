@@ -106,7 +106,8 @@ The `other` direction may be specified and will be traversed if a [`SizeInvarian
 Will return the given vertex if it is terminating.
 
 # Examples
-```julia-repl
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced
 
 julia> v1 = inputvertex("v1", 3);
 
@@ -115,23 +116,23 @@ julia> v2 = inputvertex("v2", 3);
 julia> v3 = conc(v1,v2,v1,dims=1);
 
 julia> name.(findterminating(v1, outputs, inputs))
-1-element Array{String,1}:
+1-element Vector{String}:
  "v1"
 
 julia> name.(findterminating(v3, outputs, inputs))
-0-element Array{Any,1}
+Any[]
 
 julia> name.(findterminating(v3, inputs, outputs))
-3-element Array{String,1}:
+3-element Vector{String}:
  "v1"
  "v2"
  "v1"
 
- julia> v5 = v3 + inputvertex("v4", 9);
+julia> v5 = v3 + inputvertex("v4", 9);
 
- julia> name.(findterminating(v3, outputs, inputs))
- 1-element Array{String,1}:
-  "v4"
+julia> name.(findterminating(v3, outputs, inputs))
+1-element Vector{String}:
+ "v4"
 ```
 """
 function findterminating(v::AbstractVertex, direction::Function, other::Function=v->AbstractVertex[], visited = Set{AbstractVertex}())

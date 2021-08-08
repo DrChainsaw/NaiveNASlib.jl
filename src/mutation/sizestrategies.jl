@@ -186,7 +186,7 @@ julia> $(fgen("v3 => (3, missing, 2), v4 => (-2, 0)"));
 """ * footer
 
 generic_Δnout_docstring_examples(fname::String; kwargs...) = generic_Δnout_docstring_examples(args -> "$fname($args)"; kwargs...)
-generic_Δnout_docstring_examples(fgen; footer = "```", header="```julia-repl") = """
+generic_Δnout_docstring_examples(fgen; header="```julia-repl", footer = "```") = """
 ### Examples
 $header
 julia> using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
@@ -226,7 +226,7 @@ Also helps creating a `Dict{V, Int}` from e.g. a `Dict{Any, Any}` as a convenien
 
 `T` is typically either `Exact` or `Relaxed`.
 
-$(generic_Δnout_docstring_examples(args -> "ΔNout{Exact}($args; fallback=ΔSizeFailNoOp()"))
+$(generic_Δnout_docstring_examples(args -> "ΔNout{NaiveNASlib.Exact}($args; fallback=ΔSizeFailNoOp())"; header="```jldoctest"))
 """
 ΔNout{T}(v::AbstractVertex, Δ::Integer; fallback) where T = ΔNout{T}(v=>Int(Δ); fallback)
 ΔNout{T}(args...; fallback) where T = ΔNout{T}(Dict(args...); fallback)
@@ -240,7 +240,7 @@ Return a `ΔNout{Exact}` with `fallback` set to give a warning and then try agai
 
 Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pair`s or a generator).
 
-$(generic_Δnout_docstring_examples("ΔNoutExact"))
+$(generic_Δnout_docstring_examples("ΔNoutExact"; header="```jldoctest"))
 """
 ΔNoutExact(args...; fallback=default_noutfallback(ΔNoutRelaxed,"nout", args)) = ΔNout{Exact}(args...;fallback)
 
@@ -251,7 +251,7 @@ Return a `ΔNout{Relaxed}` with `fallback` set to [`ΔSizeFailNoOp`](@ref).
 
 Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pair`s or a generator).
 
-$(generic_Δnout_docstring_examples("ΔNoutRelaxed"))
+$(generic_Δnout_docstring_examples("ΔNoutRelaxed"; header="```jldoctest"))
 """
 ΔNoutRelaxed(args...;fallback=default_noutfallback("nout", args)) = ΔNout{Relaxed}(args...;fallback)
 
@@ -282,7 +282,7 @@ Accepts either a `Dict` or arguments used to create a `Dict` (e.g. a set of `Pai
 
 By default, `fallback` is set to give a warning and then try again with [`ΔNinRelaxed(args...)`](@ref).
 
-$(generic_Δnin_docstring_examples("ΔNinExact"))
+$(generic_Δnin_docstring_examples("ΔNinExact"; header="```jldoctest"))
 """
 ΔNinExact(args...; fallback=default_noutfallback(ΔNinRelaxed, "nin", args)) = ΔNout{Exact}(Δnin2Δnout(args...); fallback)
 
@@ -291,13 +291,13 @@ $(generic_Δnin_docstring_examples("ΔNinExact"))
 
 Same as [`ΔNinExact`](@ref) except `Exact` is replaced by `Relaxed` and `fallback` set to [`ΔSizeFailNoOp`](@ref) by default.
 
-$(generic_Δnin_docstring_examples("ΔNinRelaxed"))
+$(generic_Δnin_docstring_examples("ΔNinRelaxed"; header="```jldoctest"))
 """
 ΔNinRelaxed(args...; fallback=default_noutfallback("nout", args)) = ΔNout{Relaxed}(Δnin2Δnout(args...); fallback)
 
 Δnin2Δnout(d::AbstractDict) = reduce(merge!, (Δnin2Δnout(k,v) for (k,v) in d); init=Dict())
 Δnin2Δnout(ps::Pair{<:AbstractVertex}...) = mapreduce(p -> Δnin2Δnout(p...), merge!, ps; init=Dict()) 
-Δnin2Δnout(v::AbstractVertex, Δs) = Δnin2Δnout(v, tuple(Δs))
+Δnin2Δnout(v::AbstractVertex, Δs...) = Δnin2Δnout(v, Δs)
 Δnin2Δnout(v::AbstractVertex, Δs::Pair{<:Tuple, <:Union{Relaxed, Exact}}) = Dict(k => (v => last(Δs)) for (k,v) in Δnin2Δnout(v, first(Δs))) 
 function Δnin2Δnout(v::AbstractVertex, Δs::Tuple)
     @assert length(Δs) == length(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $(nameorrepr(v)) with $(length(inputs(v))) inputs. 
@@ -340,6 +340,7 @@ See [`Δnout!`](@ref) and [`Δnin!`](@ref).
 """
 relaxed(Δ::Integer) = Δ => Relaxed()
 relaxed(Δs::Tuple{Vararg{<:Maybe{Int}}}) = Δs => Relaxed()
+relaxed(Δs...) = Δs => Relaxed()
 
 """
     ΔNout(args...;[fallback])
@@ -348,10 +349,10 @@ Splits `args` into relaxed and exact size changes and creates the appropriate st
 
 Fallback strategy may be supplied through the `fallback` keyword. Defaults to `ΔNoutRelaxed` for all given vertices.
 
-$(generic_Δnout_docstring_examples("ΔNout"; footer=""))
+$(generic_Δnout_docstring_examples("ΔNout"; header="```jldoctest", footer=""))
 julia> ΔNout(v1, relaxed(2));
 
-julia> ΔNout(v1 => relaxed(2), v2 => -1)
+julia> ΔNout(v1 => relaxed(2), v2 => -1);
 ``` 
 """
 function ΔNout(args...;kwargs...) 
@@ -366,10 +367,10 @@ Splits `args` into relaxed and exact size changes and creates the appropriate st
 
 Fallback strategy may be supplied through the `fallback` keyword. Defaults to `ΔNinRelaxed` for all given vertices.
 
-$(generic_Δnin_docstring_examples("ΔNin"; footer=""))
-julia> ΔNin(v1, relaxed(3), missing, 2);
+$(generic_Δnin_docstring_examples("ΔNin"; header="```jldoctest", footer=""))
+julia> ΔNin(v3, relaxed(3), missing, 2);
 
-julia> ΔNin(v1 => (relaxed(3), missing, 2), v2 => relaxed(-2, 0))
+julia> ΔNin(v3 => (relaxed(3), missing, 2), v4 => relaxed(-2, 0));
 ``` 
 """
 function ΔNin(args...;fallback=nothing) 

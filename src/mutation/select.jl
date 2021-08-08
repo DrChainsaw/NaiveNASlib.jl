@@ -34,14 +34,19 @@ by `CompVertex` and `t` is [`trait(v)`](@ref) to set the default for `f`.
 
 # Examples
 
-```julia-repl
-julia> struct Affine{T}
-    W::Matrix{T}
-end;
+```jldoctest
+julia> using NaiveNASlib, Statistics
 
-# Default is weight magnitude
+julia> struct Affine{T}
+        W::Matrix{T}
+       end;
+
 julia> NaiveNASlib.defaultutility(l::Affine) = mean(abs, l.W; dims=2);
 
+julia> NaiveNASlib.defaultutility(Affine(ones(2,3)))
+2×1 Matrix{Float64}:
+ 1.0
+ 1.0
 ```
 """
 defaultutility(v::AbstractVertex) = defaultutility(trait(v), v)
@@ -162,30 +167,35 @@ function Δsize!(::NeuronIndices, ::OnlyFor, v::InputSizeVertex, ins::AbstractVe
 end
 
 """
-    parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = zeros) where {T, N}
+    parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = (T, dim, size...) -> 0) where {T, N}
 
-Return a new array of same type as `pars` which has a subset of the elements of `pars`.
+Return a new array of same type as `pars` which has a subset of the elements of `pars` as well as potentially
+new elements.
 
-Which elements to select is determined by `elements_per_dim` which is a `Pair{Int, Vector{Int}}` mapping dimension (first memeber) to which elements to select in that dimension (second memeber).
+Which elements to select/insert is determined by `elements_per_dim` which is a `Pair{Int, Vector{Int}}` mapping 
+dimension (first memeber) to which elements to select/insert in that dimension (second memeber).
 
-For a single `dim=>elems` pair, the following holds: `selectdim(output, dim, i) == selectdim(pars, dim, elems[i])` if `elems[i]` is positive and `selectdim(output, dim, i) .== newfun(T, dim, size)[j]` if `elems[i]` is the `j:th` negative value and `size` is `sum(elems .< 0)`.
+For a each `dim=>elems` pair, the following holds: `selectdim(output, dim, i) == selectdim(pars, dim, elems[i])` 
+if `elems[i]` is positive and `selectdim(output, dim, i) .== newfun(T, dim, size)[j]` if `elems[i]` is the `j:th`
+negative value and `size` is `sum(elems .< 0)`.
 
 # Examples
-```julia-repl
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Extend
 
 julia> pars = reshape(1:3*5, 3,5)
 3×5 reshape(::UnitRange{Int64}, 3, 5) with eltype Int64:
  1  4  7  10  13
  2  5  8  11  14
  3  6  9  12  15
-
- julia> NaiveNASlib.parselect(pars, 1 => [-1, 1,3,-1,2], 2=>[3, -1, 2], newfun = (T, d, s...) -> -ones(T, s))
- 5×3 Array{Int64,2}:
-  -1  -1  -1
-   7  -1   4
-   9  -1   6
-  -1  -1  -1
-   8  -1   5
+ 
+julia> NaiveNASlib.parselect(pars, 1 => [-1, 1,3,-1,2], 2=>[3, -1, 2, 1]; newfun = (T, d, s...) -> fill(-T(d), s))
+5×4 Matrix{Int64}:
+ -1  -2  -1  -1
+  7  -2   4   1
+  9  -2   6   3
+ -1  -2  -1  -1
+  8  -2   5   2
 ```
 """
 function parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = (T, dim, size...) -> 0) where {T, N}

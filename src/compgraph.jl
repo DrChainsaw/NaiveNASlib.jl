@@ -123,10 +123,12 @@ findvertices(g::CompGraph, vpat::Regex) = filter(v -> match(vpat, name(v)) !== n
 Return an array of all ancestors of `v`, including `v` itself.
 
 # Examples
-```julia-repl
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
+
 julia> ancestors(invariantvertex(+, inputvertex("in", 1)))
 2-element Vector{AbstractVertex}:
- InputSizeVertex{OutputsVertex}(InputVertex(in, outputs=[CompVertex(+)]), 1)
+ InputSizeVertex(InputVertex(in, outputs=[CompVertex(+)]), 1)
  MutationVertex(CompVertex(+, inputs=[in], outputs=[]), SizeInvariant())
 ```
 """
@@ -138,11 +140,13 @@ ancestors(v::AbstractVertex,args...) = collect_vertices_from(inputs, v, args...)
 Return an array of all descendants of `v`, including `v` itself.
 
 # Examples
-```julia-repl
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
+
 julia> descendants(invariantvertex(+, inputvertex("in", 1)) |> inputs |> first)
 2-element Vector{AbstractVertex}:
  MutationVertex(CompVertex(+, inputs=[in], outputs=[]), SizeInvariant())
- InputSizeVertex{OutputsVertex}(InputVertex(in, outputs=[CompVertex(+)]), 1)
+ InputSizeVertex(InputVertex(in, outputs=[CompVertex(+)]), 1)
 ```
 """
 descendants(v::AbstractVertex,args...) = collect_vertices_from(outputs, v, args...)

@@ -127,7 +127,7 @@ Note that `Δnin!([utilityfun], args...)` is equivalent to  `Δsize!([utilityfun
 $(generic_Δnin_docstring_examples("Δnin!"; header="```jldoctest", footer=""))
 julia> Δnin!(v3, relaxed(3), missing, 2);
 
-julia> Δnin!(v3 => (relaxed(3), missing, 2), v4 => relaxed((-2, 0))) do v
+julia> Δnin!(v3 => (relaxed(3), missing, 2), v4 => relaxed(-2, 0)) do v
            randn(nout(v))
        end;
 ```
