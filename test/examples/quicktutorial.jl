@@ -3,12 +3,13 @@ md"""
 
 ## Construct a very simple graph
 Just to get started, lets create a simple graph for the summation of two numbers. 
-
+"""
+using NaiveNASlib, Test
+md"""
 NaiveNASlib uses a special immutable type of vertex to annotate inputs so that one
 can be certain that size mutations won't suddenly change the input shape of the model.
 """
 @testset "First example" begin #src
-using NaiveNASlib, Test
 in1 = inputvertex("in1", 1)
 in2 = inputvertex("in2", 1)
 
@@ -26,7 +27,7 @@ add = "add" >> in1 + in2
 # [`CompGraph`](@ref) helps evaluating the whole graph as a function.
 graph = CompGraph([in1, in2], add)
 
-# Evaluate the function represented by graph by just calling it.
+# Evaluate the function represented by `graph` by just calling it.
 @test graph(2,3) == 5
 @test graph(100,200) == 300
 

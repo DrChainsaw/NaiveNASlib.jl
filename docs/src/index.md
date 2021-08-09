@@ -3,8 +3,7 @@
 
 NaiveNASlib provides a set of easy to use functions to modify the structure of a neural network, or more 
 generically, a computation graph. Apart from the obvious application in neural architecture search, this
-can also be useful in the context of transfer learning and structured pruning (which is a subset of neural
-architecture search).
+can also be useful in the context of transfer learning and structured pruning.
 
 Main supported operations:
 * Change the number of neurons
@@ -21,9 +20,11 @@ more complex models. NaiveNASlib comes to the rescue so that you can focus on th
 valid model after mutation warrants an issue!
 
 NaiveNASlib makes quite few assumptions on the underlying implementation which in turn means that it is quite easy to make
-use of its capabilities for an existing library. Note that there really isn't anything neural network specific about
-NaiveNASlib and it can certainly be used to modify any computation graph. However, most its functionality is dead weight
-if there are not at least a handful of operations which require input to have a certain shape along some dimension. 
+use of its capabilities for an existing library. 
+
+Note that there really isn't anything neural network specific about NaiveNASlib and it can be used to modify any computation
+graph. However, most its functionality is dead weight if there are not at least a handful of operations which require input
+to have a certain shape along some dimension. 
 
 The price one has to pay is that the model must be explicitly defined as a computation graph in the "language" of this library, 
 similar to what some older frameworks using less modern programming languages used to do. In its defense, the main reason anyone
@@ -45,7 +46,7 @@ categories in an attempt to make it easy to answer "how do I achieve X?"-type qu
 
 NaiveNASlib uses [JuMP](https://github.com/jump-dev/JuMP.jl) to describe not only the size relations, but also the
 connections between individual neurons as a Mixed Integer Linear Program (MILP). Describing neuron relations with equality 
-constraints turned out to give a quite declarative way of formulating the alignment problem and ensures that even extremely 
+constraints turned out to give a nice declarative way of formulating the alignment problem and ensures that even deeply 
 nested architectures stay aligned after mutation. 
 
 While MILPs are known for being quite difficult it seems like the abundance of equality constraints creates a quite tight
