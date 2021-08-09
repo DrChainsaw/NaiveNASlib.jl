@@ -105,17 +105,24 @@ Base.firstindex(g::CompGraph) = firstindex(vertices(g))
 Base.lastindex(g) = lastindex(vertices(g))
 
 """
-    findvertices(g::CompGraph, vname::AbstractString)
+    findvertices(vname::AbstractString, g::CompGraph)
 
 Return all vertices for which [`name(v)`](@ref) == vname`.
 """
-findvertices(g::CompGraph, vname::AbstractString) = filter(v -> name(v) == vname, vertices(g))
+findvertices(vname::AbstractString, g::CompGraph) = findvertices(v -> name(v) == vname, g)
 """
-    findvertices(g::CompGraph, vname::Regex)
+    findvertices(vpat::Regex, g::CompGraph)
 
 Return all vertices for which `vpat` matches [`name(v)`](@ref).
 """
-findvertices(g::CompGraph, vpat::Regex) = filter(v -> match(vpat, name(v)) !== nothing, vertices(g))
+findvertices(vpat::Regex, g::CompGraph) = findvertices(v -> occursin(vpat, name(v)), g)
+
+"""
+    findvertices(predicate, g::CompGraph)
+
+Return all vertices for which `predicate(v)` return `true`.
+"""
+findvertices(predicate, g::CompGraph) = filter(predicate, vertices(g))
 
 """
     ancestors(v::AbstractVertex)

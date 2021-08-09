@@ -79,8 +79,8 @@
         @test graph[begin] == graph[1] == in1
         @test graph[nvertices(graph)] == graph[end] == v4
 
-        @test findvertices(graph, "v1") == [v1]
-        @test findvertices(graph, r"^in") == [in1, in2]
+        @test findvertices("v1", graph) == [v1]
+        @test findvertices(r"^in", graph) == [in1, in2]
     end
 
     @testset "Mutation graph copy" begin
