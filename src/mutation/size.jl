@@ -51,26 +51,39 @@ Treat vertices as having a scalar size when formulating the size change problem.
 """
 struct ScalarSize end
 
+# Main entry point for computing and applying size changes with ScalarSize
+
 function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
-        Δsize!(case, s, nins, nouts, vertices)
+        applyΔsize!(case, s, nins, nouts, vertices)
     end
     return execute
 end
 
-Δsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = Δsize!(case, base(s), nins, nouts, vertices)
-Δsize!(case::ScalarSize, s::AbstractAfterΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, nins, nouts, vertices)
-Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, nins, nouts, vertices)
 
-function _Δsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
+# Main entry point for applying size changes with ScalarSize after we have compted them
+# Peel off all DecoratingJuMPΔSizeStrategies until we find either an AbstractAfterΔSizeStrategy (which is needed in after_Δnin etc)
+# or we hit the bottom (in the form of an AbstractΔSizeStrategy). 
+
+function applyΔsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) 
+    applyΔsize!(case, base(s), nins, nouts, vertices)
+end
+function applyΔsize!(case::ScalarSize, s::AbstractAfterΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) 
+    _applyΔsize!(case, s, nins, nouts, vertices)
+end
+function applyΔsize!(case::ScalarSize, s::AbstractΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) 
+    _applyΔsize!(case, s, nins, nouts, vertices)
+end
+
+function _applyΔsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
     Δnins = [coalesce.(get(() -> nin(vi), nins, vi), nin(vi)) .- nin(vi) for vi in vertices]
 
     for (i, vi) in enumerate(vertices)
         insizes = get(() -> nin(vi), nins, vi)
         insizes = coalesce.(insizes, nin(vi))
-        Δsize!(case, s, vi, insizes, nouts[i])
+        applyΔsize!(case, s, vi, insizes, nouts[i])
     end
 
     for (i, vi) in enumerate(vertices)
@@ -79,21 +92,7 @@ function _Δsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector
     end
 end
 
-function Δsize!(case::ScalarSize, s::WithKwargs, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
-    Δsize!(case, v, insizes, outsize; kws..., s.kwargs...)
-end
-function Δsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
-     Δsize!(case, base(s), v, insizes, outsize; kws...)
-end
-function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
-    Δsize!(case, v, insizes, outsize; kws...)
-end
-Δsize!(case::ScalarSize, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(case, base(v), insizes, outsize; kws...)
-Δsize!(case::ScalarSize, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(case, v.computation, insizes, outsize; kws...)
-Δsize!(::ScalarSize, f, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(f, insizes, outsize; kws...)
-function Δsize!(f, ins::AbstractVector{<:Integer}, outs::Integer; kws...) end
-
-function Δsize!(::ScalarSize, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer) 
+function applyΔsize!(::ScalarSize, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer; kwargs...) 
     if !all(isempty, skipmissing(ins))
         throw(ArgumentError("Try to change input size of InputVertex $(name(v)) to $insizes"))
     end 
@@ -101,6 +100,27 @@ function Δsize!(::ScalarSize, v::InputSizeVertex, insizes::AbstractVector{<:Int
         throw(ArgumentError("Try to change output size of InputVertex $(name(v)) to $outsize"))
     end
 end
+
+# Main entry point for applying size changes to a single vertex with ScalarSize
+
+function applyΔsize!(case::ScalarSize, s::WithKwargs, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, v, insizes, outsize; kws..., s.kwargs...)
+end
+function applyΔsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, base(s), v, insizes, outsize; kws...)
+end
+function applyΔsize!(case::ScalarSize, s::AbstractΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, v, insizes, outsize; kws...)
+end
+function applyΔsize!(case::ScalarSize, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, base(v), insizes, outsize; kws...)
+end
+function applyΔsize!(case::ScalarSize, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    # I don't love how we go back to Δsize! from here, but I don't want to export applyΔsize! and I can't think of another name right now...
+    Δsize!(case, v.computation, insizes, outsize; kws...)
+end
+Δsize!(::ScalarSize, f, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(f, insizes, outsize; kws...)
+function Δsize!(f, ins::AbstractVector{<:Integer}, outs::Integer; kws...) end
 
 after_Δnin(::AbstractΔSizeStrategy, v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
 after_Δnin(t::DecoratingTrait, v, Δs, changed) = after_Δnin(base(t), v, Δs, changed)

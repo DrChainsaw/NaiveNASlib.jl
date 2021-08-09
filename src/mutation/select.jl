@@ -66,11 +66,13 @@ resolve_utility(t, val) = val
 
 Δsize!(::Nothing, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = false
 
+# Main entry point for computing and applying size changes with NeuronIndices
+
 Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(defaultutility, case,s , vs)
 function Δsize!(utilityfun, case::NeuronIndices, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
     success, ins, outs = solve_outputs_selection(s, vs, utilityfun)
     if success
-        Δsize!(case, s, ins, outs, vs)
+        applyΔsize!(case, s, ins, outs, vs)
     end
     return success
 end
@@ -86,7 +88,7 @@ function Δsize!(utilityfun, case::NeuronIndices, s::TruncateInIndsToValid, vs::
             ins[vv] = newins
             outs[vv] = newouts
         end
-        Δsize!(case, s, ins, outs, vs)
+        applyΔsize!(case, s, ins, outs, vs)
     end
     return success
 end
@@ -117,11 +119,20 @@ function align_outs_to_ins(::SizeInvariant, v, ins::AbstractVector, outs)
     return newins, newouts
 end
 
-Δsize!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) = Δsize!(case, base(s), ins, outs, vs)
-Δsize!(case::NeuronIndices, s::AbstractAfterΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, ins, outs, vs)
-Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) = _Δsize!(case, s, ins, outs, vs)
+# Main entry point for applying size changes with NeuronIndices after we have compted them
+# Peel off all DecoratingJuMPΔSizeStrategies until we find either an AbstractAfterΔSizeStrategy (which is needed in after_Δnin etc)
+# or we hit the bottom (in the form of an AbstractΔSizeStrategy). 
+function applyΔsize!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) 
+    applyΔsize!(case, base(s), ins, outs, vs)
+end
+function applyΔsize!(case::NeuronIndices, s::AbstractAfterΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) 
+    _applyΔsize!(case, s, ins, outs, vs)
+end
+function applyΔsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex}) 
+    _applyΔsize!(case, s, ins, outs, vs)
+end
 
-function _Δsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
+function _applyΔsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict, vs::AbstractVector{<:AbstractVertex})
 
     Δnins = map(vs) do vi
         vins = ins[vi]
@@ -134,7 +145,7 @@ function _Δsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict,
     Δnouts = [length(outs[vi]) != nout(vi) for vi in vs]
 
     for vi in vs
-        Δsize!(case, s, vi, ins[vi], outs[vi])
+        applyΔsize!(case, s, vi, ins[vi], outs[vi])
     end
 
     for (i, vi) in enumerate(vs)
@@ -143,14 +154,34 @@ function _Δsize!(case::NeuronIndices, s, ins::AbstractDict, outs::AbstractDict,
     end
 end
 
-function Δsize!(case::NeuronIndices, s::WithKwargs, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) 
-    Δsize!(case, base(s), v, ins, outs; kws..., s.kwargs...)
-end
-Δsize!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) = Δsize!(case, base(s), v, ins, outs; kws...)
-Δsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) = Δsize!(case, v, ins, outs; kws...)
+# Main entry point for applying size changes to a single vertex with NeuronIndices
 
-Δsize!(case::NeuronIndices, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) = Δsize!(case, base(v), ins, outs; kwargs...)
-Δsize!(case::NeuronIndices, v::CompVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) = Δsize!(case, v.computation, ins, outs; kwargs...)
+function applyΔsize!(case::NeuronIndices, s::WithKwargs, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) 
+    applyΔsize!(case, base(s), v, ins, outs; kws..., s.kwargs...)
+end
+function applyΔsize!(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...)
+     applyΔsize!(case, base(s), v, ins, outs; kws...)
+end
+function applyΔsize!(case::NeuronIndices, s::AbstractΔSizeStrategy, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kws...) 
+    applyΔsize!(case, v, ins, outs; kws...)
+end
+
+function applyΔsize!(::NeuronIndices, v::InputSizeVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) 
+    if !all(isempty, skipmissing(ins))
+        throw(ArgumentError("Try to change input neurons of InputVertex $(name(v)) to $ins"))
+    end 
+    if outs != 1:nout(v)
+        throw(ArgumentError("Try to change output neurons of InputVertex $(name(v)) to $outs"))
+    end
+end
+
+function applyΔsize!(case::NeuronIndices, v::AbstractVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) 
+    applyΔsize!(case, base(v), ins, outs; kwargs...)
+end
+function applyΔsize!(case::NeuronIndices, v::CompVertex, ins::AbstractVector, outs::AbstractVector; kwargs...) 
+    # I don't love how we go back to Δsize! from here, but I don't want to export applyΔsize! and I can't think of another name right now...
+    Δsize!(case, v.computation, ins, outs; kwargs...)
+end
 Δsize!(::NeuronIndices, f, ins::AbstractVector, outs::AbstractVector; kwargs...) = Δsize!(f, ins, outs; kwargs...)
 """
     Δsize!(f::F, ins::AbstractVector, outs::AbstractVector; kwargs...) 
@@ -166,15 +197,6 @@ Tip: the function [`parselect`](@ref) can be used to change parameter arrays acc
 Tip: `kwargs` can be passed using [`WithKwargs`](@ref).
 """
 function Δsize!(f, ins::AbstractVector, outs::AbstractVector; kwargs...) end
-
-function Δsize!(::NeuronIndices, v::InputSizeVertex, ins::AbstractVector, outs::AbstractVector) 
-    if !all(isempty, skipmissing(ins))
-        throw(ArgumentError("Try to change input neurons of InputVertex $(name(v)) to $ins"))
-    end 
-    if outs != 1:nout(v)
-        throw(ArgumentError("Try to change output neurons of InputVertex $(name(v)) to $outs"))
-    end
-end
 
 """
     parselect(pars::AbstractArray{T,N}, elements_per_dim...; newfun = (T, dim, size...) -> 0) where {T, N}
