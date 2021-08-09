@@ -45,6 +45,35 @@
         @test typeof(computation(v)) == ScaleByTwo
     end
 
+    @testset "$vfun with name" for vfun in (absorbvertex, invariantvertex, immutablevertex)
+        @testset "Normal" begin
+            v = vfun("v", identity, inputvertex("in", 3))
+            @test name(v) == "v"
+
+            @test_logs((:warn, "Attach name vv to vertex which already has name trait v!"),
+                        vfun("vv", identity, inputvertex(in, 3); traitdecoration=named("v")))
+        end
+        @testset "Do-block" begin
+            v = vfun("v", inputvertex("in", 3)) do x
+                x
+            end
+            @test name(v) == "v"
+
+            @test_logs((:warn, "Attach name vv to vertex which already has name trait v!"),
+                         vfun("vv", inputvertex("in", 3); traitdecoration=named("v")) do x
+                            x
+                        end)
+        end
+    end
+
+    @testset "conc with name" begin
+        v = conc("v", inputvertex("in", 3); dims=2)
+        @test name(v) == "v"
+
+        @test_logs((:warn, "Attach name vv to vertex which already has name trait v!"),
+                    conc("vv", inputvertex("in", 3); dims=2, traitdecoration=named("v")))  
+    end
+
     @testset "Create element wise" begin
 
         conf = traitconf(named("v"))

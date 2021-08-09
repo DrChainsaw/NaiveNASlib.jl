@@ -138,6 +138,10 @@ struct NamedTrait{S, T<:MutationTrait} <: DecoratingTrait
 end
 base(t::NamedTrait) = t.base
 
+name(t::DecoratingTrait) = name(base(t))
+name(t::NamedTrait) = t.name
+name(::MutationTrait) = nothing
+
 @functor NamedTrait
 
 function Base.show(io::IO, t::NamedTrait) 

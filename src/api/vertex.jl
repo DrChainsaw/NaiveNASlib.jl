@@ -17,9 +17,14 @@ InputSizeVertex(InputVertex(input, outputs=[]), 5)
 """
 inputvertex(name, size) = InputSizeVertex(name, size)
 
+gen_vertex_doc_sig(fname) = """
+    $(fname)computation, inputs::AbstractVertex...; traitdecoration=identity)
+    $(fname)vname::AbstractString, computation, inputs::AbstractVertex...; traitdecoration=identity)
+    $(fname)computation, vname::AbstractString, inputs::AbstractVertex...; traitdecoration=identity)
+"""
 
 """
-    vertex(computation, trait::MutationTrait, inputs::AbstractVertex...; mutation=IoChange)
+$(gen_vertex_doc_sig("vertex(trait::MutationTrait, "))
 
 Return a mutable computation type vertex.
 
@@ -34,9 +39,17 @@ julia> v(3)
 ```
 """
 vertex(trait::MutationTrait, computation, inputs::AbstractVertex...) = MutationVertex(CompVertex(computation, inputs...), trait)
+function vertex(trait::MutationTrait, vname::AbstractString, computation, inputs::AbstractVertex...) 
+    othername = name(trait)
+    if othername !== nothing
+        @warn "Attach name $vname to vertex which already has name trait $(othername)!"
+    end
+    vertex(NamedTrait(vname, trait), computation, inputs...)
+end
+vertex(trait::MutationTrait, computation, vname::AbstractString, inputs::AbstractVertex...) = vertex(trait, vname, computation, inputs...)
 
 """
-    immutablevertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
+$(gen_vertex_doc_sig("immutablevertex("))
 
 Return an immutable computation type vertex.
 
@@ -52,12 +65,23 @@ julia> v([1 2])
 1×3 Matrix{Int64}:
  9  12  15
 
+julia> v = immutablevertex("v", x -> x * [1 2 3; 4 5 6], inputvertex("input", 2));
+
+julia> name(v)
+"v"
+
+julia> v = immutablevertex("v", inputvertex("input", 2)) do x
+           x * [1 2 3; 4 5 6]
+       end;
+
+julia> name(v)
+"v"       
 ```
 """
 immutablevertex(args...; traitdecoration=identity) = vertex(traitdecoration(Immutable()), args...)
 
 """
-    absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
+$(gen_vertex_doc_sig("absorbvertex("))
 
 Return a mutable computation type vertex which absorbs size changes. Typical example of this is a neural network layer
 wrapping a parameter array.
@@ -74,12 +98,23 @@ julia> v([1 2])
 1×3 Matrix{Int64}:
  9  12  15
 
+julia> v = absorbvertex("v", x -> x * [1 2 3; 4 5 6], inputvertex("input", 2));
+
+julia> name(v)
+"v"
+
+julia> v = absorbvertex("v", inputvertex("input", 2)) do x
+           x * [1 2 3; 4 5 6]
+       end;
+
+julia> name(v)
+"v"       
 ```
 """
 absorbvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeAbsorb()), args...)
 
 """
-    invariantvertex(computation, input; traitdecoration=identity)
+$(gen_vertex_doc_sig("invariantvertex("))
 
 Return a mutable computation type vertex which is size invariant, i.e `nin == nout`.
 
@@ -101,18 +136,33 @@ julia> nout(v)
 julia> v([1 2])
 1×2 Matrix{Int64}:
  2  4
+
+julia> v = invariantvertex("v", x -> 2 .* x, inputvertex("input", 2));
+
+julia> name(v)
+"v"
+
+julia> v = invariantvertex("v", inputvertex("input", 2)) do x
+           2 .* x
+       end;
+
+julia> name(v)
+"v"    
 ```
 """
 invariantvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeInvariant()), args...)
 
 """
     conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
+    conc(vname::AbstractString, v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
 
 Return a mutable vertex which concatenates input along dimension `dim`.
 
 Use `traitdecoration` to attach other traits, such as [`named`](@ref), [`logged`](@ref) or [`validated`](@ref).
 
 Use `outwrap=f` to wrap the concatenation function in `f`.
+
+`conc(vname::AbstractString,...;traitdecoration = f, ...)` is equivalent to `conc(...;traitdecoration=named(vname) ∘ f, ...)`.
 
 # Examples
 ```jldoctest
@@ -150,7 +200,12 @@ julia> v([1], [2, 3], [4, 5, 6])
  12
 ```
 """
-conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity) = vertex(traitdecoration(SizeStack()), outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
+function conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)  
+    vertex(traitdecoration(SizeStack()), outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
+end
+function conc(vname::AbstractString, v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
+    vertex(traitdecoration(SizeStack()), vname, outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
+end
 
 
 """

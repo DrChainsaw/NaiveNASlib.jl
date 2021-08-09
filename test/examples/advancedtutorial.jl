@@ -22,9 +22,9 @@ Here is an example of strategies for changing the size.
 # First we make a simple graph where one vertex has a constraint for changing the size.
 invertex = inputvertex("in", 3)
 layer1 = linearvertex(invertex, 4)
-# `joined` can only change in steps of 2.
-joined = conc(scalarmult(layer1, 2), scalarmult(layer1, 3), dims=1)          
-
+joined = conc(scalarmult(layer1, 2), scalarmult(layer1, 3), dims=1)       
+# Note that `joined` can only change in steps of 2.
+#
 # Strategy to try to change it by one and throw an error when not successful.
 exact_or_fail = ΔNoutExact(joined => 1; fallback=ThrowΔSizeFailError("Size change failed!!"))
 
@@ -90,6 +90,10 @@ noname = linearvertex(inputvertex("in", 2), 2)
 # with
 hasname = absorbvertex(LinearLayer(2, 3), inputvertex("in", 2), traitdecoration = t -> NamedTrait("named layer", t))
 @test name(hasname) == "named layer"
+
+# which is basically what the convenience methods do under the hood.
+hasnametoo = absorbvertex("also named", LinearLayer(2, 3), inputvertex("in", 2))
+@test name(hasnametoo) == "also named"
 
 # [`AfterΔSizeTrait`](@ref) can be used to attach an [`AbstractAfterΔSizeStrategy`](@ref) to an individual vertex.
 # In this case we use [`logafterΔsize`](@ref) from the example above.

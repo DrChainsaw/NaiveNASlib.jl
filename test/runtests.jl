@@ -24,8 +24,8 @@ include("testutil.jl")
 	@info "Testing structural mutation"
 	include("mutation/structure.jl")
 
-	@info "Testing sugar"
-	include("mutation/sugar.jl")
+	@info "Testing api"
+	include("api/vertex.jl")
 
 	@info "Testing doc examples"
 	include("examples.jl")
