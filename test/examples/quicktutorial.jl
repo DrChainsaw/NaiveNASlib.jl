@@ -24,13 +24,13 @@ add = "add" >> in1 + in2
 # Naming vertices is completely optional, but it is quite helpful as can be seen below.
 
 # [`CompGraph`](@ref) helps evaluating the whole graph as a function.
-graph = CompGraph([in1, in2], add);
+graph = CompGraph([in1, in2], add)
 
 # Evaluate the function represented by graph by just calling it.
 @test graph(2,3) == 5
 @test graph(100,200) == 300
 
-# The vertices function returns the vertices in topological order.
+# The [`vertices`](@ref) function returns the vertices in topological order.
 @test vertices(graph) == [in1, in2, add]
 @test name.(vertices(graph)) == ["in1", "in2", "add"]
 
@@ -64,7 +64,7 @@ module TinyNNlib
     NaiveNASlib.nout(l::LinearLayer) = size(l.W, 1)
 
     ## We also need to tell NaiveNASlib how to change the size of LinearLayer
-    ## The Δsize function will receive indices to keep from existing weights 
+    ## The Δsize! function will receive indices to keep from existing weights 
     ## as well as where to insert new indices
     function NaiveNASlib.Δsize!(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
         ## newins is a vector of vectors as vertices may have more than one input, 
@@ -97,16 +97,16 @@ Lets do a super simple example where we make use of the tiny neural network libr
 @testset "Second example" begin #src
 using .TinyNNlib
 invertex = inputvertex("input", 3)
-layer1 = linearvertex(invertex, 4);
-layer2 = linearvertex(layer1, 5);
+layer1 = linearvertex(invertex, 4)
+layer2 = linearvertex(layer1, 5)
 
 # Vertices may be called to execute their computation alone.
 # We generally outsource this work to [`CompGraph`](@ref), but now we are trying to illustrate how things work.
-batchsize = 2;
-batch = randn(nout(invertex), batchsize);
-y1 = layer1(batch);
+batchsize = 2
+batch = randn(nout(invertex), batchsize)
+y1 = layer1(batch)
 @test size(y1) == (nout(layer1), batchsize) == (4, 2)
-y2 = layer2(y1);
+y2 = layer2(y1)
 @test size(y2) == (nout(layer2), batchsize) == (5, 2)
 
 # Lets change the output size of `layer1`. First check the input sizes so we have something to compare to.
@@ -117,9 +117,9 @@ y2 = layer2(y1);
 # And now the weight matrices have changed!
 #
 # The graph is still operational of course but the sizes of the activations have changed.
-y1 = layer1(batch);
+y1 = layer1(batch)
 @test size(y1) == (nout(layer1), batchsize) == (2, 2)
-y2 = layer2(y1);
+y2 = layer2(y1)
 @test size(y2) == (nout(layer2), batchsize) == (5 ,2)
 end #src
 
@@ -150,15 +150,15 @@ scalarmult(v, s::Number) = invariantvertex(x -> x .* s, v)
 @testset "More elaborate example" begin #src
 # Ok, lets create the model:
 ## First a few "normal" layers
-invertex = inputvertex("input", 6);
-start = linearvertex(invertex, 6);
-split = linearvertex(start, nout(invertex) ÷ 3);
+invertex = inputvertex("input", 6)
+start = linearvertex(invertex, 6)
+split = linearvertex(start, nout(invertex) ÷ 3)
 
 ## Concatenation means the output size is the sum of the input sizes
-joined = conc(scalarmult(split,2), scalarmult(split,3), scalarmult(split,5), dims=1);
+joined = conc(scalarmult(split,2), scalarmult(split,3), scalarmult(split,5), dims=1)
 
 ## Elementwise addition is of course also size invariant 
-out = start + joined;
+out = start + joined
 
 ## CompGraph to help us run the whole thing
 graph = CompGraph(invertex, out)
@@ -212,12 +212,12 @@ NaiveNASlib will prioritize selecting the indices with higher utility.
 """
 #
 # Prefer high indices:
-graphhigh = deepcopy(graph);
+graphhigh = deepcopy(graph)
 @test Δnout!(v -> 1:nout(v), graphhigh[end] => -3)
 @test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]
 
 # Perfer low indices
-graphlow = deepcopy(graph);
+graphlow = deepcopy(graph)
 @test Δnout!(v -> nout(v):-1:1, graphlow[end] => -3) 
 @test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]
 
@@ -228,14 +228,14 @@ graphlow = deepcopy(graph);
 using Statistics: mean
 NaiveNASlib.defaultutility(l::LinearLayer) = mean(abs, l.W, dims=2)
 
-graphhighmag = deepcopy(graph);
+graphhighmag = deepcopy(graph)
 @test Δnout!(graphhighmag[end] => -3) 
 @test graphhighmag((ones(6))) == [78, 78, 114, 114, 186, 186]
 
 # In many NAS applications one wants to apply random mutations to the graph.
 # When doing so, one might end up in situations like this:
-badgraphdecinc = deepcopy(graph);
-v1, v2 = badgraphdecinc[[3, end]]; # Imagine selecting these at random
+badgraphdecinc = deepcopy(graph)
+v1, v2 = badgraphdecinc[[3, end]] # Imagine selecting these at random
 @test Δnout!(v1 => relaxed(-2))
 @test Δnout!(v2 => 6)
 ## Now we first deleted a bunch of weights, then we added new :(
@@ -243,14 +243,14 @@ v1, v2 = badgraphdecinc[[3, end]]; # Imagine selecting these at random
 
 # In such cases, it might be better to supply all wanted changes in one go and let 
 # NaiveNASlib try to come up with a decent compromise.
-goodgraphdecinc = deepcopy(graph);
-v1, v2 = goodgraphdecinc[[3, end]];
+goodgraphdecinc = deepcopy(graph)
+v1, v2 = goodgraphdecinc[[3, end]]
 @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
 @test goodgraphdecinc((ones(6))) == [78.0, 78.0, 6.0, 0.0, 108.0, 114.0, 6.0, 6.0, 180.0, 180.0, 0.0, 0.0]
 
 # It is also possible to change the input direction, but it requires specifying a size change for each input and is generally not recommended due to this.
-graphΔnin = deepcopy(graph);
-v1, v2 = graphΔnin[end-1:end];
+graphΔnin = deepcopy(graph)
+v1, v2 = graphΔnin[end-1:end]
 ## Use missing to signal "don't care"
 @test Δnin!(v1 => (3, relaxed(2), missing), v2 => relaxed((1,2)))
 @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
@@ -258,7 +258,7 @@ v1, v2 = graphΔnin[end-1:end];
 
 # A popular pruning strategy is to just remove the x% of params with lowest utility.
 # This can be done by just not putting any size requirements and assign negative utility.
-graphprune40 = deepcopy(graph);
+graphprune40 = deepcopy(graph)
 Δsize!(graphprune40) do v
     utility = NaiveNASlib.defaultutility(v)
     ## We make some strong assumptions on weight distribution here for breviety :)

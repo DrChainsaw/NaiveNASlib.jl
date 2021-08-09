@@ -4,6 +4,14 @@ NaiveNASlib tries to use standard graph and neural network terminology to whatev
 important concepts and what they mean to NaiveNASlib. This section is best read after the [Quick Tutorial](@ref) to make 
 it somewhat more concrete.
 
+## Graph
+
+Since the only types of graphs NaiveNASlib cares about are directed acyclic graphs which describe the data flow through a 
+function, the term 'graph' is often used interchangeably with terms like 'model', 'function' and 'neural network'.
+
+Furthermore, due to how vertices in NaiveNASlib also contain their [edges](@ref Edge), a single vertex from a graph recursively describes
+the whole graph.
+
 ## Vertex
 
 Vertices are the fundamental unit which NaiveNASlib works with when changing the structure of a graph. A vertex
@@ -47,6 +55,10 @@ as well.
 Contrary to more general graph frameworks, edges in NaiveNASlib are implicit in the sense that each vertex stores its input 
 and output vertices. Edges are primarily used when evaluating the graph as a function as well as when formulating the 
 constraints for keeping the graph size aligned.
+
+While this is typically seen as impractical in more general graph analyzing frameworks, the scope of NaiveNASlib makes this a
+relatively sane choice as it allows for the convenience of passing a single vertex to mutating functions without having to haul
+around the whole graph object.
 
 ## Neuron
 
