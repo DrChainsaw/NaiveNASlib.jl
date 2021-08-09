@@ -90,8 +90,34 @@ add_participants!(s::LogΔSizeExec, vs=AbstractVertex[]) = add_participants!(s.a
 
 """
     DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
+    DefaultJuMPΔSizeStrategy()
 
-Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
+Default strategy which applies default constraints or objectives to a model. 
+
+Intended use is for strategies which apply special constraints or objectives to a subset of the vertices.
+
+Also useful when configuring [`DecoratingJuMPΔSizeStrategies`](@ref DecoratingJuMPΔSizeStrategy).
+
+### Examples
+
+Use to get add special constraints for a subset of vertices:
+```julia
+function NaiveNASlib.addsomeconstraint!(s::MySpecialStrategy, v::AbstractVertex, data)
+    if v === s.targetvertex
+        # Add some special constraints here
+    else
+        # Use the default
+        NaiveNASlib.addsomeconstraint!(DefaultJuMPΔSizeStrategy(), v::AbstractVertex, data)
+    end
+end
+```
+Use with a [`DecoratingJuMPΔSizeStrategy`](@ref):
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced
+
+julia> WithUtilityFun(defaultutility, DefaultJuMPΔSizeStrategy())
+WithUtilityFun{typeof(defaultutility), DefaultJuMPΔSizeStrategy}(NaiveNASlib.defaultutility, DefaultJuMPΔSizeStrategy())
+```
 """
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
 

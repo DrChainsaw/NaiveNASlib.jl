@@ -5,9 +5,9 @@ As shown in [Advanced Tutorial](@ref) size strategies give a high degree of flex
 All size strategies are executed through the [`Δsize!`](@ref) function.
 
 Imported to namespace by
-julia
+```julia
 using NaiveNASlib.Advanced
-
+```
 
 ```@docs
 DefaultJuMPΔSizeStrategy
