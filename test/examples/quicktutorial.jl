@@ -125,7 +125,6 @@ y2 = layer2(y1)
 end #src
 
 md"""
-## A more elaborate example
 
 As can be seen above, the consequence of changing the output size of `layer1` was that the input size of `layer2` 
 also was changed. This is of course required for the computation graph to not throw a dimension mismatch error
@@ -136,13 +135,16 @@ of `LinearLayer`'s parameters can change independently as they are the rows and 
 This is expressed by giving the layers the mutation size trait [`SizeAbsorb`](@ref) in the lingo of NaiveNASlib, 
 meaning that a change in number of input/output neurons does not propagate further in the graph.
 
-On to the next example! As hinted before, things can quickly get out of hand when using:
+## A more elaborate example
+
+While the previous example was simple enough to be done by hand, things can quickly get out of hand when using:
 
 * Layers which require `nin==nout`, e.g. batch normalization and pooling.
 * Element wise operations such as activation functions or just element wise arithmetics (e.g `+` used in residual connections).
 * Concatenation of activations.  
 
-Lets use a small but non-trivial model including all of the above. We begin by making a helper which creates a vertex which does elementwise scaling of its input:
+Lets use a small but non-trivial model including all of the above. We begin by making a helper which creates a vertex which
+does elementwise scaling of its input:
 """
 scalarmult(v, s::Number) = invariantvertex(x -> x .* s, v)
 # When multiplying with a scalar, the output size is the same as the input size.
@@ -150,7 +152,7 @@ scalarmult(v, s::Number) = invariantvertex(x -> x .* s, v)
 
 @testset "More elaborate example" begin #src
 # Ok, lets create the model:
-## First a few "normal" layers
+## First a few `LinearLayer`s
 invertex = inputvertex("input", 6)
 start = linearvertex(invertex, 6)
 split = linearvertex(start, nout(invertex) ÷ 3)
@@ -217,13 +219,12 @@ graphhigh = deepcopy(graph)
 @test Δnout!(v -> 1:nout(v), graphhigh[end] => -3)
 @test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]
 
-# Perfer low indices
+# Perfer low indices:
 graphlow = deepcopy(graph)
 @test Δnout!(v -> nout(v):-1:1, graphlow[end] => -3) 
 @test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]
 
-
-# A common approach when doing structured pruning is to prefer neurons with high magnitude.
+# A simple approach when doing structured pruning is to prefer neurons with high magnitude.
 # Here is how to set that as the default for LinearLayer.
 # This is something one should probably implement in `TinyNNlib` instead.
 using Statistics: mean
@@ -249,7 +250,8 @@ v1, v2 = goodgraphdecinc[[3, end]]
 @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
 @test goodgraphdecinc((ones(6))) == [78.0, 78.0, 6.0, 0.0, 108.0, 114.0, 6.0, 6.0, 180.0, 180.0, 0.0, 0.0]
 
-# It is also possible to change the input direction, but it requires specifying a size change for each input and is generally not recommended due to this.
+# It is also possible to change the input direction, but it requires specifying a size change for each input 
+# and is generally not recommended due to this.
 graphΔnin = deepcopy(graph)
 v1, v2 = graphΔnin[end-1:end]
 ## Use missing to signal "don't care"
@@ -257,7 +259,7 @@ v1, v2 = graphΔnin[end-1:end]
 @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
 @test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition
 
-# A popular pruning strategy is to just remove the x% of params with lowest utility.
+# A common pruning strategy is to just remove the x% of params with lowest utility.
 # This can be done by just not putting any size requirements and assign negative utility.
 graphprune40 = deepcopy(graph)
 Δsize!(graphprune40) do v
@@ -275,8 +277,8 @@ end #src
 
 # ## Closer look at how weights are modified
 # Here we take a closer look at how the weight matrices are changed. We use the following function to create
-# `LinearLayer`s with easily to distinguish weights and to return both a vertex and the layer so we can easily
-# look at it: 
+# `LinearLayer`s with easy to distinguish weights. It returns both a vertex and the `LinearLayer` so we 
+# can easily look at the weights: 
 
 function vertexandlayer(in, outsize)
     nparam = nout(in) * outsize
@@ -289,23 +291,33 @@ invertices = inputvertex.(["in1", "in2"], [3,4])
 v1, l1 = vertexandlayer(invertices[1], 4)
 v2, l2 = vertexandlayer(invertices[2], 3)
 merged = conc(v1, v2, dims=1)
-v3, l3 = vertexandlayer(merged, 2)
-graph = CompGraph(invertices, v3)
+v3, l3 = vertexandlayer(invertices[1], nout(merged))
+add = v3 + merged
+v4, l4 = vertexandlayer(merged, 2)
 
 # These weights might look a bit odd, but here we only care about making 
 # it easy to spot what has changed after size change below.
 @test l1.W ==
-[ 1 5  9 ; 
-  2 6 10 ; 
-  3 7 11 ;
+[ 1 5  9  
+  2 6 10  
+  3 7 11 
   4 8 12 ]
 
 @test l2.W ==
-[ 1 4 7 10 ;
-  2 5 8 11 ; 
+[ 1 4 7 10 
+  2 5 8 11  
   3 6 9 12 ]
 
 @test l3.W ==
+[ 1  8 15 
+  2  9 16 
+  3 10 17 
+  4 11 18 
+  5 12 19 
+  6 13 20 
+  7 14 21 ]
+
+@test l4.W ==
 [ 1 3 5 7  9 11 13 ;
   2 4 6 8 10 12 14 ]
 
@@ -318,22 +330,33 @@ end
 
 # `v1` got a new row of parameters at the end:
 @test l1.W ==
-[ 1 5  9 ;
-  2 6 10 ;
-  3 7 11 ;
-  4 8 12 ;
+[ 1 5  9 
+  2 6 10 
+  3 7 11 
+  4 8 12 
   0 0  0 ]
 
 # `v2` chose to drop its middle row as it was the output neuron with lowest utility:
 @test l2.W ==
-[ 1 4 7 10 ;
+[ 1 4 7 10 
   3 6 9 12 ]
 
-# `v3` dropped the second to last column (which is aligned to the middle row of `v2`).
+# `v4` dropped the second to last column (which is aligned to the middle row of `v2`).
 # and got new parameters in column 5 (which is aligned to the last row of `v1`):
-@test l3.W ==
-[  1 3 5 7 0  9 13 ;
+@test l4.W ==
+[  1 3 5 7 0  9 13 
    2 4 6 8 0 10 14 ]
+
+# Oh, and since `v4` is connected to `v3` though `add`, `v3` had the equivalent 
+# change to its rows:
+@test l3.W ==
+[ 1  8 15        
+  2  9 16
+  3 10 17
+  4 11 18
+  0  0  0
+  5 12 19
+  7 14 21 ]
 end #src
 
 
