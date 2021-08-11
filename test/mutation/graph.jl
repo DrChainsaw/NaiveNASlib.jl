@@ -99,6 +99,24 @@
             end
         end
 
+        @testset "Simple cycle with inputvertices" begin
+            v1 = iv(6, "v1")
+            v2 = iv(2, "v2")
+            v3a = tv(v2, "v3a") 
+            v3b = av(v2, 4, "v3b")
+            v4 = cc(v3a, v3b; name="v4")
+            v5 = "v5" >> v4 + v1
+            v6 = av(v5, 3, "v6") 
+            
+            @testset "Vertex $(name(v))" for v in all_in_graph(v1)
+                if v === v3b # v2 is not in sizecycle as it does not have ancestors
+                    @test isinsizecycle(v) == true
+                else
+                    @test isinsizecycle(v) == false
+                end
+            end     
+        end
+
         @testset "Double absorbing in path -> no cycle" begin
             # Same as above, but now there are two size absorbing vertices in the non-transparent path
             # v3b1 does not see v5 as v3b2 blocks the line of sight and v3b2 does not see v2 as v3b1 block the line of sight

@@ -287,7 +287,7 @@ end
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
 ## anything useful unless f1=inputs and f2=outputs or vise versa.
-function remove!(v::MutationVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
+function remove!(v::AbstractVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
     for f1_v in f1(v)
         f1_f2_v = f2(f1_v)
         inds = findall(vx -> vx == v, f1_f2_v)
