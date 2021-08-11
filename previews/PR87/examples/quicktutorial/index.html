@@ -97,17 +97,16 @@ v1, v2 = graphΔnin[end-1:end]
 end
 @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
 # Compare to original:
-@test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]</code></pre><h2 id="Closer-look-at-how-weights-are-modified"><a class="docs-heading-anchor" href="#Closer-look-at-how-weights-are-modified">Closer look at how weights are modified</a><a id="Closer-look-at-how-weights-are-modified-1"></a><a class="docs-heading-anchor-permalink" href="#Closer-look-at-how-weights-are-modified" title="Permalink"></a></h2><p>Here we take a closer look at how the weight matrices are changed.</p><pre><code class="language-julia hljs">function vertexandlayer(in, outsize)
+@test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]</code></pre><h2 id="Closer-look-at-how-weights-are-modified"><a class="docs-heading-anchor" href="#Closer-look-at-how-weights-are-modified">Closer look at how weights are modified</a><a id="Closer-look-at-how-weights-are-modified-1"></a><a class="docs-heading-anchor-permalink" href="#Closer-look-at-how-weights-are-modified" title="Permalink"></a></h2><p>Here we take a closer look at how the weight matrices are changed. We use the following function to create <code>LinearLayer</code>s with easily to distinguish weights and to return both a vertex and the layer so we can easily look at it:</p><pre><code class="language-julia hljs">function vertexandlayer(in, outsize)
     nparam = nout(in) * outsize
     l = LinearLayer(collect(reshape(1:nparam, :, nout(in))))
-    # Return vertex and wrapped layer just so we can easily look at it
     return absorbvertex(l, in), l
 end</code></pre><p>Make a simple model:</p><pre><code class="language-julia hljs">invertices = inputvertex.([&quot;in1&quot;, &quot;in2&quot;], [3,4])
 v1, l1 = vertexandlayer(invertices[1], 4)
 v2, l2 = vertexandlayer(invertices[2], 3)
 merged = conc(v1, v2, dims=1)
 v3, l3 = vertexandlayer(merged, 2)
-graph = CompGraph(invertices, v3)</code></pre><p>These weights might look a bit odd, but they are of course intialized to make it easier to spot what has changed after size change below.</p><pre><code class="language-julia hljs">@test l1.W ==
+graph = CompGraph(invertices, v3)</code></pre><p>These weights might look a bit odd, but here we only care about making it easy to spot what has changed after size change below.</p><pre><code class="language-julia hljs">@test l1.W ==
 [ 1 5  9 ;
   2 6 10 ;
   3 7 11 ;
@@ -119,19 +118,19 @@ graph = CompGraph(invertices, v3)</code></pre><p>These weights might look a bit 
   3 6 9 12 ]
 
 @test l3.W ==
-[ 1  3  5  7   9  11  13 ;
-  2  4  6  8  10  12  14 ]</code></pre><p>Now, lets decrease <code>v1</code> by 1 and force <code>merged</code> to retain its size which in turn forces <code>v2</code> to grow by 1. Assign utility 10 to neurons 1 and 3 of <code>v2</code> and 1 for all other neurons in the model.</p><pre><code class="language-julia hljs">@test Δnout!(v2 =&gt; -1, merged =&gt; 0) do v
+[ 1 3 5 7  9 11 13 ;
+  2 4 6 8 10 12 14 ]</code></pre><p>Now, lets decrease <code>v1</code> by 1 and force <code>merged</code> to retain its size which in turn forces <code>v2</code> to grow by 1. Assign utility 10 to neurons 1 and 3 of <code>v2</code> and 1 for all other neurons in the model.</p><pre><code class="language-julia hljs">@test Δnout!(v2 =&gt; -1, merged =&gt; 0) do v
     v == v2 ? [10, 1, 10] : 1
 end</code></pre><p><code>v1</code> got a new row of parameters at the end:</p><pre><code class="language-julia hljs">@test l1.W ==
-[ 1  5   9 ;
-  2  6  10 ;
-  3  7  11 ;
-  4  8  12 ;
-  0  0   0 ]</code></pre><p><code>v2</code> chose to drop its middle row as it was the output neuron with lowest utility:</p><pre><code class="language-julia hljs">@test l2.W ==
+[ 1 5  9 ;
+  2 6 10 ;
+  3 7 11 ;
+  4 8 12 ;
+  0 0  0 ]</code></pre><p><code>v2</code> chose to drop its middle row as it was the output neuron with lowest utility:</p><pre><code class="language-julia hljs">@test l2.W ==
 [ 1 4 7 10 ;
   3 6 9 12 ]</code></pre><p><code>v3</code> dropped the second to last column (which is aligned to the middle row of <code>v2</code>). and got new parameters in column 5 (which is aligned to the last row of <code>v1</code>):</p><pre><code class="language-julia hljs">@test l3.W ==
-[  1  3  5  7  0   9  13 ;
-   2  4  6  8  0  10  14 ]</code></pre><h2 id="Other-modifications"><a class="docs-heading-anchor" href="#Other-modifications">Other modifications</a><a id="Other-modifications-1"></a><a class="docs-heading-anchor-permalink" href="#Other-modifications" title="Permalink"></a></h2><p>Lets just do a few quick examples of the other types of modifications.</p><h3 id="Add-a-vertex"><a class="docs-heading-anchor" href="#Add-a-vertex">Add a vertex</a><a id="Add-a-vertex-1"></a><a class="docs-heading-anchor-permalink" href="#Add-a-vertex" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#Base.insert!"><code>insert!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 3)
+[  1 3 5 7 0  9 13 ;
+   2 4 6 8 0 10 14 ]</code></pre><h2 id="Other-modifications"><a class="docs-heading-anchor" href="#Other-modifications">Other modifications</a><a id="Other-modifications-1"></a><a class="docs-heading-anchor-permalink" href="#Other-modifications" title="Permalink"></a></h2><p>Lets just do a few quick examples of the other types of modifications.</p><h3 id="Add-a-vertex"><a class="docs-heading-anchor" href="#Add-a-vertex">Add a vertex</a><a id="Add-a-vertex-1"></a><a class="docs-heading-anchor-permalink" href="#Add-a-vertex" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#Base.insert!"><code>insert!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 3)
 layer1 = linearvertex(invertex, 5)
 graph = CompGraph(invertex, layer1)
 
@@ -189,4 +188,4 @@ graph = CompGraph(invertex, out)
 @test remove_edge!(layer1, merged) # True if success
 
 @test nin(merged) == [5, 3]
-@test graph(ones(4)) == [32, 32, 32]</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Introduction</a><a class="docs-footer-nextpage" href="../advancedtutorial/">Advanced Tutorial »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.5 on <span class="colophon-date" title="Monday 9 August 2021 23:27">Monday 9 August 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+@test graph(ones(4)) == [32, 32, 32]</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Introduction</a><a class="docs-footer-nextpage" href="../advancedtutorial/">Advanced Tutorial »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.5 on <span class="colophon-date" title="Wednesday 11 August 2021 09:24">Wednesday 11 August 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
