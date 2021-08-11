@@ -50,7 +50,7 @@ y2 = layer2(y1)
 @test [nout(layer1)] == nin(layer2) == [2]</code></pre><p>And now the weight matrices have changed!</p><p>The graph is still operational of course but the sizes of the activations have changed.</p><pre><code class="language-julia hljs">y1 = layer1(batch)
 @test size(y1) == (nout(layer1), batchsize) == (2, 2)
 y2 = layer2(y1)
-@test size(y2) == (nout(layer2), batchsize) == (5 ,2)</code></pre><h2 id="A-more-elaborate-example"><a class="docs-heading-anchor" href="#A-more-elaborate-example">A more elaborate example</a><a id="A-more-elaborate-example-1"></a><a class="docs-heading-anchor-permalink" href="#A-more-elaborate-example" title="Permalink"></a></h2><p>As can be seen above, the consequence of changing the output size of <code>layer1</code> was that the input size of <code>layer2</code> also was changed. This is of course required for the computation graph to not throw a dimension mismatch error when being executed.</p><p>Besides the very simple graph, this mutation was trivial because the sizes of the input and output dimensions of <code>LinearLayer</code>&#39;s parameters can change independently as they are the rows and columns of the weight matrix. This is expressed by giving the layers the mutation size trait <a href="../../reference/extend/traits/#NaiveNASlib.SizeAbsorb"><code>SizeAbsorb</code></a> in the lingo of NaiveNASlib, meaning that a change in number of input/output neurons does not propagate further in the graph.</p><p>On to the next example! As hinted before, things can quickly get out of hand when using:</p><ul><li>Layers which require <code>nin==nout</code>, e.g. batch normalization and pooling.</li><li>Element wise operations such as activation functions or just element wise arithmetics (e.g <code>+</code> used in residual connections).</li><li>Concatenation of activations.</li></ul><p>Lets use a small but non-trivial model including all of the above. We begin by making a helper which creates a vertex which does elementwise scaling of its input:</p><pre><code class="language-julia hljs">scalarmult(v, s::Number) = invariantvertex(x -&gt; x .* s, v)</code></pre><p>When multiplying with a scalar, the output size is the same as the input size. This vertex type is said to be size invariant (in lack of better words), hence the name <a href="../../reference/simple/createvertex/#NaiveNASlib.invariantvertex"><code>invariantvertex</code></a>.</p><p>Ok, lets create the model:</p><pre><code class="language-julia hljs"># First a few &quot;normal&quot; layers
+@test size(y2) == (nout(layer2), batchsize) == (5 ,2)</code></pre><p>As can be seen above, the consequence of changing the output size of <code>layer1</code> was that the input size of <code>layer2</code> also was changed. This is of course required for the computation graph to not throw a dimension mismatch error when being executed.</p><p>Besides the very simple graph, this mutation was trivial because the sizes of the input and output dimensions of <code>LinearLayer</code>&#39;s parameters can change independently as they are the rows and columns of the weight matrix. This is expressed by giving the layers the mutation size trait <a href="../../reference/extend/traits/#NaiveNASlib.SizeAbsorb"><code>SizeAbsorb</code></a> in the lingo of NaiveNASlib, meaning that a change in number of input/output neurons does not propagate further in the graph.</p><h2 id="A-more-elaborate-example"><a class="docs-heading-anchor" href="#A-more-elaborate-example">A more elaborate example</a><a id="A-more-elaborate-example-1"></a><a class="docs-heading-anchor-permalink" href="#A-more-elaborate-example" title="Permalink"></a></h2><p>While the previous example was simple enough to be done by hand, things can quickly get out of hand when using:</p><ul><li>Layers which require <code>nin==nout</code>, e.g. batch normalization and pooling.</li><li>Element wise operations such as activation functions or just element wise arithmetics (e.g <code>+</code> used in residual connections).</li><li>Concatenation of activations.</li></ul><p>Lets use a small but non-trivial model including all of the above. We begin by making a helper which creates a vertex which does elementwise scaling of its input:</p><pre><code class="language-julia hljs">scalarmult(v, s::Number) = invariantvertex(x -&gt; x .* s, v)</code></pre><p>When multiplying with a scalar, the output size is the same as the input size. This vertex type is said to be size invariant (in lack of better words), hence the name <a href="../../reference/simple/createvertex/#NaiveNASlib.invariantvertex"><code>invariantvertex</code></a>.</p><p>Ok, lets create the model:</p><pre><code class="language-julia hljs"># First a few `LinearLayer`s
 invertex = inputvertex(&quot;input&quot;, 6)
 start = linearvertex(invertex, 6)
 split = linearvertex(start, nout(invertex) ÷ 3)
@@ -69,9 +69,9 @@ graph = CompGraph(invertex, out)
 @test [nout(start)] == nin(split) == [3nout(split)] == [sum(nin(joined))] == [nout(out)] == [9]
 @test [nout(start), nout(joined)] == nin(out) == [9, 9]</code></pre><p>As we can see above, the size change rippled through the graph due to the size relations described above. Pretty much every vertex was affected.</p><p>Lets evaluate the graph just to verify that we don&#39;t get a dimension mismatch error.</p><pre><code class="language-julia hljs">@test graph((ones(6))) == [78, 78, 0, 114, 114, 0, 186, 186, 0]</code></pre><p><code>TinyNNlib</code> uses <a href="../../reference/extend/misc/#NaiveNASlib.parselect"><code>parselect</code></a> which will insert zeros when size increases by default. This helps the graph maintain the same function after mutation. In this case we changed the size of the output layer so we don&#39;t have the exact same function though, but hopefully it is clear why e.g. a linear layer after <code>out</code> would have made it produce the same output.</p><p>Copy is still intact of course.</p><pre><code class="language-julia hljs">@test parentgraph((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><p>While we still have the complex model in scope, lets show a few more way to change the sizes. See the built in documentation for more information.</p><p>It is possible to supply a utility function for telling the utility of each neuron in a vertex. NaiveNASlib will prioritize selecting the indices with higher utility.</p><p>Prefer high indices:</p><pre><code class="language-julia hljs">graphhigh = deepcopy(graph)
 @test Δnout!(v -&gt; 1:nout(v), graphhigh[end] =&gt; -3)
-@test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]</code></pre><p>Perfer low indices</p><pre><code class="language-julia hljs">graphlow = deepcopy(graph)
+@test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]</code></pre><p>Perfer low indices:</p><pre><code class="language-julia hljs">graphlow = deepcopy(graph)
 @test Δnout!(v -&gt; nout(v):-1:1, graphlow[end] =&gt; -3)
-@test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><p>A common approach when doing structured pruning is to prefer neurons with high magnitude. Here is how to set that as the default for LinearLayer. This is something one should probably implement in <code>TinyNNlib</code> instead.</p><pre><code class="language-julia hljs">using Statistics: mean
+@test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><p>A simple approach when doing structured pruning is to prefer neurons with high magnitude. Here is how to set that as the default for LinearLayer. This is something one should probably implement in <code>TinyNNlib</code> instead.</p><pre><code class="language-julia hljs">using Statistics: mean
 NaiveNASlib.defaultutility(l::LinearLayer) = mean(abs, l.W, dims=2)
 
 graphhighmag = deepcopy(graph)
@@ -89,7 +89,7 @@ v1, v2 = graphΔnin[end-1:end]
 # Use missing to signal &quot;don&#39;t care&quot;
 @test Δnin!(v1 =&gt; (3, relaxed(2), missing), v2 =&gt; relaxed((1,2)))
 @test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
-@test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition</code></pre><p>A popular pruning strategy is to just remove the x% of params with lowest utility. This can be done by just not putting any size requirements and assign negative utility.</p><pre><code class="language-julia hljs">graphprune40 = deepcopy(graph)
+@test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition</code></pre><p>A common pruning strategy is to just remove the x% of params with lowest utility. This can be done by just not putting any size requirements and assign negative utility.</p><pre><code class="language-julia hljs">graphprune40 = deepcopy(graph)
 Δsize!(graphprune40) do v
     utility = NaiveNASlib.defaultutility(v)
     # We make some strong assumptions on weight distribution here for breviety :)
@@ -97,7 +97,7 @@ v1, v2 = graphΔnin[end-1:end]
 end
 @test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
 # Compare to original:
-@test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]</code></pre><h2 id="Closer-look-at-how-weights-are-modified"><a class="docs-heading-anchor" href="#Closer-look-at-how-weights-are-modified">Closer look at how weights are modified</a><a id="Closer-look-at-how-weights-are-modified-1"></a><a class="docs-heading-anchor-permalink" href="#Closer-look-at-how-weights-are-modified" title="Permalink"></a></h2><p>Here we take a closer look at how the weight matrices are changed. We use the following function to create <code>LinearLayer</code>s with easily to distinguish weights and to return both a vertex and the layer so we can easily look at it:</p><pre><code class="language-julia hljs">function vertexandlayer(in, outsize)
+@test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]</code></pre><h2 id="Closer-look-at-how-weights-are-modified"><a class="docs-heading-anchor" href="#Closer-look-at-how-weights-are-modified">Closer look at how weights are modified</a><a id="Closer-look-at-how-weights-are-modified-1"></a><a class="docs-heading-anchor-permalink" href="#Closer-look-at-how-weights-are-modified" title="Permalink"></a></h2><p>Here we take a closer look at how the weight matrices are changed. We use the following function to create <code>LinearLayer</code>s with easy to distinguish weights. It returns both a vertex and the <code>LinearLayer</code> so we can easily look at the weights:</p><pre><code class="language-julia hljs">function vertexandlayer(in, outsize)
     nparam = nout(in) * outsize
     l = LinearLayer(collect(reshape(1:nparam, :, nout(in))))
     return absorbvertex(l, in), l
@@ -105,32 +105,49 @@ end</code></pre><p>Make a simple model:</p><pre><code class="language-julia hljs
 v1, l1 = vertexandlayer(invertices[1], 4)
 v2, l2 = vertexandlayer(invertices[2], 3)
 merged = conc(v1, v2, dims=1)
-v3, l3 = vertexandlayer(merged, 2)
-graph = CompGraph(invertices, v3)</code></pre><p>These weights might look a bit odd, but here we only care about making it easy to spot what has changed after size change below.</p><pre><code class="language-julia hljs">@test l1.W ==
-[ 1 5  9 ;
-  2 6 10 ;
-  3 7 11 ;
+v3, l3 = vertexandlayer(invertices[1], nout(merged))
+add = v3 + merged
+v4, l4 = vertexandlayer(merged, 2)</code></pre><p>These weights might look a bit odd, but here we only care about making it easy to spot what has changed after size change below.</p><pre><code class="language-julia hljs">@test l1.W ==
+[ 1 5  9
+  2 6 10
+  3 7 11
   4 8 12 ]
 
 @test l2.W ==
-[ 1 4 7 10 ;
-  2 5 8 11 ;
+[ 1 4 7 10
+  2 5 8 11
   3 6 9 12 ]
 
 @test l3.W ==
+[ 1  8 15
+  2  9 16
+  3 10 17
+  4 11 18
+  5 12 19
+  6 13 20
+  7 14 21 ]
+
+@test l4.W ==
 [ 1 3 5 7  9 11 13 ;
   2 4 6 8 10 12 14 ]</code></pre><p>Now, lets decrease <code>v1</code> by 1 and force <code>merged</code> to retain its size which in turn forces <code>v2</code> to grow by 1. Assign utility 10 to neurons 1 and 3 of <code>v2</code> and 1 for all other neurons in the model.</p><pre><code class="language-julia hljs">@test Δnout!(v2 =&gt; -1, merged =&gt; 0) do v
     v == v2 ? [10, 1, 10] : 1
 end</code></pre><p><code>v1</code> got a new row of parameters at the end:</p><pre><code class="language-julia hljs">@test l1.W ==
-[ 1 5  9 ;
-  2 6 10 ;
-  3 7 11 ;
-  4 8 12 ;
+[ 1 5  9
+  2 6 10
+  3 7 11
+  4 8 12
   0 0  0 ]</code></pre><p><code>v2</code> chose to drop its middle row as it was the output neuron with lowest utility:</p><pre><code class="language-julia hljs">@test l2.W ==
-[ 1 4 7 10 ;
-  3 6 9 12 ]</code></pre><p><code>v3</code> dropped the second to last column (which is aligned to the middle row of <code>v2</code>). and got new parameters in column 5 (which is aligned to the last row of <code>v1</code>):</p><pre><code class="language-julia hljs">@test l3.W ==
-[  1 3 5 7 0  9 13 ;
-   2 4 6 8 0 10 14 ]</code></pre><h2 id="Other-modifications"><a class="docs-heading-anchor" href="#Other-modifications">Other modifications</a><a id="Other-modifications-1"></a><a class="docs-heading-anchor-permalink" href="#Other-modifications" title="Permalink"></a></h2><p>Lets just do a few quick examples of the other types of modifications.</p><h3 id="Add-a-vertex"><a class="docs-heading-anchor" href="#Add-a-vertex">Add a vertex</a><a id="Add-a-vertex-1"></a><a class="docs-heading-anchor-permalink" href="#Add-a-vertex" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#Base.insert!"><code>insert!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 3)
+[ 1 4 7 10
+  3 6 9 12 ]</code></pre><p><code>v4</code> dropped the second to last column (which is aligned to the middle row of <code>v2</code>). and got new parameters in column 5 (which is aligned to the last row of <code>v1</code>):</p><pre><code class="language-julia hljs">@test l4.W ==
+[  1 3 5 7 0  9 13
+   2 4 6 8 0 10 14 ]</code></pre><p>Oh, and since <code>v4</code> is connected to <code>v3</code> though <code>add</code>, <code>v3</code> had the equivalent change to its rows:</p><pre><code class="language-julia hljs">@test l3.W ==
+[ 1  8 15
+  2  9 16
+  3 10 17
+  4 11 18
+  0  0  0
+  5 12 19
+  7 14 21 ]</code></pre><h2 id="Other-modifications"><a class="docs-heading-anchor" href="#Other-modifications">Other modifications</a><a id="Other-modifications-1"></a><a class="docs-heading-anchor-permalink" href="#Other-modifications" title="Permalink"></a></h2><p>Lets just do a few quick examples of the other types of modifications.</p><h3 id="Add-a-vertex"><a class="docs-heading-anchor" href="#Add-a-vertex">Add a vertex</a><a id="Add-a-vertex-1"></a><a class="docs-heading-anchor-permalink" href="#Add-a-vertex" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#Base.insert!"><code>insert!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 3)
 layer1 = linearvertex(invertex, 5)
 graph = CompGraph(invertex, layer1)
 
@@ -188,4 +205,4 @@ graph = CompGraph(invertex, out)
 @test remove_edge!(layer1, merged) # True if success
 
 @test nin(merged) == [5, 3]
-@test graph(ones(4)) == [32, 32, 32]</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Introduction</a><a class="docs-footer-nextpage" href="../advancedtutorial/">Advanced Tutorial »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.5 on <span class="colophon-date" title="Wednesday 11 August 2021 09:24">Wednesday 11 August 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+@test graph(ones(4)) == [32, 32, 32]</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Introduction</a><a class="docs-footer-nextpage" href="../advancedtutorial/">Advanced Tutorial »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.5 on <span class="colophon-date" title="Wednesday 11 August 2021 18:32">Wednesday 11 August 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
