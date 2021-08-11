@@ -274,12 +274,13 @@ end #src
 @testset "Weight modification example" begin #src
 
 # ## Closer look at how weights are modified
-# Here we take a closer look at how the weight matrices are changed.
+# Here we take a closer look at how the weight matrices are changed. We use the following function to create
+# `LinearLayer`s with easily to distinguish weights and to return both a vertex and the layer so we can easily
+# look at it: 
 
 function vertexandlayer(in, outsize)
     nparam = nout(in) * outsize
     l = LinearLayer(collect(reshape(1:nparam, :, nout(in))))
-    ## Return vertex and wrapped layer just so we can easily look at it
     return absorbvertex(l, in), l
 end
 
@@ -291,8 +292,8 @@ merged = conc(v1, v2, dims=1)
 v3, l3 = vertexandlayer(merged, 2)
 graph = CompGraph(invertices, v3)
 
-# These weights might look a bit odd, but they are of course intialized to 
-# make it easier to spot what has changed after size change below.
+# These weights might look a bit odd, but here we only care about making 
+# it easy to spot what has changed after size change below.
 @test l1.W ==
 [ 1 5  9 ; 
   2 6 10 ; 
@@ -305,8 +306,8 @@ graph = CompGraph(invertices, v3)
   3 6 9 12 ]
 
 @test l3.W ==
-[ 1  3  5  7   9  11  13 ;
-  2  4  6  8  10  12  14 ]
+[ 1 3 5 7  9 11 13 ;
+  2 4 6 8 10 12 14 ]
 
 # Now, lets decrease `v1` by 1 and force `merged` to retain its size
 # which in turn forces `v2` to grow by 1.
@@ -317,11 +318,11 @@ end
 
 # `v1` got a new row of parameters at the end:
 @test l1.W ==
-[ 1  5   9 ;
-  2  6  10 ;
-  3  7  11 ;
-  4  8  12 ;
-  0  0   0 ]
+[ 1 5  9 ;
+  2 6 10 ;
+  3 7 11 ;
+  4 8 12 ;
+  0 0  0 ]
 
 # `v2` chose to drop its middle row as it was the output neuron with lowest utility:
 @test l2.W ==
@@ -331,8 +332,8 @@ end
 # `v3` dropped the second to last column (which is aligned to the middle row of `v2`).
 # and got new parameters in column 5 (which is aligned to the last row of `v1`):
 @test l3.W ==
-[  1  3  5  7  0   9  13 ;
-   2  4  6  8  0  10  14 ]
+[  1 3 5 7 0  9 13 ;
+   2 4 6 8 0 10 14 ]
 end #src
 
 
