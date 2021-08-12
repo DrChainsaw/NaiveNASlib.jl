@@ -47,17 +47,15 @@ function nin end
 
 
 """
-    Δsize!(vs::AbstractVector{<:AbstractVertex})
-    Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
-    Δsize!(utilityfun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex})
+    Δsize!([utilityfun], [s::AbstractΔSizeStrategy], vs::AbstractVector{<:AbstractVertex})
 
 Change size of (potentially) all vertices in `vs` according to the provided [`AbstractΔSizeStrategy`](@ref) (default [`DefaultJuMPΔSizeStrategy`](@ref)).
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
-`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
+`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
 """
-Δsize!(vs::AbstractVector{<:AbstractVertex}) = Δsize!(DefaultJuMPΔSizeStrategy(), vs)
+Δsize!(vs::AbstractVector{<:AbstractVertex}) = Δsize!(defaultutility, vs)
+Δsize!(utilityfun, vs::AbstractVector{<:AbstractVertex}) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), vs)
 Δsize!(s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(Δsizetype(vs), s, vs)
 Δsize!(utilityfun, s::AbstractΔSizeStrategy, vs::AbstractVector{<:AbstractVertex}) = Δsize!(utilityfun, Δsizetype(vs), s, vs)
 
@@ -68,8 +66,7 @@ a scalar which will be used as utility of all neurons of `vx`. If not provided, 
 Change size of (potentially) all vertices which `s` has a chance to impact the size of.
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
-`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
+`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
 """
 Δsize!(s::AbstractΔSizeStrategy) = Δsize!(s, add_participants!(s))
 Δsize!(utilityfun, s::AbstractΔSizeStrategy) = Δsize!(utilityfun, s, add_participants!(s))
@@ -84,8 +81,7 @@ Change size of (potentially) all vertices of graph `g` (or graph to which `v` is
 Return true of operation was successful, false otherwise.
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
-`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
+`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
 """
 Δsize!(g::CompGraph) = Δsize!(defaultutility, g::CompGraph)
 Δsize!(utilityfun, g::CompGraph) = Δsize!(utilityfun, DefaultJuMPΔSizeStrategy(), g)
@@ -119,8 +115,7 @@ Note that the above constrain makes `Δnin!` much more cumbersome to use compare
 there are no direct advantages of using `Δnin!` over [`Δnout!`](@ref) as they both boil down to the same thing. 
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
-`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
+`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
 
 Note that `Δnin!([utilityfun], args...)` is equivalent to  `Δsize!([utilityfun], ΔNin(args...))`.
 
@@ -148,8 +143,7 @@ The relaxation means that output size might not change by exactly `Δ`. Use [`re
 relaxed in the initial attempt. 
 
 Argument `utilityfun` provides a vector `utility = utilityfun(vx)` for any vertex `vx` in the same graph as `v` where 
-`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide 
-a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
+`utility[i] > utility[j]` indicates that output neuron index `i` shall be preferred over `j` for vertex `vx`. It may also provide a scalar which will be used as utility of all neurons of `vx`. If not provided, [`defaultutility(vx)`](@ref) will be used.
 
 Note that `Δnout!([utilityfun], args...)` is equivalent to `Δsize!([utilityfun], ΔNout(args...))`.
 
