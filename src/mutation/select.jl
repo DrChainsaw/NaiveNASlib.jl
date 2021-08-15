@@ -350,6 +350,17 @@ function remaputilityfun(utilityfun, ::AbstractJuMPΔSizeStrategy, vs, floorval=
 end
 
 createselectvars!(case, s::DecoratingJuMPΔSizeStrategy, vs, data) = createselectvars!(case ,base(s), vs, data)
+function createselectvars!(case, s::UpperInsertBound{<:Integer}, vs, data) 
+    isempty(vs) && return createselectvars!(case, base(s), vs, data)
+    createselectvars!(case, UpperInsertBound(vs, s.vbounds; strategy=base(s), fallback=fallback(s)), vs, data)
+end
+function createselectvars!(case, s::UpperInsertBound, vs, data)
+    outselectvars, outinsertvars, noutdict = createselectvars!(case, base(s), vs, data)    
+    for (v, ub) in s.vbounds
+        JuMP.set_upper_bound.(outinsertvars[v], ub)
+    end
+    return outselectvars, outinsertvars, noutdict
+end
 function createselectvars!(case, ::AbstractJuMPΔSizeStrategy, vs, data)  
     model = data.model
     utilityfun = data.utilityfun
@@ -415,17 +426,24 @@ insertconstraints!(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, v, data) = noi
 
 Add constraints so that `insert` does not create undefined gaps in the result of the neuron selection.
 
-Assume `select` is a set of binary variables where `select[i] = 1` means select the output neuron at position `i` and `insert[i] = N` means insert `N` new output neurons at the position after `i`.
+Assume `select` is a set of binary variables where `select[i] = 1` means select the output neuron at position `i` 
+and `insert[i] = N` means insert `N` new output neurons at the position after `i`.
 
-An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1]` because this results in the instruction to use existing output neurons `1 and 2` and then insert a new neuron at position `4`. 
-In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall one insert new neurons. Running this method constrains `model` so that this solution is infeasible.
+An example of an undefined gap is if `select = [1, 1, 0]` and `insert = [0, 0, 1]` because this results in the 
+instruction to use existing output neurons `1 and 2` and then insert a new neuron at position `4`. 
+In this example position `3` is an undefined gap as one should neither put an existing neuron there nor shall
+one insert new neurons. Running this method constrains `model` so that this solution is infeasible.
 """
 function noinsertgaps!(model, select, insert, maxinsert=max(length(select) * 10, 200)) # TODO: get maxinsert from strategy instead?
+    JuMP.set_upper_bound.(filter(!JuMP.has_upper_bound, insert), maxinsert)
+
+    # This is redundant if we don't allow any inserts and the constraints here add significantly to the solution time
+    all(var -> JuMP.upper_bound(var) == 0, insert) && return 
+
     # See  https://discourse.julialang.org/t/help-with-constraints-to-select-and-or-insert-columns-to-a-matrix/63654
     insert_nogap = @variable(model, [1:length(insert)], Bin)
 
     @constraint(model, sum(insert) <= maxinsert)
-    JuMP.set_upper_bound.(filter(!JuMP.has_upper_bound, insert), maxinsert)
 
     # insert[i] == 0 if insert_nogap[i] == 1
     @constraint(model, [i=1:length(insert)], insert[i] <= 2maxinsert * insert_nogap[i])

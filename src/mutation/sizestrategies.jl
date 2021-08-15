@@ -120,6 +120,7 @@ WithUtilityFun{typeof(defaultutility), DefaultJuMPΔSizeStrategy}(NaiveNASlib.de
 ```
 """
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
+fallback(::DefaultJuMPΔSizeStrategy) = default_sizefallback("Solver failed!")
 
 """
     TimeLimitΔSizeStrategy{S} <: DecoratingJuMPΔSizeStrategy
@@ -539,6 +540,36 @@ base(s::WithUtilityFun) = s.strategy
 fallback(s::WithUtilityFun) = fallback(s.strategy)
 
 add_participants!(s::WithUtilityFun, vs=AbstractVertex[]) = add_participants!(base(s), vs)
+
+"""
+    UpperInsertBound{V<:AbstractDict{<:AbstractVertex, <:Integer}, S, F} <: DecoratingJuMPΔSizeStrategy
+    UpperInsertBound(vbounds; strategy, fallback)
+    UpperInsertBound(vs, bound::Integer; strategy, fallback)
+
+Sets upper bound for how many new neurons to insert of each vertex `v` in `vbounds` to `vbounds[v]` and then applies neuron indices 
+selection with `strategy` (default [`DefaultJuMPΔSizeStrategy`](@ref)).
+
+Alternatively, sets the upper bounds of each vertex in `vs` to `bound`. Applies `bound` to all vertices if `vs` is empty.
+
+Mostly useful to minimize solver time in cases when one does not want any new neurons as disallowing this allows skipping a couple of constraints.
+
+If it fails, the operation will be retried with the `fallback` strategy (default [`ΔSizeFailNoOp`](@ref)).
+"""
+struct UpperInsertBound{VB, S, F} <: DecoratingJuMPΔSizeStrategy
+    vbounds::VB
+    strategy::S
+    fallback::F
+end
+
+function UpperInsertBound(vs::AbstractVector{<:AbstractVertex}, bound::Integer=0; kwargs...)  
+    isempty(vs) ? UpperInsertBound(bound; kwargs...) : UpperInsertBound(Dict(v => bound for v in vs); kwargs...)
+end
+function UpperInsertBound(vbounds::Union{Integer, AbstractDict}; strategy=DefaultJuMPΔSizeStrategy(), fallback=default_sizefallback("Solver failed!")) 
+    UpperInsertBound(vbounds, strategy, fallback)
+end
+base(s::UpperInsertBound) = s.strategy
+fallback(s::UpperInsertBound) = s.fallback
+add_participants!(s::UpperInsertBound, vs=AbstractVertex[]) = add_participants!(base(s), vs) 
 
 """
     AbstractAfterΔSizeStrategy <: DecoratingJuMPΔSizeStrategy

@@ -955,4 +955,20 @@ import JuMP
         @test nout(v1) == 5
         @test seenkwargs == Dict(:a => 3, :b => 4, :c=>5)
     end
+
+    @testset "UpperInsertBound" begin
+        import Logging
+        inpt = iv(3)
+        v1 = av(inpt, 4, "v1")
+        v2 = av(v1, 5, "v2")
+
+        strategy = ΔNoutExact(v1=>2)
+        fallback = LogΔSizeExec("Success!?", Logging.Warn)
+        @test @test_logs (:warn, "Success!?") Δsize!(UpperInsertBound(0;strategy, fallback)) == false
+
+        @test @test_logs (:warn, "Success!?") Δsize!(TimeOutAction(;base=UpperInsertBound(0;strategy), fallback)) == false
+        
+        @test Δsize!(UpperInsertBound([v2], 0;strategy, fallback)) == true
+
+    end
 end
