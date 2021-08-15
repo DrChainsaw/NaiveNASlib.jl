@@ -19,7 +19,7 @@ While this is sometimes possible to do manually or through some ad-hoc method, t
 more complex models. NaiveNASlib comes to the rescue so that you can focus on the actual problem. Any failure to produce a
 valid model after mutation warrants an issue!
 
-NaiveNASlib makes quite few assumptions on the underlying implementation which in turn means that it is quite easy to make
+NaiveNASlib makes few assumptions on the underlying implementation which in turn means that it is quite easy to make
 use of its capabilities for an existing library. 
 
 Note that there really isn't anything neural network specific about NaiveNASlib and it can be used to modify any computation
@@ -32,7 +32,7 @@ would use this library to begin with is to not have to create computation graphs
 
 ## Reading Guideline
 
-The [Quick Tutorial](@ref) followed by the [Advanced Tutorial](@ref) are written to gradually introduce the ideas
+The [Quick Tutorial](@ref) followed by the [Advanced Tutorial](@ref) are written to quickly introduce the ideas
 of NaiveNASlib and should serve as a good starting point to tell if this library might be useful to you. 
 
 The [Terminology](@ref) section is meant to clear things up if some recurring word or concept induces uncertainty but 
@@ -45,10 +45,10 @@ categories in an attempt to make it easy to answer "how do I achieve X?"-type qu
 ## Under the hood
 
 NaiveNASlib uses [JuMP](https://github.com/jump-dev/JuMP.jl) to describe not only the size relations, but also the
-connections between individual neurons as a Mixed Integer Linear Program (MILP). Describing neuron relations with equality 
-constraints turned out to give a nice declarative way of formulating the alignment problem and ensures that even deeply 
-nested architectures stay aligned after mutation. 
+connections between individual neurons as a Mixed Integer Linear Programming (MILP) problem. Describing neuron 
+relations with equality constraints turned out to give a nice declarative way of formulating the alignment problem
+and ensures that even deeply nested architectures stay aligned after mutation. 
 
-While MILPs are known for being quite difficult it seems like the abundance of equality constraints creates a quite tight
+While MILP problems are known for being quite difficult it seems like the abundance of equality constraints creates a quite tight
 formulation (don't quote me on this though :)) so that even when 10000s of neurons are involved the solution is produced in
 sub/few-second time. 

@@ -78,5 +78,5 @@ so this must be provided by the implementation. See [`nout`](@ref) and [`nin`](@
 Examples of how to determine the input and output size for common layer types:
 
 * Fully connected layers: The size of the non-batch dimension, typically the rows/columns of the weight matrix.
-* Recurrent layers: The size of the dimension which is neither batch, nor time. 
+* Recurrent layers: The size of the dimension which is neither batch nor time. 
 * Convolutional layers: The number of input/output channels. 

@@ -549,7 +549,7 @@ add_participants!(s::WithUtilityFun, vs=AbstractVertex[]) = add_participants!(ba
 Sets upper bound for how many new neurons to insert of each vertex `v` in `vbounds` to `vbounds[v]` and then applies neuron indices 
 selection with `strategy` (default [`DefaultJuMPΔSizeStrategy`](@ref)).
 
-Alternatively, sets the upper bounds of each vertex in `vs` to `bound`. Applies `bound` to all vertices if `vs` is empty.
+Alternatively, sets the upper bound of each vertex in `vs` to `bound`. Applies `bound` to all vertices if `vs` is empty.
 
 Mostly useful to minimize solver time in cases when one does not want any new neurons as disallowing this allows skipping a couple of constraints.
 
