@@ -636,7 +636,7 @@ import JuMP
                 v3 = iv(v0,v1, name = "v3")
                 v4 = av(v3, 3, name="v4")
 
-                create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithUtilityFun(v -> 10:10:10nout(v))))
+                create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithUtilityFun(v -> v === v2 ? (1:nout(v)) : 1)))
 
                 @test inputs(v3) == [v0, v1, v2]
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
