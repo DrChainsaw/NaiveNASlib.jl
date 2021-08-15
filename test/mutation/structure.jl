@@ -629,14 +629,14 @@ import JuMP
                 @test lastins(v4) == lastouts.([v1,v2,v3]) == [1:4, 1:4, 2:5]
             end
 
-            @testset "PostSelectOutputs SizeInvariant add to immutable" begin
+            @testset "IncreaseSmaller SizeInvariant add to immutable" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 3, name="v1")
                 v2 = av(v0, 5, name="v2")
                 v3 = iv(v0,v1, name = "v3")
                 v4 = av(v3, 3, name="v4")
 
-                create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithUtilityFun(v -> 1:nout(v))))
+                create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithUtilityFun(v -> 10:10:10nout(v))))
 
                 @test inputs(v3) == [v0, v1, v2]
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
