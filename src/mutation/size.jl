@@ -1,483 +1,163 @@
 
 
-"""
-    AbstractΔSizeStrategy
-
-Abstract base type for strategies for how to change the size.
-
-Only used as a transition until JuMP approach has been fully verified.
-"""
-abstract type AbstractΔSizeStrategy end
-
-"""
-    OnlyFor <: AbstractΔSizeStrategy
-
-Change size only for the provided vertex.
-"""
-struct OnlyFor <: AbstractΔSizeStrategy end
-
-"""
-    AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy
-
-Abstract type for strategies to change or align the sizes of vertices using JuMP.
-"""
-abstract type AbstractJuMPΔSizeStrategy <: AbstractΔSizeStrategy end
-
-"""
-    ΔSizeFailError <: AbstractJuMPΔSizeStrategy
-    ΔSizeFailError(msg::String)
-
-Throws an `ErrorException` with message `msg`.
-"""
-struct ΔSizeFailError <: AbstractJuMPΔSizeStrategy
-    msg::String
-end
-
-"""
-    ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy
-    ΔSizeFailNoOp()
-
-Does not perform any action.
-"""
-struct ΔSizeFailNoOp <: AbstractJuMPΔSizeStrategy end
-
-"""
-    LogΔSizeExec <: AbstractJuMPΔSizeStrategy
-    LogΔSizeExec(msg::String)
-    LogΔSizeExec(level::Logging.LogLevel, msg::String)
-    LogΔSizeExec(level::Logging.LogLevel, msg::String, andthen::AbstractJuMPΔSizeStrategy)
-
-Logs `msg` at log level `level`, then executes `AbstractJuMPΔSizeStrategy andthen`.
-"""
-struct LogΔSizeExec <: AbstractJuMPΔSizeStrategy
-    level::LogLevel
-    msg::String
-    andthen::AbstractJuMPΔSizeStrategy
-end
-LogΔSizeExec(msg::String) = LogΔSizeExec(Logging.Info, msg)
-LogΔSizeExec(level::LogLevel, msg::String) = LogΔSizeExec(level, msg, ΔSizeFailNoOp())
-
-"""
-    DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy
-
-Default strategy intended to be used when adding some extra constraints or objectives to a model on top of the default.
-"""
-struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end
-
-struct Exact end
-struct Relaxed end
-
-"""
-    ΔNout{T} <: AbstractJuMPΔSizeStrategy
-    ΔNout{T}(vertex::AbstractVertex, Δ::Integer)
-    ΔNoutExact(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
-    ΔNoutRelaxed(vertex::AbstractVertex, Δ::Integer, fallback::AbstractJuMPΔSizeStrategy)
-
-Strategy for changing nout of `vertex` by `Δ`, i.e new size is `nout(vertex) + Δ`.
-
-If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nout(vertex)` by exactly `Δ`. If the operation fails, it will be retried with the `fallback` strategy (default `ΔNoutRelaxed`).
-
-If `T == Relaxed`, size change will be added as an objective to the model which means that `nout(vertex)` might not change by exactly `Δ`. In addition, a constraint that `nout(vertex)` must change is also added.
-
-If the operation fails, it will be retried with the `fallback` strategy (default `ΔNout{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
-"""
-struct ΔNout{T} <: AbstractJuMPΔSizeStrategy
-    vertex::AbstractVertex
-    Δ::Integer
-    fallback::AbstractJuMPΔSizeStrategy
-end
-ΔNoutExact(v::AbstractVertex, Δ::Integer) = ΔNout{Exact}(v, Δ, LogΔSizeExec(Logging.Warn, "Could not change nout of $v by $(Δ)! Relaxing constraints...", ΔNoutRelaxed(v, Δ)))
-ΔNoutRelaxed(v::AbstractVertex, Δ::Integer) = ΔNout{Relaxed}(v, Δ, ΔSizeFailError("Could not change nout of $v by $(Δ)!!"))
-fallback(s::ΔNout) = s.fallback
-
-"""
-    ΔNin{T} <: AbstractJuMPΔSizeStrategy
-    ΔNin{T}(vertex::AbstractVertex, Δs::Vector{Maybe{Int}}, fallback::AbstractJuMPΔSizeStrategy)
-    ΔNinExact(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
-    ΔNinRelaxed(vertex::AbstractVertex, Δs::Vector{Maybe{Int}})
-
-Strategy for changing nin of `vertex` by `Δs`, i.e new size is `nin(vertex) .+ Δs`. Note that `Δs` must have the same number of elements as `nin(vertex)`.
-
-Use `missing` to indicate "no change required" as 0 will be interpreted as "must not change".
-
-If `T == Exact`, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change `nin(vertex)` by exactly `Δs`.
-
-If `T == Relaxed`, size change will be added as an objective to the model which means that `nin(vertex)` might not change by exactly `Δs`. In addition, a constraint that `nin(vertex)` must change is also added.
-
-If the operation fails, it will be retried with the `fallback` strategy (default `ΔNin{Relaxed}` if `T==Exact` and `ΔSizeFailError` if `T==Relaxed`).
-"""
-struct ΔNin{T} <: AbstractJuMPΔSizeStrategy
-    vertices::Vector{<:AbstractVertex}
-    Δs::Vector{Int}
-    fallback::AbstractJuMPΔSizeStrategy
-    function ΔNin{T}(v, Δs, fallback) where T
-        @assert size(Δs) == size(inputs(v)) "Must supply same number of Δs as v has inputs! Got $Δs for $v."
-        inds = .!ismissing.(Δs)
-        new(inputs(v)[inds], Δs[inds], fallback)
-    end
-end
-ΔNinExact(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Exact}(v, Δs, LogΔSizeExec(Logging.Warn, "Could not change nin of $v by $(join(Δs, ", "))! Relaxing constraints...", ΔNinRelaxed(v, Δs)))
-ΔNinExact(v::AbstractVertex, Δ::Integer) = ΔNin{Exact}(v, [Δ])
-ΔNinRelaxed(v::AbstractVertex, Δs::Vector{<:Maybe{Int}}) = ΔNin{Relaxed}(v, Δs, ΔSizeFailError("Could not change nin of $vertex by $(join(Δs, ", "))!!"))
-ΔNinRelaxed(v::AbstractVertex, Δ::Integer) = ΔNin{Relaxed}(v, [Δ])
-fallback(s::ΔNin) = s.fallback
-
-
-"""
-    AlignNinToNout <: AbstractJuMPΔSizeStrategy
-    AlignNinToNout(vstrat=DefaultJuMPΔSizeStrategy())
-
-Adds variables and constraints for `nin(vi) == nout.(inputs(vi))`.
-
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
-"""
-struct AlignNinToNout <: AbstractJuMPΔSizeStrategy
-    nindict::Dict{AbstractVertex, Vector{JuMP.VariableRef}}
-    vstrat::AbstractJuMPΔSizeStrategy
-    fallback::AbstractJuMPΔSizeStrategy
-end
-AlignNinToNout(;vstrat=DefaultJuMPΔSizeStrategy(), fallback=ΔSizeFailError("Failed to align Nin to Nout!!")) = AlignNinToNout(vstrat, fallback)
-AlignNinToNout(vstrat, fallback) = AlignNinToNout(Dict{AbstractVertex, JuMP.VariableRef}(), vstrat, fallback)
-fallback(s::AlignNinToNout) = s.fallback
-
-"""
-    AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
-    AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=ΔSizeFailError())
-    AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer},vstrat=AlignNinToNout(), fallback=ΔSizeFailError())
-
-Same as [`AlignNinToNout`](@ref) with an additional constraint that `nin(s.vin)[s.ininds] == nout(s.vout)` where `s` is a `AlignNinToNoutVertices`.
-
-Useful in the context of removing vertices and/or edges.
-
-If it fails, the operation will be retried with the `fallback` strategy (default `ΔSizeFailError`).
-"""
-struct AlignNinToNoutVertices <: AbstractJuMPΔSizeStrategy
-    vin::AbstractVertex
-    vout::AbstractVertex
-    ininds::AbstractArray{<:Integer}
-    vstrat::AlignNinToNout
-    fallback::AbstractJuMPΔSizeStrategy
-end
-AlignNinToNoutVertices(vin, vout, inds::Integer...;vstrat=AlignNinToNout(), fallback=failToAlign(vin, vout)) = AlignNinToNoutVertices(vin, vout, collect(inds), vstrat, fallback)
-AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, vstrat::AlignNinToNout, fallback::AbstractJuMPΔSizeStrategy=failToAlign(vin,vout)) = AlignNinToNoutVertices(vin, vout, inds, vstrat, fallback)
-AlignNinToNoutVertices(vin, vout, inds::AbstractArray{<:Integer}, innerstrat::AbstractJuMPΔSizeStrategy, fallback=failToAlign(vin, vout)) = AlignNinToNoutVertices(vin, vout, inds, AlignNinToNout(vstrat=innerstrat), fallback)
-fallback(s::AlignNinToNoutVertices) = s.fallback
-
-failToAlign(vin, vout) = ΔSizeFailError("Could not align nout of $vin to nin of $(vout)!!")
-
-#TODO: Ugh, this is too many abstraction layers for too little benefit. Refactor so
-# all MutationVertex has state?
-nin(v::InputSizeVertex) = []
-nin(v::MutationVertex) = nin(v, op(v))
-nin(v::AbstractVertex, op::MutationState) = nin(op)
-nin(v::AbstractVertex, op::MutationOp) = nin(trait(v), v)
+nin(v::AbstractVertex) = nin(trait(v), v)
 nin(t::DecoratingTrait, v::AbstractVertex) = nin(base(t), v)
+nin(t::FixedSizeTrait, v::AbstractVertex) = nin(t, base(v), v)
 
-# SizeTransparent does not need mutation state to keep track of sizes
-nin(::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
+nin(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nin(t, base(v), vo)
+nin(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nin(v.computation, t, vo)
+nin(::MutationTrait, ::InputSizeVertex) = []
 
-nout(v::InputSizeVertex) = v.size
-nout(v::MutationVertex) = nout(v, op(v))
-nout(v::AbstractVertex, op::MutationState) = nout(op)
-nout(v::AbstractVertex, op::MutationOp) = nout(trait(v), v)
+# Give users a chance to fallback to smoe generic property of the vertex
+nin(f, ::MutationTrait, ::AbstractVertex) = nin(f)
+nin(f, ::FixedSizeTrait, ::AbstractVertex) = nin(f)
+nin(f, ::SizeTransparent, v::AbstractVertex) = nout.(inputs(v))
+
+nout(v::AbstractVertex) = nout(trait(v), v)
 nout(t::DecoratingTrait, v::AbstractVertex) = nout(base(t), v)
+nout(t::FixedSizeTrait, v::AbstractVertex) = nout(t, base(v), v)
 
-# SizeTransparent does not need mutation state to keep track of sizes
-nout(t::SizeInvariant, v::AbstractVertex) = nin(v)[1]
-nout(t::SizeStack, v::AbstractVertex) = sum(nin(v))
+nout(t::MutationTrait, v::AbstractVertex, vo::AbstractVertex=v) = nout(t, base(v), vo)
+nout(t::MutationTrait, v::CompVertex, vo::AbstractVertex) = nout(v.computation, t, vo)
+nout(::MutationTrait, v::InputSizeVertex) = v.size
 
-nout_org(v::AbstractVertex) = nout_org(trait(v), v)
-nout_org(t::DecoratingTrait, v) = nout_org(base(t), v)
-nout_org(::MutationSizeTrait, v::MutationVertex) = nout_org(op(v))
-nout_org(::Immutable, v) = nout(v)
+# Give users a chance to fallback to smoe generic property of the vertex or trait
+nout(f, ::MutationTrait, ::AbstractVertex) = nout(f)
 
-nin_org(v::InputSizeVertex) = []
-nin_org(v::AbstractVertex) = nin_org(trait(v), v)
-nin_org(t::DecoratingTrait, v) = nin_org(base(t), v)
-nin_org(::MutationSizeTrait, v::MutationVertex) = nin_org(op(v))
-nin_org(::Immutable, v) = nin(v)
+# SizeTransparent might not care about size
+nout(f, ::SizeInvariant, v::AbstractVertex) = isempty(nin(v)) ? 0 : nin(v)[1]
+nout(f, ::SizeStack, v::AbstractVertex) = isempty(nin(v)) ? 0 : sum(nin(v))
 
+# Add possibly for shape traits for computations
+nout(f) = nout(shapetrait(f), f)
+nin(f) = nin(shapetrait(f), f)
 
-"""
-    minΔnoutfactor(v::AbstractVertex)
+shapetrait(f::T) where T = T
 
-Returns the smallest `k` so that allowed changes to `nout` of `v` as well as `nin` of its outputs are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nout`.
-"""
-minΔnoutfactor(v::AbstractVertex) = missing
-minΔnoutfactor(v::MutationVertex) = minΔnoutfactor(trait(v), v)
-minΔnoutfactor(t::DecoratingTrait, v::AbstractVertex) = minΔnoutfactor(base(t), v)
-minΔnoutfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔninfactor_only_for.(outputs(v))..., minΔnoutfactor_only_for(v)))
-minΔnoutfactor(t::SizeTransparent, v::AbstractVertex) = minΔninfactor(t, v)
-
-"""
-    minΔnoutfactor(v::AbstractVertex, [s=VisitState{Int}()])
-
-Returns the smallest `k` so that allowed changes to `nin` of `v` as well as `nout` of its inputs are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nin`.
-"""
-minΔninfactor(v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
-minΔninfactor(v::MutationVertex) = minΔninfactor(trait(v), v)
-minΔninfactor(t::DecoratingTrait, v::AbstractVertex) = minΔninfactor(base(t), v)
-minΔninfactor(::MutationTrait, v::AbstractVertex) = lcmsafe(vcat(minΔnoutfactor_only_for.(inputs(v))..., minΔninfactor_only_for(v)))
-minΔninfactor(::SizeTransparent, v::AbstractVertex) = lcmsafe([minΔnoutfactor_only_for(v), minΔninfactor_only_for(v)])
-
-
-"""
-    minΔnoutfactor_only_for(v::AbstractVertex, [s=VisitState{Int}()])
-
-Returns the smallest `k` so that allowed changes to `nout` of `v` are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nout`.
-"""
-minΔnoutfactor_only_for(v::AbstractVertex, s=[]) = outvisit(v, s) ? 1 : minΔnoutfactor_only_for(base(v),s)
-minΔnoutfactor_only_for(v::MutationVertex, s=[]) = outvisit(v, s) ? 1 : minΔnoutfactor_only_for(trait(v), v, s)
-minΔnoutfactor_only_for(v::InputVertex, s=[]) = missing
-minΔnoutfactor_only_for(v::CompVertex, s=[]) = minΔnoutfactor(v.computation)
-minΔnoutfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔnoutfactor_only_for(t::DecoratingTrait, v::AbstractVertex, s) = minΔnoutfactor_only_for(base(t), v, s)
-minΔnoutfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
-minΔnoutfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔnoutfactor_only_for(base(v),s)
-
-minΔnoutfactor_only_for(::SizeInvariant, v::AbstractVertex, s) = lcmsafe(vcat(map(vi -> minΔnoutfactor_only_for(vi,s), inputs(v)), map(vo -> minΔninfactor_only_for(vo,s), outputs(v))))
-function minΔnoutfactor_only_for(::SizeStack, v::AbstractVertex, s)
-    absorbing = findterminating(v, inputs, outputs)
-
-    # This is not strictly the minimum as using only one of the factors would work as well
-    # However, this would create a bias as the same factor would be used all the time
-    # Life is really hard sometimes :(
-
-    # Count thingy is for duplicate outputs. Must be counted twice as it is impossible
-    # to only change one of them, right?
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va,s) for va in unique(absorbing)]
-    return lcmsafe(factors)
+struct NoShapeTraitError <: Exception
+    msg::String
 end
+Base.showerror(io::IO, e::NoShapeTraitError) = print(io, e.msg)
+
+noutnin_errmsg(f, name) = "$name not defined for $(f)! Either implement NaiveNASlib.$name(::$(typeof(f))) or implement NaiveNASlib.$name(::ST, ::$(typeof(f))) where ST is the return type of NaiveNASlib.shapetrait(::$(typeof(f)))" 
+
+nout(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nout)))
+nin(::Any, f) = throw(NoShapeTraitError(noutnin_errmsg(f, nin)))
 
 """
-    minΔninfactor_only_for(v::AbstractVertex)
-
-Returns the smallest `k` so that allowed changes to `nin` of `v` are `k * n` where `n` is an integer.
-Returns `missing` if it is not possible to change `nin`.
+    ScalarSize
+    
+Treat vertices as having a scalar size when formulating the size change problem.
 """
-minΔninfactor_only_for(v::AbstractVertex, s=[]) = invisit(v, s) ? 1 : minΔninfactor_only_for(base(v),s)
-minΔninfactor_only_for(v::MutationVertex, s=[]) = invisit(v, s) ? 1 : minΔninfactor_only_for(trait(v), v, s)
-minΔninfactor_only_for(v::InputVertex,s=[]) = missing
-minΔninfactor_only_for(v::CompVertex,s=[]) = minΔninfactor(v.computation)
-minΔninfactor(f::Function) = 1 # TODO: Move to test as this does not make alot of sense
-minΔninfactor_only_for(t::DecoratingTrait, v::AbstractVertex, s) = minΔninfactor_only_for(base(t), v, s)
-minΔninfactor_only_for(::Immutable, v::AbstractVertex, s) = missing
-minΔninfactor_only_for(::SizeAbsorb, v::AbstractVertex, s) = minΔninfactor_only_for(base(v), s)
-minΔninfactor_only_for(t::SizeInvariant, v::AbstractVertex, s) = minΔnoutfactor_only_for(t, v, s)
-function minΔninfactor_only_for(::SizeStack, v::AbstractVertex, s)
-    absorbing = findterminating(v, outputs, inputs)
-    # This is not strictly the minimum as using only one of the factors would work as well
-    # However, this would create a bias as the same factor would be used all the time
-    # Life is really hard sometimes :(
+struct ScalarSize end
 
-    # Count thingy is for duplicate inputs. Must be counted twice as it is impossible
-    # to only change one of them, right?
-    factors = [count(x->x==va,absorbing) * minΔnoutfactor_only_for(va, s) for va in unique(absorbing)]
-    return lcmsafe(factors)
-end
+# Main entry point for computing and applying size changes with ScalarSize
 
-#lcm which also checks for missing and arrays of undefined type
-function lcmsafe(x)
-    isempty(x) && return 1
-    return any(ismissing.(x)) ? missing : lcm(Integer.(x))
-end
-
-invisit(v, visited) = hasvisited(v, Input(), visited)
-outvisit(v, visited) = hasvisited(v, Output(), visited)
-
-function hasvisited(v, d::Direction, visited)
-    (v, d) in visited && return true
-    push!(visited, (v, d))
-    return false
-end
-
-
-"""
-    findterminating(v::AbstractVertex, direction::Function, other::Function= v -> [], visited = [])
-
-Return an array of all vertices which terminate size changes (i.e does not propagate them) seen through the given direction (typically inputs or outputs). A vertex will be present once for each unique path through which its seen.
-
-The `other` direction may be specified and will be traversed if a SizeInvariant vertex is encountered.
-
-Will return the given vertex if it is terminating.
-
-# Examples
-```julia-repl
-
-julia> v1 = inputvertex("v1", 3);
-
-julia> v2 = inputvertex("v2", 3);
-
-julia> v3 = conc(v1,v2,v1,dims=1);
-
-julia> name.(findterminating(v1, outputs, inputs))
-1-element Array{String,1}:
- "v1"
-
-julia> name.(findterminating(v3, outputs, inputs))
-0-element Array{Any,1}
-
-julia> name.(findterminating(v3, inputs, outputs))
-3-element Array{String,1}:
- "v1"
- "v2"
- "v1"
-
- julia> v5 = v3 + inputvertex("v4", 9);
-
- julia>  # Note, + creates a SizeInvariant vertex and this causes its inputs to be seen through the output direction
-
- julia> name.(findterminating(v3, outputs, inputs))
- 1-element Array{String,1}:
-  "v4"
-```
-"""
-function findterminating(v::AbstractVertex, direction::Function, other::Function=v->[], visited = Set{AbstractVertex}())
-    v in visited && return []
-    push!(visited, v)
-    res = findterminating(trait(v), v, direction, other, visited)
-    delete!(visited, v)
-    return res
- end
-findterminating(t::DecoratingTrait, v, d::Function, o::Function, visited) = findterminating(base(t), v, d, o, visited)
-findterminating(::SizeAbsorb, v, d::Function, o::Function, visited) = [v]
-findterminating(::Immutable, v, d::Function, o::Function, visited) = [v]
-
-findterminating(::SizeStack, v, d::Function, o::Function, visited) = collectterminating(v, d, o, visited)
-findterminating(::SizeInvariant, v, d::Function, o::Function, visited) = vcat(collectterminating(v, d, o, visited), collectterminating(v, o, d, visited))
-collectterminating(v, d::Function, o::Function, visited) = mapfoldl(vf -> findterminating(vf, d, o, visited), vcat, d(v), init=[])
-
-
-# Just another name for Δsize with the corresponding direction
-Δnout(v::AbstractVertex, Δ::Integer) = Δsize(Output(), v, Δ)
-Δnin(v::AbstractVertex, Δs::Maybe{<:Integer}...) = Δsize(Input(), v, Δs...)
-
-"""
-    Δsize(d::Direction, v::AbstractVertex, Δ...)
-
-Change size of `v` by `Δ` in direction `d`.
-"""
-Δsize(d::Input, v, Δs::Maybe{T}...) where T <:Integer = Δsize(ΔNinExact(v, collect(Maybe{T}, Δs)), all_in_Δsize_graph(v, d))
-Δsize(d::Output, v, Δ::T) where T <: Integer = Δsize(ΔNoutExact(v, Δ), all_in_Δsize_graph(v, d))
-
-
-"""
-    Δsize(s::AbstractΔSizeStrategy, vertices::AbstractArray{<:AbstractVertex})
-
-Calculate new sizes for (potentially) all provided `vertices` using the strategy `s` and apply all changes.
-"""
-function Δsize(s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
+function Δsize!(case::ScalarSize, s::AbstractΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
     execute, nins, nouts = newsizes(s, vertices)
     if execute
-        Δsize(nins, nouts, vertices)
+        applyΔsize!(case, s, nins, nouts, vertices)
     end
+    return execute
 end
 
-"""
-    Δsize(nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
 
-Set output size of `vertices[i]` to `nouts[i]` for all `i` in `1:length(vertices)`.
-Set input size of all keys `vi` in `nins` to `nins[vi]`.
-"""
-function Δsize(nins::Dict, nouts::AbstractVector{<:Integer}, vertices::AbstractVector{<:AbstractVertex})
+# Main entry point for applying size changes with ScalarSize after we have compted them
+# Peel off all DecoratingJuMPΔSizeStrategies until we find either an AbstractAfterΔSizeStrategy (which is needed in after_Δnin etc)
+# or we hit the bottom (in the form of an AbstractΔSizeStrategy). 
+
+function applyΔsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) 
+    applyΔsize!(case, base(s), nins, nouts, vertices)
+end
+function applyΔsize!(case::ScalarSize, s::AbstractAfterΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) 
+    _applyΔsize!(case, s, nins, nouts, vertices)
+end
+function applyΔsize!(case::ScalarSize, s::AbstractΔSizeStrategy, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex}) 
+    _applyΔsize!(case, s, nins, nouts, vertices)
+end
+
+function _applyΔsize!(case::ScalarSize, s, nins::AbstractDict, nouts::AbstractVector, vertices::AbstractVector{<:AbstractVertex})
     Δnouts = nouts .- nout.(vertices)
+    Δnins = [coalesce.(get(() -> nin(vi), nins, vi), nin(vi)) .- nin(vi) for vi in vertices]
 
     for (i, vi) in enumerate(vertices)
-        ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
-        Δnin(OnlyFor(), vi, ninΔs...)
-        Δnout(OnlyFor(), vi, Δnouts[i])
+        insizes = get(() -> nin(vi), nins, vi)
+        insizes = coalesce.(insizes, nin(vi))
+        applyΔsize!(case, s, vi, insizes, nouts[i])
     end
 
     for (i, vi) in enumerate(vertices)
-        ninΔs = get(() -> nin(vi), nins, vi) .- nin(vi)
-        after_Δnin(vi, ninΔs...)
-        after_Δnout(vi, Δnouts[i])
+        after_Δnin(s, vi, Δnins[i], any(!=(0), Δnins[i]))
+        after_Δnout(s, vi, Δnouts[i], Δnouts[i] != 0)
     end
 end
 
-function Δnin(s::OnlyFor, v, Δs::Maybe{<:Integer}...)
-    any(skipmissing(Δs) .!= 0) || return
-    Δnin(s, trait(v), v, Δs)
-end
-Δnin(s::AbstractΔSizeStrategy, t::DecoratingTrait, v, Δs) = Δnin(s, base(t), v, Δs)
-function Δnin(s::AbstractΔSizeStrategy, t::SizeChangeLogger, v, Δs)
-
-    @logmsg t.level "Change nin of $(infostr(t, v)) by $(join(compressed_string.(Δs), ", "))"
-    Δnin(s, base(t), v, Δs)
-end
-Δnin(::OnlyFor, ::MutationSizeTrait, v, Δs) = Δnin(op(v), Δs...)
-
-function Δnout(s::OnlyFor, v, Δ::Integer)
-    Δ == 0 && return
-    Δnout(s, trait(v), v, Δ)
-end
-Δnout(s::AbstractΔSizeStrategy, t::DecoratingTrait, v, Δ) = Δnout(s, base(t), v, Δ)
-function Δnout(s::AbstractΔSizeStrategy, t::SizeChangeLogger, v, Δ)
-    @logmsg t.level "Change nout of $(infostr(t, v)) by $(compressed_string(Δ))"
-    Δnout(s, base(t), v, Δ)
-end
-Δnout(::OnlyFor, ::MutationSizeTrait, v, Δ) = Δnout(op(v), Δ)
-
-
-after_Δnin(v, Δs...) = after_Δnin(trait(v), v, Δs)
-after_Δnin(t::DecoratingTrait, v, Δs) = after_Δnin(base(t), v, Δs)
-after_Δnin(t::SizeChangeValidation, v, Δs) = validate_Δnin(v, Δs, () -> after_Δnin(base(t), v, Δs))
-function after_Δnin(t, v, Δs) end
-
-after_Δnout(v, Δ) = after_Δnout(trait(v), v, Δ)
-after_Δnout(t::DecoratingTrait, v, Δ) = after_Δnout(base(t), v, Δ)
-after_Δnout(t::SizeChangeValidation, v, Δ) = validate_Δnout(v, Δ, () -> after_Δnout(base(t), v, Δ))
-function after_Δnout(t, v, Δ) end
-
-
-sizeΔ(Δ::Integer) = Δ
-sizeΔ(Δ::AbstractArray) = length(Δ)
-function validate_Δnin(v::AbstractVertex, Δ, Δfun, validvisit = true)
-
-    # Yeah, this is checking more than one thing. Cba to have three different structs and methods for validation
-    length(Δ) == length(inputs(v)) || throw(ArgumentError("Length of Δ must be equal to number of inputs for $(v)! length(Δ) = $(length(Δ)), length(inputs(v)) = $(length(inputs(v)))"))
-
-
-
-    if validvisit
-        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
-        Δninfactor = minΔninfactor_only_for(base(v))
-        any(Δi -> sizeΔ(Δi) % Δninfactor != 0, skipmissing(Δ)) && throw(ArgumentError("Nin change of $Δ to $v is not an integer multiple of $(Δninfactor)!"))
-    end
-
-    Δfun()
-
-    if validvisit
-        nout.(inputs(v)) == nin(v) || throw(ArgumentError("Nin change of $Δ to $v did not result in expected size! Expected: $(nout.(inputs(v))), actual: $(nin(v))"))
+function applyΔsize!(::ScalarSize, v::InputSizeVertex, insizes::AbstractVector{<:Integer}, outs::Integer; kwargs...) 
+    if !all(isempty, skipmissing(ins))
+        throw(ArgumentError("Try to change input size of InputVertex $(name(v)) to $insizes"))
+    end 
+    if outsize != nout(v)
+        throw(ArgumentError("Try to change output size of InputVertex $(name(v)) to $outsize"))
     end
 end
 
-function validate_Δnout(v::AbstractVertex, Δ, Δfun, validvisit=true)
+# Main entry point for applying size changes to a single vertex with ScalarSize
 
-    if validvisit
-        # TODO base(v) makes this a bit weaker than I would have wanted. Right now it is only because testcases use smaller factors to trigger SizeStack to do unusual stuff
-        Δnoutfactor = minΔnoutfactor_only_for(base(v))
-        sizeΔ(Δ) % Δnoutfactor != 0 && throw(ArgumentError("Nout change of $Δ to $v is not an integer multiple of $(Δnoutfactor)!"))
-    end
+function applyΔsize!(case::ScalarSize, s::WithKwargs, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, v, insizes, outsize; kws..., s.kwargs...)
+end
+function applyΔsize!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, base(s), v, insizes, outsize; kws...)
+end
+function applyΔsize!(case::ScalarSize, s::AbstractΔSizeStrategy, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, v, insizes, outsize; kws...)
+end
+function applyΔsize!(case::ScalarSize, v::AbstractVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    applyΔsize!(case, base(v), insizes, outsize; kws...)
+end
+function applyΔsize!(case::ScalarSize, v::CompVertex, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) 
+    # I don't love how we go back to Δsize! from here, but I don't want to export applyΔsize! and I can't think of another name right now...
+    Δsize!(case, v.computation, insizes, outsize; kws...)
+end
+Δsize!(::ScalarSize, f, insizes::AbstractVector{<:Integer}, outsize::Integer; kws...) = Δsize!(f, insizes, outsize; kws...)
+function Δsize!(f, ins::AbstractVector{<:Integer}, outs::Integer; kws...) end
 
-    Δfun()
+after_Δnin(::AbstractΔSizeStrategy, v, Δs, changed) = after_Δnin(trait(v), v, Δs, changed)
+after_Δnin(t::DecoratingTrait, v, Δs, changed) = after_Δnin(base(t), v, Δs, changed)
+after_Δnin(s::AbstractAfterΔSizeStrategy, args...) = _after_Δnin(s, args...)
+function after_Δnin(t::AfterΔSizeTrait, v, Δs, changed) 
+    after_Δnin(t.strategy, v, Δs, changed)
+    after_Δnin(base(t), v, Δs, changed)
+end
+_after_Δnin(s::DecoratingJuMPΔSizeStrategy, args...) = _after_Δnin(base(s), args...)
+function _after_Δnin(::AbstractΔSizeStrategy, args...) end
+function _after_Δnin(s::AfterΔSizeCallback, v, Δs, changed) 
+    s.cbfun(v, Δs, :nin, changed)
+    _after_Δnin(base(s), v, Δs, changed)
+end
+function after_Δnin(t, v, Δs, changed) end
 
-    if validvisit
-        nin_of_outputs = unique(mapreduce(vi -> nin(vi)[inputs(vi) .== v], vcat, outputs(v), init=nout(v)))
-
-        nin_of_outputs == [nout(v)] || throw(ArgumentError("Nout change of $Δ to $v resulted in size mismatch! Nin of outputs: $nin_of_outputs, nout of this: $([nout(v)])"))
-    end
+after_Δnout(::AbstractΔSizeStrategy, v, Δ, changed) = after_Δnout(trait(v), v, Δ, changed)
+after_Δnout(t::DecoratingTrait, v, Δ, changed) = after_Δnout(base(t), v, Δ, changed)
+after_Δnout(s::AbstractAfterΔSizeStrategy, args...) = _after_Δnout(s, args...)
+function after_Δnout(t::AfterΔSizeTrait, v, Δs, changed) 
+    after_Δnout(t.strategy, v, Δs, changed)
+    after_Δnout(base(t), v, Δs, changed)
 end
 
+_after_Δnout(s::DecoratingJuMPΔSizeStrategy, args...) = _after_Δnout(base(s), args...)
+function _after_Δnout(::AbstractΔSizeStrategy, args...) end
+function _after_Δnout(s::AfterΔSizeCallback, v, Δ, changed)
+    s.cbfun(v, Δ, :nout, changed)
+    _after_Δnout(base(s), v, Δ, changed)
+end
+function after_Δnout(t, v, Δ, changed) end
 
-newsizes(s::ΔSizeFailError, vertices::AbstractVector{<:AbstractVertex}) = error(s.msg)
-newsizes(s::ΔSizeFailNoOp, vertices::AbstractVector{<:AbstractVertex}) = false, Dict(vertices .=> nin.(vertices)), nout.(vertices)
+newsizes(s::ThrowΔSizeFailError, vs::AbstractVector{<:AbstractVertex}) = throw(ΔSizeFailError(s.msgfun(vs)))
+newsizes(::ΔSizeFailNoOp, vs::AbstractVector{<:AbstractVertex}) = false, Dict(v => nin(v) for v in vs), nout.(vs)
 function newsizes(s::LogΔSizeExec, vertices::AbstractVector{<:AbstractVertex})
-    @logmsg s.level s.msg
-    return newsizes(s.andthen, vertices)
+    @logmsg s.level s.msgfun(vertices[1])
+    return newsizes(base(s), vertices)
 end
 
 """
@@ -489,24 +169,25 @@ Result vector is index aligned with `vertices`.
 Result `Dict` has a vector of input sizes for each element of `vertices` which has an input (i.e everything except input vertices).
 """
 function newsizes(s::AbstractJuMPΔSizeStrategy, vertices::AbstractVector{<:AbstractVertex})
-
+    case = ScalarSize()
     model = sizemodel(s, vertices)
 
     noutvars = @variable(model, noutvars[i=1:length(vertices)], Int)
 
     noutdict = Dict(zip(vertices, noutvars))
     for v in vertices
-        vertexconstraints!(v, s, (model=model, noutdict=noutdict))
+        vertexconstraints!(case, v, s, (;model, noutdict))
     end
 
-    sizeobjective!(s, model, noutvars, vertices)
+    sizeobjective!(case, s, vertices, (;model, noutdict))
 
     JuMP.optimize!(model)
 
-    if accept(s, model)
-        return true, ninsAndNouts(s, vertices, noutvars)...
+    if accept(case, s, model)
+        return true, ninsandnouts(s, vertices, noutvars)...
     end
-    return newsizes(fallback(s), vertices)
+    fbstrat = fallback(s)
+    return newsizes(fbstrat, add_participants!(fbstrat, copy(vertices)))
 end
 
 """
@@ -514,25 +195,47 @@ end
 
 Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 """
-sizemodel(s::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
+sizemodel(::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
+function sizemodel(s::TimeLimitΔSizeStrategy, vs) 
+    model = sizemodel(base(s), vs)
+    JuMP.set_time_limit_sec(model, s.limit)
+    return model
+end
+
+"""
+    accept(case, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model)
+
+Return true of the solution for `model` is accepted using strategy `s`.
+"""
+accept(case, s::DecoratingJuMPΔSizeStrategy, model::JuMP.Model) = accept(case, base(s), model)
+accept(case, ::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT # Beware: primal_status seems unreliable for Cbc. See MathOptInterface issue #822
+function accept(case, s::TimeOutAction, model::JuMP.Model)
+    if  JuMP.termination_status(model) == MOI.TIME_LIMIT
+        return s.action(model)
+    end
+    return accept(case, base(s), model)
+end
 
 # Just a shortcut for broadcasting on dicts
 getall(d::Dict, ks, deffun=() -> missing) = get.(deffun, [d], ks)
 
 # First we dispatch on trait in order to filter out immutable vertices
-vertexconstraints!(v::AbstractVertex, s, data) = vertexconstraints!(trait(v), v, s, data)
-vertexconstraints!(t::DecoratingTrait, v, s, data) = vertexconstraints!(base(t), v, s,data)
-function vertexconstraints!(::Immutable, v, s, data)
+# First dispatch on traits to sort out things like immutable vertices
+vertexconstraints!(case, v::AbstractVertex, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, trait(v), v, s, data)
+vertexconstraints!(case, t::DecoratingTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, base(t), v, s, data)
+vertexconstraints!(case, ::MutationSizeTrait, v, s::AbstractJuMPΔSizeStrategy, data) = vertexconstraints!(case, s, v, data) # Now dispatch on strategy
+
+function vertexconstraints!(case::ScalarSize, ::Immutable, v, s, data)
     @constraint(data.model, data.noutdict[v] == nout(v))
     @constraint(data.model, getall(data.noutdict, inputs(v)) .== nin(v))
-    vertexconstraints!(s, v, data)
+    vertexconstraints!(case, s, v, data)
 end
-vertexconstraints!(::MutationTrait, v, s, data) = vertexconstraints!(s, v, data)
 
 # This must be applied to immutable vertices as well
-function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
-    vertexconstraints!(v, s.vstrat, data)
+function vertexconstraints!(currcase::ScalarSize, v::AbstractVertex, s::AlignNinToNout, data, case=currcase)
+    vertexconstraints!(case, v, s.vstrat, data)
     # Code below secretly assumes vo is in data.noutdict (ninarr will be left with undef entries otherwise).
+    # ninvar shall be used to set new nin sizes after problem is solved
     for vo in filter(vo -> vo in keys(data.noutdict), outputs(v))
         ninvar = @variable(data.model, integer=true)
         @constraint(data.model, data.noutdict[v] == ninvar)
@@ -542,17 +245,17 @@ function vertexconstraints!(v::AbstractVertex, s::AlignNinToNout, data)
     end
 end
 
-function vertexconstraints!(v::AbstractVertex, s::AlignNinToNoutVertices, data)
+function vertexconstraints!(currcase::ScalarSize, v::AbstractVertex, s::AlignNinToNoutVertices, data, case=currcase)
     # Any s.ininds which are mapped to vertices which are not yet added in s.vstrat.nindict[s.vout] will cause undefined reference below
     # There is a check to wait for them to be added, but if they are not in data.noutdict they will never be added, so we need to check for that too. Not 100% this can even happen, so I'm just waiting for this in itself to trigger a bug. Sigh...
-    neededinds = filter(i -> i != nothing, indexin(keys(data.noutdict), inputs(s.vout)))
+    neededinds = filter(i -> i !== nothing, indexin(keys(data.noutdict), inputs(s.vout)))
 
     condition() = s.vout in keys(s.vstrat.nindict) && all(i -> isassigned(s.vstrat.nindict[s.vout], i), neededinds)
 
     # Just to make sure we only do this once without having to store hasadded as a field in AlignNinToNoutVertices:
     #  - Check the condition before vertexconstraints! -> Only when condition changes from false to true do we add as we assume this is the first time the condition becomes fulfilled
     hasadded = condition()
-    vertexconstraints!(v, s.vstrat, data)
+    vertexconstraints!(case, v, s.vstrat, data)
 
     if !hasadded && condition()
         @constraint(data.model, data.noutdict[s.vin] .== s.vstrat.nindict[s.vout][s.ininds])
@@ -567,10 +270,10 @@ Add constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-function vertexconstraints!(s::AbstractJuMPΔSizeStrategy, v, data)
-    ninconstraint!(s, v, data)
-    compconstraint!(s, v, (data..., vertex=v))
-    sizeconstraint!(s, v, data)
+function vertexconstraints!(case::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data)
+    ninconstraint!(case, s, v, data)
+    compconstraint!(case, s, v, (data..., vertex=v))
+    sizeconstraint!(case, s, v, data)
 end
 
 """
@@ -580,95 +283,98 @@ Add size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-sizeconstraint!(s::AbstractJuMPΔSizeStrategy, v, data) = @constraint(data.model, data.noutdict[v] >= 1)
-
-function sizeconstraint!(s::ΔNout{Exact}, v, data)
-    if v == s.vertex
-        @constraint(data.model, data.noutdict[v] == nout(v) + s.Δ)
-    else
-        sizeconstraint!(DefaultJuMPΔSizeStrategy(), v, data)
+sizeconstraint!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, v, data) = sizeconstraint!(case, base(s), v, data)
+function sizeconstraint!(::ScalarSize, s::AbstractJuMPΔSizeStrategy, v, data) 
+    # If we find any outputs to v which are not part of the problem to solve, we need to prevent v from changing size
+    if any(vo -> vo ∉ keys(data.noutdict), outputs(v))
+        # Ok, this is a bit speculative, but should we find that there is a size mismatch (e.g. when create/remove vertex/edge)
+        # we might make the problem infeasible somehow by doing this. Instead we just skip it and hope some other constraint deals
+        # with aligning the size 
+        allnins = unique!(mapreduce(vo -> nin(vo)[v .== inputs(vo)], vcat, outputs(v)))
+        if length(allnins) == 1
+            @constraint(data.model, data.noutdict[v] == allnins[1])
+            return
+        end
     end
+    @constraint(data.model, data.noutdict[v] >= 1)
 end
 
-function sizeconstraint!(s::ΔNin{Exact}, v, data)
-    if v in s.vertices
-        Δ = s.Δs[s.vertices .== v][1]
+function sizeconstraint!(case::ScalarSize, s::ΔNout{Exact}, v, data)
+    Δ = get(s.Δs, v, nothing)
+    if Δ !== nothing
         @constraint(data.model, data.noutdict[v] == nout(v) + Δ)
     else
-        sizeconstraint!(DefaultJuMPΔSizeStrategy(), v, data)
+        sizeconstraint!(case, DefaultJuMPΔSizeStrategy(), v, data)
     end
 end
 
 """
-    ninconstraint!(s, v, data)
+    ninconstraint!(case, s, v, data)
 
 Add input size constraints for `AbstractVertex v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-ninconstraint!(s, v, data) = ninconstraint!(s, trait(v), v, data)
-ninconstraint!(s, t::DecoratingTrait, v, data) = ninconstraint!(s, base(t), v, data)
-function ninconstraint!(s, ::MutationTrait, v, data) end
-ninconstraint!(s, ::SizeStack, v, data) = @constraint(data.model, sum(getall(data.noutdict, inputs(v))) == data.noutdict[v])
-ninconstraint!(s, ::SizeInvariant, v, data) = @constraint(data.model, getall(data.noutdict, unique(inputs(v))) .== data.noutdict[v])
-
-
+ninconstraint!(case, s::DecoratingJuMPΔSizeStrategy, v, data) = ninconstraint!(case, base(s), v, data)
+ninconstraint!(case, s, v, data) = ninconstraint!(case, s, trait(v), v, data)
+ninconstraint!(case, s, t::DecoratingTrait, v, data) = ninconstraint!(case, s, base(t), v, data)
+function ninconstraint!(case, s, ::MutationTrait, v, data) end
+ninconstraint!(case, s, ::SizeStack, v, data) = @constraint(data.model, sum(getall(data.noutdict, inputs(v))) == data.noutdict[v])
+ninconstraint!(case, s, ::SizeInvariant, v, data) = @constraint(data.model, getall(data.noutdict, unique(inputs(v))) .== data.noutdict[v])
 
 """
-    ninconstraint!(s, v, data)
+    compconstraint!(case, s, v, data)
 
-Add constraints on the computation (e.g. neural network layer) for `AbstractVertex v` using strategy `s`.
+Add constraints on the computation (e.g. neural network layer) for [`AbstractVertex`](@ref) `v` using strategy `s`.
 
 Extra info like the model and variables is provided in `data`.
 """
-compconstraint!(s, v::AbstractVertex, data) = compconstraint!(s, base(v), data)
-compconstraint!(s, v::CompVertex, data) = compconstraint!(s, v.computation, data)
-function compconstraint!(s, v::InputVertex, data) end
-function compconstraint!(s, f, data) end
+compconstraint!(case, s, v::AbstractVertex, data) = compconstraint!(case, s, base(v), data)
+compconstraint!(case, s, v::CompVertex, data) = compconstraint!(case, s, v.computation, data)
+function compconstraint!(case, s, v::InputVertex, data) end
+function compconstraint!(case, s, f, data) end
 
 
 """
-    sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
+    sizeobjective!(case, s::AbstractJuMPΔSizeStrategy, model, noutvars, sizetargets)
 
 Add the objective for `noutvars` using strategy `s`.
 """
-sizeobjective!(s::AbstractJuMPΔSizeStrategy, model, noutvars, vertices) = @objective(model, Min, objective!(s, model, noutvars, vertices))
+sizeobjective!(case::ScalarSize, s::DecoratingJuMPΔSizeStrategy, vertices, data) = sizeobjective!(case, base(s), vertices, data)
+sizeobjective!(case::ScalarSize, s::AbstractJuMPΔSizeStrategy, vertices, data) = @objective(data.model, Min, objective!(case, s, vertices, data))
 
-function objective!(s, model, noutvars, vertices)
+function objective!(::ScalarSize, s, vertices, data)
+    model = data.model
+    noutvars = map(v -> data.noutdict[v], vertices)
     sizetargets = nout.(vertices)
     # L1 norm prevents change in vertices which does not need to change.
     # Max norm tries to spread out the change so no single vertex takes most of the change.
     return norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, @expression(model, objective[i=1:length(noutvars)], noutvars[i] - sizetargets[i]), sizetargets)
 end
 
-objective!(s::ΔNout{Relaxed}, model, noutvars, vertices) = noutrelax!(model, [s.vertex], [s.Δ], noutvars, vertices)
-objective!(s::ΔNin{Relaxed}, model, noutvars, vertices) = noutrelax!(model, s.vertices, s.Δs, noutvars, vertices)
+objective!(case::ScalarSize, s::ΔNout{Relaxed}, vertices, data) = noutrelax!(case, s.Δs, vertices, data)
 
-function noutrelax!(model, vs, Δs, noutvars, vertices)
-    inds = mapreduce(v -> vertices .== v, (i1,i2) -> i1 .| i2, vs)
-    def_obj = objective!(DefaultJuMPΔSizeStrategy(), model, noutvars[.!inds], vertices[.!inds])
-    sizetarget = nout.(vs) + Δs
-    Δnout_obj = norm!(L1NormLinear(), model, @expression(model, noutvars[inds] .- sizetarget))
-    # Force it to change as s.Δ might be too small
+function noutrelax!(case, Δs, vertices, data)
+    def_obj = objective!(case, DefaultJuMPΔSizeStrategy(), setdiff(vertices, keys(Δs)), data)
+
+    model = data.model
+    # Force it to change as Δ might be too small (unless Δ is exactly 0)
     # Trick from http://lpsolve.sourceforge.net/5.1/absolute.htm
-    Δnout_const = @expression(model, noutvars[inds] - nout.(vs))
-    B = @variable(model, [1:length(vs)], binary=true)
+    Δnout_const = @expression(model, [data.noutdict[v] - nout(v) for v in keys(Δs) if Δs[v] != 0])
+
+    B = @variable(model, [1:length(Δnout_const)], Bin)
     M = 1e5
     ϵ = 1e-2 # abs(Δnout_const) must be larger than this
     @constraint(model, Δnout_const .+ M .* B .>= ϵ)
     @constraint(model, Δnout_const .+ M .* B .<= M .- ϵ)
+   
+    sizediff = @expression(model, [data.noutdict[v] - nout(v) - Δ for (v, Δ) in Δs])
+    Δnout_obj = norm!(SumNorm(0.1 => L1NormLinear(), 0.8 => MaxNormLinear()), model, sizediff)
 
     return @expression(model, def_obj + 1e6*sum(Δnout_obj))
 end
 
-"""
-    accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model)
-
-Return true of the solution for `model` is accepted using strategy `s`.
-"""
-accept(::AbstractJuMPΔSizeStrategy, model::JuMP.Model) = JuMP.termination_status(model) != MOI.INFEASIBLE && JuMP.primal_status(model) == MOI.FEASIBLE_POINT
-
-function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
+function ninsandnouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
     nouts = round.(Int, JuMP.value.(noutvars))
     mapnout(i::Integer) = nouts[i]
     mapnout(i::Nothing) = missing
@@ -677,13 +383,13 @@ function ninsAndNouts(::AbstractJuMPΔSizeStrategy, vs, noutvars)
     return nins, nouts
 end
 
-function ninsAndNouts(s::AlignNinToNout, vs, noutvars)
+function ninsandnouts(s::AlignNinToNout, vs, noutvars)
     nouts = round.(Int, JuMP.value.(noutvars))
     nins = Dict(key => round.(Int, JuMP.value.(value)) for (key, value) in s.nindict)
     return nins,nouts
 end
 
-ninsAndNouts(s::AlignNinToNoutVertices, vs, noutvars) = ninsAndNouts(s.vstrat, vs, noutvars)
+ninsandnouts(s::AlignNinToNoutVertices, vs, noutvars) = ninsandnouts(s.vstrat, vs, noutvars)
 
 # TODO: Remove since only used for debugging. If only it wasn't so bloody cumbersome to just list the constraints in a JuMP model....
 nconstraints(model) = mapreduce(tt -> JuMP.num_constraints.(model,tt...), +,  filter(tt -> tt != (JuMP.VariableRef, MOI.Integer), JuMP.list_of_constraint_types(model)), init=0)

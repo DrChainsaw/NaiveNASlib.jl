@@ -1,14 +1,13 @@
-import NaiveNASlib
-import InteractiveUtils:subtypes
-using Test
-
 @testset "Basic vertex tests" begin
 
     @testset "Method contracts $subtype" for subtype in implementations(AbstractVertex)
         @test hasmethod(inputs, (subtype,))
-        @test hasmethod(clone, (subtype, Vararg{AbstractVertex}))
+        @test hasmethod(Functors.functor, (subtype,))
+        @test hasmethod(nin, (subtype,))
+        @test hasmethod(nout, (subtype,))
+        @test hasmethod(name, (subtype,))
+        @test hasmethod(NaiveNASlib.nameorrepr, (subtype,))
     end
-
 
     @testset "InputVertex tests" begin
         iv1 = InputVertex(1)
@@ -20,9 +19,6 @@ using Test
         @test iv1 == iv1
         @test iv2 == iv2
         @test iv1 != iv2
-        @test iv1 == clone(iv1)
-        @test iv2 == clone(iv2)
-        @test_throws ErrorException clone(iv1, iv1)
     end
 
     @testset "CompVertex tests" begin
@@ -42,10 +38,13 @@ using Test
             @test cv(x -> [3 4] * x)(ones(2,3)) == [7.0 7.0 7.0]
         end
 
-        @testset "Copy" begin
+        @testset "Copy CompVertex with $label" for (label, cfun) in (
+            (deepcopy, deepcopy),
+            ("fmap", g -> Functors.fmap(identity, g))
+        )
             iv = InputVertex(1)
             cv_orig = cv(x -> 3x, iv)
-            cv_copy = clone(cv_orig, clone(iv, ))
+            cv_copy = cfun(cv_orig)
 
             @test issame(cv_orig, cv_copy)
             @test cv_orig(3) == cv_copy(3)
@@ -56,18 +55,7 @@ using Test
 
         @testset "Show CompVertex" begin
             cv = CompVertex(+, InputVertex.(1:2))
-            @test showstr(show, cv) == "CompVertex(+), inputs=[InputVertex(1), InputVertex(2)]"
+            @test showstr(show, cv) == "CompVertex(+, inputs=[InputVertex(1), InputVertex(2)])"
         end
-
-        @testset "Info string CompVertex" begin
-            cv = CompVertex(+, InputVertex.(["input1", "input2"]))
-
-            @test infostr(RawInfoStr(), cv) == "CompVertex(+), inputs=[input1, input2]"
-            @test infostr(NameInfoStr(), cv) == "CompVertex"
-            @test infostr(MutationTraitInfoStr(), cv) == "Immutable()"
-            @test infostr(InputsInfoStr(), cv) == "[input1, input2]"
-            @test infostr(NameAndInputsInfoStr(), cv) == "CompVertex, inputs=[input1, input2]"
-        end
-
     end
 end

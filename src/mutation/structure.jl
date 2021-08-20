@@ -1,5 +1,3 @@
-# Overengineered set of strategy types and structs? Not gonna argue with that, but I do this for fun and sometimes I have a wierd idea of what fun is.
-# Also, everything is the fault of size transparent vertices, especially SizeStack and those blasted Δnoutfactors!
 """
     AbstractConnectStrategy
 
@@ -13,7 +11,7 @@ struct ConnectNone <: AbstractConnectStrategy end
 """
     AbstractAlignSizeStrategy
 
-Base type for strategies for how to align size (`nin`/`nout`) when doing structural mutation.
+Base type for strategies for how to align size ([`nin`](@ref)/[`nout`](@ref)) when doing structural mutation.
 
 Note that all strategies are not guaranteed to work in all cases.
 
@@ -33,10 +31,10 @@ struct NoSizeChange <: AbstractAlignSizeStrategy end
     ChangeNinOfOutputs <: AbstractAlignSizeStrategy
     ChangeNinOfOutputs(Δoutsize)
 
-Just sets `nin` of each output to the provided value. Sometimes you just know the answer...
+Just sets [`nin`](@ref) of each output to the provided utility. Sometimes you just know the answer...
 """
 struct ChangeNinOfOutputs <: AbstractAlignSizeStrategy
-    Δoutsize
+    Δoutsize::Int
 end
 
 """
@@ -50,10 +48,21 @@ Note that this means that graphs will most likely be left corrupted state if use
 struct FailAlignSizeNoOp <: AbstractAlignSizeStrategy end
 
 """
+    SizeAlignFailError <: Exception
+
+Sizes could not be aligned.
+"""
+struct SizeAlignFailError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::SizeAlignFailError) = print(io, "SizeAlignFailError: ", e.msg)
+
+
+"""
     FailAlignSizeError <: AbstractAlignSizeStrategy
     FailAlignSizeError()
 
-Throws an error.
+Throws `SizeAlignFailError`.
 """
 struct FailAlignSizeError <: AbstractAlignSizeStrategy end
 
@@ -64,140 +73,82 @@ struct FailAlignSizeError <: AbstractAlignSizeStrategy end
 
 Logs warning and then proceeds with the next action.
 """
-struct FailAlignSizeWarn <: AbstractAlignSizeStrategy
-    andthen
-    msgfun
+struct FailAlignSizeWarn{S, F} <: AbstractAlignSizeStrategy
+    andthen::S
+    msgfun::F
 end
-FailAlignSizeWarn(;andthen=FailAlignSizeRevert(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
+FailAlignSizeWarn(;andthen=FailAlignSizeNoOp(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
 
+const doc_mapstrat = """
+`mapstrat` can be used to wrap the [`AbstractΔSizeStrategy`](@ref) in a [`DecoratingJuMPΔSizeStrategy`](@ref). Main intended usecase is [`WithUtilityFun`](@ref). 
 """
-    FailAlignSizeRevert <: AbstractAlignSizeStrategy
-    FailAlignSizeRevert()
-
-Reverts new/removed edges (if any).
-
-In other words, `create_edge!` and `remove_edge!` with `strategy = FailAlignSizeRevert` is a noop.
-
-Note: Only works if input vertex is only input once to output vertex due to lazy coding.
-For example, if `vout` has inputs `[v1,v2,v1]` and `remove_edge!(v1, vout, startegy=FailAlignSizeRevert)` is called, funtion will exit with graph in invalid state.
-Same if `vout` has inputs `[v1,v2]` and `create_edge!(v1,vout)` is called.
-"""
-struct FailAlignSizeRevert <: AbstractAlignSizeStrategy end
 
 """
     AlignSizeBoth <: AbstractAlignSizeStrategy
     AlignSizeBoth()
-    AlignSizeBoth(fallback)
+    AlignSizeBoth(;fallback, mapstrat)
 
-Align sizes by changing both input and output considering any Δfactors.
-Fallback to another strategy (default `FailAlignSizeError`) if size change is not possible.
+Align sizes by changing both input and output.
+Fallback to another strategy (default [`FailAlignSizeWarn`](@ref)) if size change is not possible.
+
+$doc_mapstrat
 """
-struct AlignSizeBoth <: AbstractAlignSizeStrategy
-    fallback
+struct AlignSizeBoth{S, F} <: AbstractAlignSizeStrategy
+    fallback::S
+    mapstrat::F
 end
-AlignSizeBoth() = AlignSizeBoth(FailAlignSizeError())
+AlignSizeBoth(;fallback=FailAlignSizeWarn(),mapstrat=identity) = AlignSizeBoth(fallback, mapstrat)
 
 """
     DecreaseBigger <: AbstractAlignSizeStrategy
     DecreaseBigger()
-    DecreaseBigger(fallback)
+    DecreaseBigger(;fallback, mapstrat)
 
 Try to align size by decreasing in the direction (in/out) which has the bigger size.
-Fallback to another strategy (default `AlignSizeBoth`) if size change is not possible.
+Fallback to another strategy (default [`AlignSizeBoth`](@ref)) if size change is not possible.
+
+$doc_mapstrat
 """
-struct DecreaseBigger <: AbstractAlignSizeStrategy
-    fallback
+struct DecreaseBigger{S, F} <: AbstractAlignSizeStrategy
+    fallback::S
+    mapstrat::F
 end
-DecreaseBigger() = DecreaseBigger(AlignSizeBoth())
+DecreaseBigger(;fallback=AlignSizeBoth(),mapstrat=identity) = DecreaseBigger(fallback, mapstrat)
 
 """
     IncreaseSmaller <: AbstractAlignSizeStrategy
     IncreaseSmaller()
-    IncreaseSmaller(fallback)
+    IncreaseSmaller(;fallback, mapstrat)
 
 Try to align size by increasing in the direction (in/out) which has the smaller size.
-Fallback to another strategy (default `DecreaseBigger`) if size change is not possible.
+Fallback to another strategy (default [`DecreaseBigger`](@ref)) if size change is not possible.
+
+$doc_mapstrat
 """
-struct IncreaseSmaller <: AbstractAlignSizeStrategy
-    fallback
+struct IncreaseSmaller{S,F} <: AbstractAlignSizeStrategy
+    fallback::S
+    mapstrat::F
 end
-IncreaseSmaller() = IncreaseSmaller(DecreaseBigger())
-
-"""
-    SelectOutputs <: AbstractAlignSizeStrategy
-    SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v)))
-
-First align size using `align`, then select outputs (through `Δoutputs`) using `select` and `valuefun` if size alignment is successful.
-
-Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
-"""
-struct SelectOutputs <: AbstractAlignSizeStrategy
-    selectstrategy::AbstractSelectionStrategy
-    alignstrategy::AbstractAlignSizeStrategy
-    valuefun::Function
-end
-SelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v))) = SelectOutputs(select, align, valuefun)
-
-"""
-    PostSelectOutputs <: AbstractAlignSizeStrategy
-    PostSelectOutputs(;select=OutSelectExact(),align=IncreaseSmaller(), valuefun=v -> ones(nout_org(v)))
-
-Post change alignment strategy which first aligns size using `align`, then select outputs (through `Δoutputs`) using `select` and `valuefun` if size alignment is successful. If `Δoutputs` is not successful, the `fallback` strategy will be invoked.
-
-Motivation is basically convenience when creating new edges between vertices.
-"""
-struct PostSelectOutputs <: AbstractAlignSizeStrategy
-    selectstrategy::AbstractSelectionStrategy
-    alignstrategy::AbstractAlignSizeStrategy
-    valuefun::Function
-    fallback::AbstractAlignSizeStrategy
-end
-PostSelectOutputs(;select=OutSelectExact(),align=PostAlignJuMP(), valuefun=v -> ones(nout_org(v)), fallback=FailAlignSizeRevert()) = PostSelectOutputs(select, align, valuefun, fallback)
-
-
-"""
-    ApplyMutation <: AbstractAlignSizeStrategy
-    ApplyMutation()
-    ApplyMutation(strategy::AbstractAlignSizeStrategy)
-
-First align size using `strategy`, then invoke `apply_mutation` if size alignment is successful.
-
-Motivation is that selecting outputs is more efficient to do when original sizes are aligned.
-"""
-struct ApplyMutation <: AbstractAlignSizeStrategy
-    strategy::AbstractAlignSizeStrategy
-end
-ApplyMutation() = ApplyMutation(SelectOutputs())
-
-"""
-    PostApplyMutation <: AbstractAlignSizeStrategy
-    PostApplyMutation()
-    PostApplyMutation(strategy::AbstractAlignSizeStrategy)
-
-Post change alignment strategy which first aligns size using `strategy`, then invoke `apply_mutation` if size alignment is successful.
-
-Motivation is basically convenience when creating new edges between vertices.
-"""
-struct PostApplyMutation <: AbstractAlignSizeStrategy
-    strategy::AbstractAlignSizeStrategy
-end
-PostApplyMutation() = PostApplyMutation(PostSelectOutputs())
+IncreaseSmaller(;fallback=DecreaseBigger(),mapstrat=identity) = IncreaseSmaller(fallback, mapstrat)
 
 """
     CheckNoSizeCycle <: AbstractAlignSizeStrategy
     CheckNoSizeCycle()
     CheckNoSizeCycle(;ifok, ifnok)
 
-Check if a size change in one direction causes a change in the other direction and execute strategy `ifnok` (default `FailAlignSizeWarn`) if this is the case.
-Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
+Check if a size change in one direction causes a change in the other direction and execute
+strategy `ifnok` (default [`FailAlignSizeWarn`](@ref)) if this is the case.
+Motivation is that removing will result in the computation graph being in an invalid state
+as one of the vertices must fulfill the impossible criterion 
+[`nout(v)`](@ref) `==` [`nout(v)`](@ref) `+ a` where `a > 0`.
 
-If no such cycle is detected, then proceed to execute strategy `ifok` (default `IncreaseSmaller`).
+If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`](@ref)).
 
 Will execute strategy `ifok` if vertex shall not to be removed.
 """
-struct CheckNoSizeCycle <: AbstractAlignSizeStrategy
-    ifok
-    ifnok
+struct CheckNoSizeCycle{S1,S2} <: AbstractAlignSizeStrategy
+    ifok::S1
+    ifnok::S2
 end
 CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,vout) -> "Can not remove vertex $(vin)! Size cycle detected!")) = CheckNoSizeCycle(ifok, ifnok)
 
@@ -206,16 +157,18 @@ CheckNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,
     CheckCreateEdgeNoSizeCycle()
     CheckCreateEdgeNoSizeCycle(;ifok, ifnok)
 
-Check if adding an edge creates the same type of size cycle that `CheckNoSizeCycle` checks for and execute `ifnok` (default `FailAlignSizeWarn`) if this is the case.
-Motivation is that removing will result in the computation graph being in an invalid state as one of the vertices must fulfill the impossible criterion `nout(v) == nout(v) + a` where `a > 0`.
+Check if adding an edge creates the same type of size cycle that [`CheckNoSizeCycle`](@ref) checks for 
+and execute `ifnok` (default [`FailAlignSizeWarn`](@ref)) if this is the case.
+Motivation is that removing will result in the computation graph being in an invalid state as one of 
+the vertices must fulfill the impossible criterion [`nout(v)`](@ref) `==` [`nout(v)`](@ref) `+ a` where `a > 0`.
 
-If no such cycle is detected, then proceed to execute strategy `ifok` (default `IncreaseSmaller`).
+If no such cycle is detected, then proceed to execute strategy `ifok` (default [`IncreaseSmaller`](@ref)).
 
 Will check both at `prealignsizes` (i.e before edge is added) and at `postalignsizes` (i.e after edge is added).
 """
-struct CheckCreateEdgeNoSizeCycle <: AbstractAlignSizeStrategy
-    ifok
-    ifnok
+struct CheckCreateEdgeNoSizeCycle{S1, S2} <: AbstractAlignSizeStrategy
+    ifok::S1
+    ifnok::S2
 end
 CheckCreateEdgeNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgfun = (vin,vout) -> "Can not add edge between $(vin) and $(vout)! Size cycle detected!")) = CheckCreateEdgeNoSizeCycle(ifok, ifnok)
 
@@ -225,30 +178,31 @@ CheckCreateEdgeNoSizeCycle(;ifok=IncreaseSmaller(), ifnok=FailAlignSizeWarn(msgf
     CheckAligned(ifnot)
 
 Check if sizes are already aligned before making a change and return "go ahead" (`true`) if this is the case.
-If not, proceed to execute another strategy (default `CheckNoSizeCycle`).
+If not, proceed to execute another strategy (default [`CheckNoSizeCycle`](@ref)).
 """
-struct CheckAligned <:AbstractAlignSizeStrategy
-    ifnot
+struct CheckAligned{S} <:AbstractAlignSizeStrategy
+    ifnot::S
 end
 CheckAligned() = CheckAligned(CheckNoSizeCycle())
 
 """
-    PostAlignJuMP <: AbstractAlignSizeStrategy
-    PostAlignJuMP()
-    PostAlignJuMP(s::AbstractAlignSizeStrategy)
-    PostAlignJuMP(s::AbstractAlignSizeStrategy, fallback)
+    PostAlign <: AbstractAlignSizeStrategy
+    PostAlign()
+    PostAlign(s::AbstractAlignSizeStrategy)
+    PostAlign(s::AbstractAlignSizeStrategy, fallback)
 
-Align sizes using a `AbstractJuMPΔSizeStrategy`.
+Align sizes using a [`AbstractΔSizeStrategy`](@ref).
 
 This is a post-align strategy, i.e it will be applied after a structural change has been made.
 """
-struct PostAlignJuMP <: AbstractAlignSizeStrategy
-    sizestrat::AbstractJuMPΔSizeStrategy
-    fallback
+struct PostAlign{S,F} <: AbstractAlignSizeStrategy
+    sizestrat::S
+    fallback::F
 end
-PostAlignJuMP() = PostAlignJuMP(DefaultJuMPΔSizeStrategy())
-PostAlignJuMP(s::AbstractJuMPΔSizeStrategy; fallback = FailAlignSizeError()) = PostAlignJuMP(AlignNinToNout(s, ΔSizeFailNoOp()), fallback)
-PostAlignJuMP(s::AlignNinToNout; fallback=FailAlignSizeError()) = PostAlignJuMP(s, fallback)
+PostAlign() = PostAlign(DefaultJuMPΔSizeStrategy())
+PostAlign(s::AbstractJuMPΔSizeStrategy; fallback = FailAlignSizeWarn()) = PostAlign(AlignNinToNout(s, ΔSizeFailNoOp()), fallback)
+PostAlign(s::AlignNinToNout; fallback=FailAlignSizeWarn()) = PostAlign(s, fallback)
+PostAlign(s; fallback=FailAlignSizeWarn()) = PostAlign(s, fallback)
 
 """
     RemoveStrategy
@@ -259,13 +213,13 @@ PostAlignJuMP(s::AlignNinToNout; fallback=FailAlignSizeError()) = PostAlignJuMP(
 
 Strategy for removal of a vertex.
 
-Consists of an `AbstractConnectStrategy` for how to treat inputs and outputs of
-the removed vertex and an `AbstractAlignSizeStrategy` for how to align sizes of
+Consists of an [`AbstractConnectStrategy`](@ref) for how to treat inputs and outputs of
+the removed vertex and an [`AbstractAlignSizeStrategy`](@ref) for how to align sizes of
 inputs and outputs.
 """
-struct RemoveStrategy
-    reconnect::AbstractConnectStrategy
-    align::AbstractAlignSizeStrategy
+struct RemoveStrategy{SC<:AbstractConnectStrategy, SA<:AbstractAlignSizeStrategy}
+    reconnect::SC
+    align::SA
 end
 RemoveStrategy() = RemoveStrategy(ConnectAll(), CheckAligned())
 RemoveStrategy(rs::AbstractConnectStrategy) = RemoveStrategy(rs, CheckAligned())
@@ -274,32 +228,72 @@ RemoveStrategy(as::AbstractAlignSizeStrategy) = RemoveStrategy(ConnectAll(), as)
 """
     remove!(v::MutationVertex, strategy=RemoveStrategy())
 
-Removes `v` from the graph by removing it from its `inputs` and `outputs`.
+Removes `v` from the graph by removing it from its [`inputs`](@ref) and [`outputs`](@ref).
 
 It is possible to supply a strategy for how to 1) reconnect the inputs and outputs
 of `v` and 2) align the input and output sizes of the `inputs` and `outputs` of `v`.
 
-Default strategy is to first set `nin==nout` for `v` and then connect all its `inputs`
-to all its `outputs`.
+Default strategy is to first set `nin==nout` for `v` and then connect all its 
+[`inputs`](@ref) to all its [`outputs`](@ref).
 """
 function remove!(v::MutationVertex, strategy=RemoveStrategy())
     prealignsizes(strategy.align, v, vx -> vx == v) || return false
 
+    undo_fun = remove_with_undo!(v, strategy)
+
+    # Note, success from prealignsizes strategies is implicit as we return if it fails
+    success = postalignsizes(strategy.align, v)
+    
+    if !success
+        undo_fun()
+    end
+    return success
+end
+
+remove_with_undo!(v) = remove_with_undo!(v, RemoveStrategy(ConnectNone()))
+function remove_with_undo!(v, strategy)
+    undo_fun = create_remove_undo(strategy.align, strategy.reconnect, v)
+
     remove!(v, inputs, outputs, strategy.reconnect)
     remove!(v, outputs, inputs, strategy.reconnect)
+    return undo_fun
+end
 
-    return postalignsizes(strategy.align, v)
+
+function create_remove_undo(sa, sc, v)
+    undo_rm_inputs = create_remove_undo_one_direction(v, inputs, outputs)
+    undo_rm_outputs = create_remove_undo_one_direction(v, outputs, inputs)
+    return function() 
+        undo_rm_inputs() 
+        undo_rm_outputs()
+    end
 end
 
 ## Helper function to avoid code duplication. I don't expect this to be able to do
 ## anything useful unless f1=inputs and f2=outputs or vise versa.
-function remove!(v::MutationVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
+function create_remove_undo_one_direction(v::AbstractVertex, f1, f2)
+    prev = copy(f1(v))
+    prevf1f2 = Dict(vf1 => copy(f2(vf1)) for vf1 in prev)
+    return function()
+        set_edges!(f1, v => prev)
+        foreach(vf1f2 -> set_edges!(f2, vf1f2), prevf1f2)
+    end
+end
+
+function set_edges!(f, (v, newins)::Pair)
+    empty!(f(v))
+    append!(f(v), newins)
+end
+
+## Helper function to avoid code duplication. I don't expect this to be able to do
+## anything useful unless f1=inputs and f2=outputs or vise versa.
+function remove!(v::AbstractVertex, f1::Function, f2::Function, s::AbstractConnectStrategy)
     for f1_v in f1(v)
         f1_f2_v = f2(f1_v)
         inds = findall(vx -> vx == v, f1_f2_v)
         deleteat!(f1_f2_v, inds)
         # Connect f2 of v to f2 of v1, e.g connect the inputs to v as inputs to v1 if f2 == inputs
-        connect!(f1_v, f1_f2_v, inds, f2(v), s)
+        connect!(s, f1_f2_v, inds, f2(v))
     end
 end
 
@@ -310,32 +304,28 @@ end
 Does connection of `items` to `to` at position `inds` depending on the given strategy.
 """
 #Not sure broadcasting insert! like this is supposed to work, but it does...
-connect!(v, to, inds, items, ::ConnectAll) = insert!.([to], inds, items)
-function connect!(v, to, inds, items, ::ConnectNone)
-    # Stupid generic function forces me to check this...
-    # ... and no, it is not easy to understand what is going on here...
-    if to == inputs(v) && !isempty(inds)
-        rem_input!.(op.(v), inds...)
-    end
-end
+connect!(::ConnectAll, to, inds, items) = insert!.(Ref(to), inds, items)
+function connect!(::ConnectNone, args...) end
 
-tot_nin(v) = tot_nin(trait(v), v)
+tot_nin(v::AbstractVertex) = tot_nin(trait(v), v)
 tot_nin(t::DecoratingTrait, v) = tot_nin(base(t), v)
-tot_nin(::MutationTrait, v) = nin(v)[]
 tot_nin(::SizeInvariant, v) = length(unique(nin(v))) == 1 ? unique(nin(v))[] : nothing
 tot_nin(::SizeTransparent, v) = sum(nin(v))
+tot_nin(t::MutationTrait, v) = tot_nin(t, base(v))
+tot_nin(::MutationTrait, v::CompVertex) = tot_nin(v.computation)
+tot_nin(::MutationTrait, v::InputSizeVertex) = nothing
+tot_nin(f) = nin(f)[1]
 
 # Boilerplate
 prealignsizes(s::AbstractAlignSizeStrategy, v, will_rm::Function) = prealignsizes(s, v, v, will_rm)
 prealignsizes(s::AbstractAlignSizeStrategy, vin, vout, will_rm) = true
 
 # Failure cases
-prealignsizes(::FailAlignSizeError, vin, vout, will_rm) = error("Could not align sizes of $(vin) and $(vout)!")
+prealignsizes(::FailAlignSizeError, vin, vout, will_rm) = throw(SizeAlignFailError("Could not align sizes of $(nameorrepr(vin)) and $(nameorrepr(vout))!"))
 function prealignsizes(s::FailAlignSizeWarn, vin, vout, will_rm)
     @warn s.msgfun(vin, vout)
     return prealignsizes(s.andthen, vin, vout, will_rm)
 end
-prealignsizes(::FailAlignSizeRevert, vin, vout, will_rm) = false # No action needed?
 prealignsizes(::FailAlignSizeNoOp, vin, vout, will_rm) = false
 
 # Actual actions
@@ -345,52 +335,33 @@ function prealignsizes(s::CheckAligned, vin, vout, will_rm)
 end
 
 function prealignsizes(s::CheckNoSizeCycle, vin, vout, will_rm)
-    if will_rm(vout) && vin==vout
-        is_cyclic(ΔnoutSizeGraph(vin)) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
+    if will_rm(vout) && vin===vout
+        isinsizecycle(vin) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
     end
     return prealignsizes(s.ifok, vin, vout, will_rm)
 end
 
 function prealignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, will_rm)
-    sg = ΔnoutSizeGraph(vin)
-    if vout in keys(sg.metaindex[:vertex])
-        add_edge!(sg, sg[vin, :vertex], sg[vout, :vertex])
-        is_cyclic(ΔnoutSizeGraph(vin)) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
+    if vout in all_in_Δsize_graph(vin, Output())
+        # Previous alg created a MetaGraph of all_in_Δsize_graph and added an edge from vin to vout
+        # but it didn't use that graph for anything. Should probably add a temporary edge before this....
+        isinsizecycle(vin) && return prealignsizes(CheckAligned(s.ifnok), vin, vout, will_rm)
     end
     return prealignsizes(s.ifok, vin, vout, will_rm)
 end
 
 function prealignsizes(s::ChangeNinOfOutputs, vin, vout, will_rm)
     expected = nout(vin) + s.Δoutsize
-    Δsize(ΔNout{Exact}(vin, s.Δoutsize, ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
+    Δsize!(ΔNout{Exact}(vin, s.Δoutsize;fallback=ΔSizeFailNoOp()), all_in_Δsize_graph(vin, Output()))
     return nout(vin) == expected
 end
-
-function prealignsizes(s::ApplyMutation, vin, vout, will_rm)
-    if prealignsizes(s.strategy, vin, vout, will_rm)
-        apply_mutation.(all_in_graph(vin))
-        return true
-    end
-    return false
-end
-
-prealignsizes(s::PostApplyMutation, vin, vout, will_rm) = prealignsizes(s.strategy, vin, vout, will_rm)
-
-function prealignsizes(s::SelectOutputs, vin, vout, will_rm)
-    if prealignsizes(s.alignstrategy, vin, vout, will_rm)
-        return Δoutputs(s.selectstrategy, vin, s.valuefun)
-    end
-    return false
-end
-
-prealignsizes(s::PostSelectOutputs, vin, vout, will_rm) = prealignsizes(s.alignstrategy, vin, vout, will_rm)
 
 function prealignsizes(s::Union{IncreaseSmaller, DecreaseBigger}, vin, vout, will_rm)
     Δinsize = nout(vin) - tot_nin(vout)
     Δoutsize = -Δinsize
 
     strat = proceedwith(s, Δinsize) ? Δninstrat(vout, Δinsize) : Δnoutstrat(vin, Δoutsize)
-    success = prealignsizes(strat, vin, vout)
+    success = prealignsizes(s.mapstrat(strat), vin, vout)
 
     if !success
         return prealignsizes(s.fallback, vin, vout, will_rm)
@@ -403,18 +374,23 @@ proceedwith(::IncreaseSmaller, Δ::Integer) = Δ >= 0
 Δninstrat(v, Δ) = Δninstrat(trait(v), v, Δ)
 Δninstrat(t::DecoratingTrait, v, Δ) = Δninstrat(base(t), v, Δ)
 Δninstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
-Δninstrat(::MutationSizeTrait, v, Δ) = ΔNin{Exact}(v, [Δ], ΔSizeFailNoOp())
-Δninstrat(::SizeTransparent, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+Δninstrat(::SizeTransparent, v, Δ) = ΔNoutExact(v => Δ; fallback=ΔSizeFailNoOp())
+function Δninstrat(::MutationSizeTrait, v, Δ) 
+    Δs = Δnin2Δnout(v => Δ)
+    Δs[v] = 0
+    ΔNoutExact(Δs;fallback=ΔSizeFailNoOp())
+end
 
 Δnoutstrat(v, Δ) = Δnoutstrat(trait(v), v, Δ)
 Δnoutstrat(t::DecoratingTrait, v, Δ) = Δnoutstrat(base(t), v, Δ)
 Δnoutstrat(::Immutable, v, Δ) = ΔSizeFailNoOp()
-Δnoutstrat(::MutationSizeTrait, v, Δ) = ΔNout{Exact}(v, Δ, ΔSizeFailNoOp())
+Δnoutstrat(::SizeTransparent, v, Δ) = ΔNoutExact(v => Δ; fallback=ΔSizeFailNoOp())
+Δnoutstrat(::MutationSizeTrait, v, Δ) = ΔNoutExact(v => Δ, (inputs(v) .=> 0)...; fallback=ΔSizeFailNoOp())
 
 function prealignsizes(s::AlignSizeBoth, vin, vout, will_rm)
 
     strat = AlignNinToNoutVertices(vin, vout, 1:length(nin(vout)), AlignNinToNout(), ΔSizeFailNoOp())
-    success = prealignsizes(strat, vin, vout)
+    success = prealignsizes(s.mapstrat(strat), vin, vout)
 
     if !success
         return prealignsizes(s.fallback, vin, vout, will_rm)
@@ -425,15 +401,7 @@ end
 function prealignsizes(s::AbstractΔSizeStrategy, vin, vout)
     vin_all = all_in_Δsize_graph(vin, Output())
     vout_all = all_in_Δsize_graph(vout, Input())
-
-    verts = union(vin_all, vout_all)
-    success, nins, nouts = newsizes(s, verts)
-
-    if success
-        Δsize(nins, nouts, verts)
-        return true
-    end
-    return false
+    return Δsize!(s, union(vin_all, vout_all))
 end
 
 # Boilerplate
@@ -442,68 +410,26 @@ postalignsizes(s::AbstractAlignSizeStrategy, vin, vout, pos) = true
 
 # Failure cases
 postalignsizes(::FailAlignSizeNoOp, vin, vout, pos) = false
-postalignsizes(::FailAlignSizeError, vin, vout, pos) = error("Could not align sizes of $(vin) and $(vout)!")
+postalignsizes(::FailAlignSizeError, vin, vout, pos) = throw(SizeAlignFailError("Could not align sizes of $(nameorrepr(vin)) and $(nameorrepr(vout))!"))
 function postalignsizes(s::FailAlignSizeWarn, vin, vout, pos)
     @warn s.msgfun(vin, vout)
     return postalignsizes(s.andthen, vin, vout, pos)
 end
-function postalignsizes(s::FailAlignSizeRevert, vin, vout, pos)
-    n = sum(inputs(vout) .== vin)
-    # Can maybe be supported by comparing nin_org(vout) to nout_org(vin): If they match then vin was there before, else it shall be removed?
-    @assert n <= 1 "Case when vin is input to vout multiple times not implemented!"
-
-    if n == 1
-        remove_edge!(vin, vout, strategy=NoSizeChange())
-    else #if n == 0, but n > 1 not implemented
-        create_edge!(vin, vout, pos=pos, strategy=NoSizeChange())
-        reset_in!(op(vout)) # create_edge! sets nin_org to 0 for new edges
-    end
-    return false
-end
-
-function postalignsizes(s::PostSelectOutputs, vin, vout, pos)
-    if postalignsizes(s.alignstrategy, vin, vout, pos)
-        vin_all = all_in_Δsize_graph(vin, Output())
-        vout_all = all_in_Δsize_graph(vout, Input())
-
-        verts = union(vin_all, vout_all)
-        isempty(verts) && return true
-
-        success = Δoutputs(s.selectstrategy, verts, s.valuefun)
-
-        if !success
-            return postalignsizes(s.fallback, vin, vout, pos)
-        end
-        return success
-    end
-    return false
-end
-
-function postalignsizes(s::PostApplyMutation, vin, vout, pos)
-    if postalignsizes(s.strategy, vin, vout, pos)
-        apply_mutation.(all_in_graph(vin))
-        return true
-    end
-    return false
-end
 
 function postalignsizes(s::CheckCreateEdgeNoSizeCycle, vin, vout, pos)
-    sg = ΔnoutSizeGraph(vin)
-    is_cyclic(ΔnoutSizeGraph(vin)) && return postalignsizes(s.ifnok, vin, vout, pos)
+    any(isinsizecycle, inputs(vout)) && return postalignsizes(s.ifnok, vin, vout, pos)
     return postalignsizes(s.ifok, vin, vout, pos)
 end
 
 # Ok, this one actually does something...
-function postalignsizes(s::PostAlignJuMP, vin, vout, pos)
+function postalignsizes(s::PostAlign, vin, vout, pos)
     vin_all = all_in_Δsize_graph(vin, Output())
     vout_all = all_in_Δsize_graph(vout, Input())
 
-    verts = union(vin_all, vout_all)
-    success, nins, nouts = newsizes(s.sizestrat, verts)
+    success = Δsize!(s.sizestrat, union(vin_all, vout_all))
     if !success
         return postalignsizes(s.fallback, vin, vout, pos)
     end
-    Δsize(nins, nouts, verts)
     return success
 end
 
@@ -540,7 +466,7 @@ Note that the connection `vin` -> `vnew₁` as well as all connections `vnewₚ 
 The function `outselect` can be used to select a subset of outputs to replace (default all).
 
 """
-function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Function=identity)
+function Base.insert!(vin::AbstractVertex, factory, outselect=identity)
 
     prevouts = copy(outselect(outputs(vin)))
     deleteat!(outputs(vin), findall(vx -> vx in prevouts, outputs(vin)))
@@ -551,12 +477,13 @@ function Base.insert!(vin::AbstractVertex, factory::Function, outselect::Functio
         inputs(vout)[inds] .= vnew
         push!(outputs(vnew), vout)
     end
+    return true # TODO: Check sizes and try to align if not ok?
 end
 
 """
     create_edge!(from::AbstractVertex, to::AbstractVertex; [pos], [strategy])
 
-Create and edge from `from` to `to` at index `pos` in `inputs(to)`.
+Create and edge from `from` to `to` at index `pos` in [`inputs(to)`](@ref).
 
 Sizes will be adjusted based on given `strategy`.
 """
@@ -567,33 +494,25 @@ function create_edge!(from::AbstractVertex, to::AbstractVertex; pos = length(inp
     push!(outputs(from), to) # Order should never matter for outputs
     insert!(inputs(to), pos, from)
 
-    add_input!(op(to), pos, nout(from))
-    add_output!(op(to), trait(to))
+    # Note, success from prealignsizes strategies is implicit as we return if it fails
+    success = postalignsizes(strategy, from, to, pos)
 
-    postalignsizes(strategy, from, to, pos)
+    # Revert what we did if failed
+    if !success
+        deleteat!(outputs(from), length(outputs(from)))
+        deleteat!(inputs(to), pos)
+    end
+    return success
 end
 
 default_create_edge_strat(v::AbstractVertex) = default_create_edge_strat(trait(v),v)
 default_create_edge_strat(t::DecoratingTrait,v) = default_create_edge_strat(base(t),v)
-default_create_edge_strat(::SizeStack,v) = CheckCreateEdgeNoSizeCycle(ifok=PostAlignJuMP())
-default_create_edge_strat(::SizeInvariant,v) = CheckCreateEdgeNoSizeCycle(ifok=IncreaseSmaller())
+default_create_edge_strat(::SizeInvariant,v) = CheckCreateEdgeNoSizeCycle(ifok=AlignSizeBoth())
 default_create_edge_strat(::SizeAbsorb,v) = NoSizeChange()
-
-function add_input!(::MutationOp, pos, size) end
-add_input!(s::IoSize, pos, size) = insert!(s.nin, pos, size)
-add_input!(s::IoIndices, pos, size) = insert!(s.in, pos, collect(1:size+1))
-function add_input!(s::IoChange, pos, size)
-    add_input!(s.size, pos, 0)
-    add_input!(s.indices, pos, 0)
-    insert!(s.inΔ, pos, size)
+function default_create_edge_strat(::SizeStack,v)
+    alignstrat = TruncateInIndsToValid(AlignNinToNout(DefaultJuMPΔSizeStrategy(), ΔSizeFailNoOp()))
+    CheckCreateEdgeNoSizeCycle(ifok=PostAlign(alignstrat))
 end
-
-function add_output!(::MutationOp, t::MutationTrait) end
-add_output!(s::MutationOp, t::DecoratingTrait) = add_output!(s, base(t))
-add_output!(s::IoSize, ::SizeStack) = Δnout(s, sum(nin(s)) - nout(s))
-add_output!(s::IoIndices, ::SizeStack) = Δnout(s, vcat(s.out, (length(s.out):length(s.out)+(sum(nin(s)) - nout(s)))))
-add_output!(s::IoChange, t::SizeStack) = Δnout(s, sum(nin(s)) - nout(s))
-
 
 """
     remove_edge!(from::AbstractVertex, to::AbstractVertex; [nr], [strategy])
@@ -609,28 +528,24 @@ function remove_edge!(from::AbstractVertex, to::AbstractVertex; nr = 1, strategy
     prealignsizes(strategy, from, to, v -> false) || return false
 
     in_ind  = findall(vx -> vx == from, inputs(to))[nr]
-    out_ind = findall(vx -> vx == to, outputs(from))[nr]
+    out_ind = findall(vx -> vx == to, outputs(from))[1] #which output should not matter
 
     deleteat!(inputs(to), in_ind)
     deleteat!(outputs(from), out_ind)
 
-    rem_input!(op(to), in_ind...)
-    add_output!(op(to), trait(to))
+    # Note, success from prealignsizes strategies is implicit as we return if it fails
+    success = postalignsizes(strategy, from, to, in_ind)
 
-    postalignsizes(strategy, from, to, in_ind)
+    # Revert what we did if failed
+    if !success
+        insert!(inputs(to), in_ind, from)
+        insert!(outputs(from), out_ind, to)
+    end
+    return success
 end
 
 default_remove_edge_strat(v::AbstractVertex) = default_remove_edge_strat(trait(v),v)
 default_remove_edge_strat(t::DecoratingTrait,v) = default_remove_edge_strat(base(t),v)
-default_remove_edge_strat(::SizeStack,v) = PostAlignJuMP()
+default_remove_edge_strat(::SizeStack,v) = PostAlign()
 default_remove_edge_strat(::SizeInvariant,v) = NoSizeChange()
 default_remove_edge_strat(::SizeAbsorb,v) = NoSizeChange()
-
-function rem_input!(::MutationOp, pos...) end
-rem_input!(s::IoSize, pos...) = deleteat!(s.nin, collect(pos))
-rem_input!(s::IoIndices, pos...) = deleteat!(s.in, collect(pos))
-function rem_input!(s::IoChange, pos...)
-    rem_input!(s.size, pos...)
-    rem_input!(s.indices, pos...)
-    deleteat!(s.inΔ, collect(pos))
-end

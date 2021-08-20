@@ -1,42 +1,45 @@
-using NaiveNASlib
-using Test
-import JuMP
+using Test, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
 
 include("testutil.jl")
 
+# import Documenter makes include("tests/runtests.jl") workflows cumbersome as NaiveNASlib does no depend on it
+# here is my workaround: 
+# ]activate test
+# dev NaiveNASlib
+# include("tests/runtests.jl")
+# Delete test/Manifest.toml afterwards or else ]test from main project might not work 
+
 @testset "NaiveNASlib.jl" begin
 
-        @info "Testing computation"
+	@info "Testing computation"
+	include("vertex.jl")
+	include("compgraph.jl")
+	
+	include("prettyprint.jl")
 
-        include("vertex.jl")
-        include("compgraph.jl")
+	@info "Testing mutation"
 
-        include("prettyprint.jl")
+	include("mutation/vertex.jl")
+	include("mutation/graph.jl")
 
-        @info "Testing mutation"
+	@info "Testing size mutation"
+	include("mutation/size.jl")
 
-        include("mutation/op.jl")
-        include("mutation/vertex.jl")
-        include("mutation/graph.jl")
+	@info "Testing index mutation"
+	include("mutation/select.jl")
 
-        @info "Testing size mutation"
+	@info "Testing structural mutation"
+	include("mutation/structure.jl")
 
-        include("mutation/size.jl")
+	@info "Testing api"
+	include("api/vertex.jl")
 
-        @info "Testing index mutation"
+	@info "Testing doc examples"
+	include("examples.jl")
 
-        include("mutation/apply.jl")
-        include("mutation/select.jl")
-
-        @info "Testing structural mutation"
-
-        include("mutation/structure.jl")
-
-        @info "Testing sugar"
-
-        include("mutation/sugar.jl")
-
-        @info "Testing README examples"
-
-        include("examples.jl")
+	if Int !== Int32
+		# Don't test documentation unless 64-bit os since some example print numerical types
+		import Documenter
+		Documenter.doctest(NaiveNASlib)
+	end
 end

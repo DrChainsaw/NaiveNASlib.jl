@@ -1,5 +1,3 @@
-import NaiveNASlib
-
 @testset "Sugar" begin
 
     struct ScaleByTwo
@@ -12,20 +10,20 @@ import NaiveNASlib
     end
 
     @testset "Create immutable" begin
-        v = immutablevertex(x -> x * [1 2 3; 4 5 6], 2, inputvertex("in", 3))
+        v = immutablevertex(MatMul(3, 2), inputvertex("in", 3))
         @test nin(v) == [3]
         @test nout(v) == 2
-        @test v([1 2]) == [9  12  15]
-        v = immutablevertex(identity, 1, inputvertex("in", 1), mutation=IoSize, traitdecoration = t -> NamedTrait(t, "v"))
+        @test v(1:3) == [22, 28]
+        v = immutablevertex(identity, inputvertex("in", 1); traitdecoration = named("v"))
         @test name(v) == "v"
     end
 
     @testset "Create absorbing" begin
-        v = absorbvertex(x -> x * [1 2 3; 4 5 6], 2, inputvertex("in", 3))
+        v = absorbvertex(MatMul(3, 2), inputvertex("in", 3))
         @test nin(v) == [3]
         @test nout(v) == 2
-        @test v([1 2]) == [9  12  15]
-        v = absorbvertex(identity, 1, inputvertex("in", 1), mutation=IoSize, traitdecoration = t -> NamedTrait(t, "v"))
+        @test v(1:3) == [22, 28]
+        v = absorbvertex(identity, inputvertex("in", 1), traitdecoration = named("v"))
         @test name(v) == "v"
     end
 
@@ -34,22 +32,51 @@ import NaiveNASlib
         @test nin(v) == [2]
         @test nout(v) == 2
         @test v([1 2]) == [2 4]
-        v = invariantvertex(identity, inputvertex("in", 1), mutation=IoSize, traitdecoration = t -> NamedTrait(t, "v"))
+        v = invariantvertex(identity, inputvertex("in", 1); traitdecoration = named("v"))
         @test name(v) == "v"
     end
 
     @testset "Create stacking" begin
-        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = t -> NamedTrait(t, "v"), outwrap = ScaleByTwo)
+        v = conc(inputvertex.(("in1", "in2"), (1,2))..., dims=1, traitdecoration = named("v"), outwrap = ScaleByTwo)
         @test nin(v) == [1 ,2]
         @test nout(v) == 3
         @test v(1, [2, 3]) == [2,4,6] # Due to outwrap = ScaleByTwo
         @test name(v) == "v"
-        @test typeof(v.base.base.computation) == ScaleByTwo
+        @test typeof(computation(v)) == ScaleByTwo
+    end
+
+    @testset "$vfun with name" for vfun in (absorbvertex, invariantvertex, immutablevertex)
+        @testset "Normal" begin
+            v = vfun("v", identity, inputvertex("in", 3))
+            @test name(v) == "v"
+
+            @test_logs((:warn, "Attach name vv to vertex which already has name trait v!"),
+                        vfun("vv", identity, inputvertex(in, 3); traitdecoration=named("v")))
+        end
+        @testset "Do-block" begin
+            v = vfun("v", inputvertex("in", 3)) do x
+                x
+            end
+            @test name(v) == "v"
+
+            @test_logs((:warn, "Attach name vv to vertex which already has name trait v!"),
+                         vfun("vv", inputvertex("in", 3); traitdecoration=named("v")) do x
+                            x
+                        end)
+        end
+    end
+
+    @testset "conc with name" begin
+        v = conc("v", inputvertex("in", 3); dims=2)
+        @test name(v) == "v"
+
+        @test_logs((:warn, "Attach name vv to vertex which already has name trait v!"),
+                    conc("vv", inputvertex("in", 3); dims=2, traitdecoration=named("v")))  
     end
 
     @testset "Create element wise" begin
 
-        conf = traitconf(t -> NamedTrait(t, "v"))
+        conf = traitconf(named("v"))
 
         @testset "Create elemwise addition" begin
             v = conf >> inputvertex("in1", 2) + inputvertex("in2", 2) + inputvertex("in3" ,2)
@@ -150,7 +177,13 @@ import NaiveNASlib
             @test nout(v) == 2
 
             @test v([1, 2], [3, 4]) == [8, 12]
-            @test typeof(v.base.base.computation) == ScaleByTwo
+            @test typeof(computation(v)) == ScaleByTwo
         end
+    end
+
+    @testset "Trait functions" begin
+        @test named("test")(SizeAbsorb()) == NamedTrait("test", SizeAbsorb(),)
+        @test validated()(SizeAbsorb()) == AfterΔSizeTrait(validateafterΔsize(), SizeAbsorb())
+        @test logged()(SizeAbsorb()) == AfterΔSizeTrait(logafterΔsize(), SizeAbsorb())
     end
 end

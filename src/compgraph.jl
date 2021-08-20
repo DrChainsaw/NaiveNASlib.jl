@@ -1,130 +1,170 @@
-import LightGraphs:SimpleDiGraph
-
 """
     CompGraph
+    CompGraph(input::AbstractVertex, output::AbstractVertex)
+    CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex)
+    CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex})
 
 Basic graph for computation. While not strictly neccessary to compute anything,
 it makes it easier to keep track of things.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> using NaiveNASlib
 
-julia> cv = (CompVertex(+, InputVertex(1), InputVertex(2)));
+julia> v1 = inputvertex("in1", 1) + inputvertex("in2", 1);
 
-julia> CompGraph(inputs(cv), [CompVertex(x -> 3x, cv)])(2,3) # (2 + 3) * 3
+julia> v2 = invariantvertex(x -> 3x, v1);
+
+julia> CompGraph(inputs(v1), v2)(2,3) # (2 + 3) * 3
 15
 
-julia> CompGraph(inputs(cv), [cv, CompVertex(x -> 3x, cv)])(2,3)
+julia> CompGraph(inputs(v1), [v1, v2])(2,3)
 (5, 15)
 ```
 
 """
-struct CompGraph
-    inputs::AbstractVector{<:AbstractVertex}
-    outputs::AbstractVector{<:AbstractVertex}
+struct CompGraph{I<:AbstractVector{<:AbstractVertex}, O<:AbstractVector{<:AbstractVertex}}
+    inputs::I
+    outputs::O
 end
 CompGraph(input::AbstractVertex, output::AbstractVertex) = CompGraph([input], [output])
 CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex) = CompGraph(input, [output])
 CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = CompGraph([input], output)
 
-function (g::CompGraph)(x...) where T <:Integer
+@functor CompGraph
+
+function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
-    memo::Dict{AbstractVertex, Any} = Dict(zip(g.inputs, x))
-    if length(g.outputs) == 1
-        return output!(memo, g.outputs[1])
+    memo = Dict{AbstractVertex, Any}(zip(inputs(g), x))
+    if length(outputs(g)) == 1
+        return output!(memo, first(outputs(g)))
     end
-    return Tuple(map(v -> output!(memo, v), g.outputs))
+    return Tuple(map(v -> output!(memo, v), outputs(g)))
 end
 
 """
-    output!(memo::Dict{AbstractVertex, Any}, v::AbstractVertex)
+    inputs(g::CompGraph) 
+
+Return the inputs vertices of `g`.
+"""
+inputs(g::CompGraph) = g.inputs
+
+"""
+    outputs(g::CompGraph) 
+
+Return the output vertices of `g`.
+"""
+outputs(g::CompGraph) = g.outputs
+
+"""
+    output!(memo::AbstractDict{K, V}, v::AbstractVertex) where {K,V}
 
 Return the output from v given any input in memo by traversing the graph.
 Intermediate results from all visited vertices will be stored in memo after
 function exits.
 
 # Examples
-```julia-repl
-julia> using NaiveNASlib
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
 
 julia> ivs = InputVertex.(1:2);
 
-julia> cv = CompVertex(*, ivs...);
+julia> v1 = CompVertex(*, ivs...);
+
+julia> v2 = CompVertex(-, v1, ivs[1]);
 
 julia> results = Dict{AbstractVertex, Any}(zip(ivs, [2,3]));
 
-julia> output!(results, CompVertex(-, cv, ivs[1]))
+julia> output!(results, v2)
 4
-julia> results
-Dict{AbstractVertex,Any} with 4 entries:
-  CompVertex(*, [InputVertex(1), InputVertex(2)], [CompVertex(-)]) => 6
-  CompVertex(-, [CompVertex(*), InputVertex(1)], [])               => 4
-  InputVertex(1, [CompVertex(*), CompVertex(-)])                   => 2
-  InputVertex(2, [CompVertex(*)])                                  => 3
+julia> Pair{AbstractVertex, Int}[v=>results[v] for v in ancestors(v2)]
+4-element Vector{Pair{AbstractVertex, Int64}}:
+                                         InputVertex(1) => 2
+                                         InputVertex(2) => 3
+ CompVertex(*, inputs=[InputVertex(1), InputVertex(2)]) => 6
+  CompVertex(-, inputs=[CompVertex(*), InputVertex(1)]) => 4
 ```
 """
-function output!(memo::Dict{AbstractVertex, Any}, v::AbstractVertex)
+function output!(memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
     # Calculate outputs which are not already calculated
     return get!(memo, v) do
         inpt = map(iv -> output!(memo, iv), inputs(v))
-        out = v(inpt...)
-    end
+        v(inpt...)
+    end::V
 end
 
 """
-    SimpleDiGraph(g::CompGraph)
+    nvertices(g::CompGraph)
 
-Return g as a SimpleDiGraph.
+Return the number of vertices in the graph.
 """
-LightGraphs.SimpleDiGraph(g::CompGraph) = SimpleDiGraph(mapfoldl(v -> flatten(v), (vs1, vs2) -> unique(vcat(vs1, vs2)), g.outputs))
+nvertices(g::CompGraph) = length(vertices(g))
 
-"""
-    SimpleDiGraph(v::AbstractVertex)
-
-Return a SimpleDiGraph of all parents of v
-"""
-LightGraphs.SimpleDiGraph(v::AbstractVertex)= SimpleDiGraph(flatten(v))
+Base.getindex(g::CompGraph, args...) = getindex(vertices(g), args...)
+Base.firstindex(g::CompGraph) = firstindex(vertices(g))
+Base.lastindex(g) = lastindex(vertices(g))
 
 """
-    SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
+    findvertices(vname::AbstractString, g::CompGraph)
 
-Return a SimpleDiGraph of all given vertices
+Return all vertices for which [`name(v)`](@ref) == vname`.
 """
-function LightGraphs.SimpleDiGraph(vertices::AbstractArray{AbstractVertex,1})
-    g = SimpleDiGraph(length(vertices))
-    for (ind, v) in enumerate(vertices)
-        add_edge!.([g], indexin(inputs(v), vertices), ind)
-    end
-    return g
-end
-
+findvertices(vname::AbstractString, g::CompGraph) = findvertices(v -> name(v) == vname, g)
 """
-    nv(g::CompGraph)
+    findvertices(vpat::Regex, g::CompGraph)
 
-Return the total number of vertices in the graph.
+Return all vertices for which `vpat` matches [`name(v)`](@ref).
 """
-LightGraphs.nv(g::CompGraph) = nv(SimpleDiGraph(g))
-
+findvertices(vpat::Regex, g::CompGraph) = findvertices(v -> occursin(vpat, name(v)), g)
 
 """
-    flatten(v::AbstractVertex)
+    findvertices(predicate, g::CompGraph)
 
-Return an array of all input parents of v
+Return all vertices for which `predicate(v)` return `true`.
+"""
+findvertices(predicate, g::CompGraph) = filter(predicate, vertices(g))
+
+"""
+    ancestors(v::AbstractVertex)
+
+Return an array of all ancestors of `v`, including `v` itself.
 
 # Examples
-```julia-repl
-julia> flatten(CompVertex(+, InputVertex.(1:2)...))
-3-element Array{AbstractVertex,1}:
- InputVertex(1)
- InputVertex(2)
- CompVertex(+, [InputVertex(1), InputVertex(2)])
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
+
+julia> ancestors(invariantvertex(+, inputvertex("in", 1)))
+2-element Vector{AbstractVertex}:
+ InputSizeVertex(InputVertex(in, outputs=[CompVertex(+)]), 1)
+ MutationVertex(CompVertex(+, inputs=[in], outputs=[]), SizeInvariant())
+```
 """
-function flatten(v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
+ancestors(v::AbstractVertex,args...) = collect_vertices_from(inputs, v, args...)
+
+"""
+    descendants(v::AbstractVertex)
+
+Return an array of all descendants of `v`, including `v` itself.
+
+# Examples
+```jldoctest
+julia> using NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
+
+julia> descendants(invariantvertex(+, inputvertex("in", 1)) |> inputs |> first)
+2-element Vector{AbstractVertex}:
+ MutationVertex(CompVertex(+, inputs=[in], outputs=[]), SizeInvariant())
+ InputSizeVertex(InputVertex(in, outputs=[CompVertex(+)]), 1)
+```
+"""
+descendants(v::AbstractVertex,args...) = collect_vertices_from(outputs, v, args...)
+
+function collect_vertices_from(f, v::AbstractVertex, vertices::Vector{AbstractVertex} = Vector{AbstractVertex}(), visited::Vector{AbstractVertex} = Vector{AbstractVertex}())
     v in vertices && return vertices
     if !(v in visited)
         push!(visited, v)
-        foreach(iv -> flatten(iv, vertices), inputs(v))
+        fvs = f(v)
+        fvs === nothing && return vertices
+        foreach(fv -> collect_vertices_from(f, fv, vertices), fvs)
     end
     push!(vertices, v)
     return vertices
@@ -153,75 +193,4 @@ julia> vertices(graph)
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```
 """
-LightGraphs.vertices(g::CompGraph) = unique(mapfoldl(flatten, vcat, g.outputs))
-
-"""
-    Base.copy(g::CompGraph, cf=clone)
-
-Copies the given `CompGraph g` into a new instance with identical structure.
-
-Argument `cf` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
-
-# Examples
-```julia-repl
-julia> ivs = InputVertex.(1:2);
-
-julia> cv = CompVertex(+, ivs...);
-
-julia> graph = CompGraph(ivs, [cv])
-CompGraph([InputVertex(1), InputVertex(2)], [CompVertex(+)])
-
-julia> gcopy = copy(graph)
-CompGraph([InputVertex(1), InputVertex(2)], [CompVertex(+)])
-
-julia> gcopy == graph
-false
-"""
-function Base.copy(g::CompGraph, cf=clone)
-    # Can't just have each vertex copy its inputs as a graph with multiple outputs
-    # might end up with multiple copies of the same vertex
-
-    # Instead, use the same recursion as when calculating output and store the copies
-    # in the memo
-
-    # Will contain mapping between vertex in g and its copy
-    # We could initialize it with inputs, but CompGraph does not require that inputs
-    # are of type InputVertex
-    memo = Dict{AbstractVertex, AbstractVertex}()
-    foreach(ov -> copy!(memo, ov, cf), g.outputs)
-    return CompGraph(
-    map(iv -> memo[iv], g.inputs),
-    map(ov -> memo[ov], g.outputs)
-    )
-end
-clone(x;cf=nothing) = deepcopy(x)
-
-"""
-    copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, cf=clone)
-
-Recursively copy the input parents of v, ensuring that each vertex gets exactly one copy.
-
-Results will be stored in the provided dict as a mapping between original and copy.
-
-Argument `cf` may be used to alter the copy on any level, e.g to add new `MutationTraits`.
-
-# Examples
-```julia-repl
-
-julia> result = Dict{AbstractVertex, AbstractVertex}();
-
-julia> NaiveNASlib.copy!(result, CompVertex(+, InputVertex.(1:2)...));
-
-julia> result
-Dict{AbstractVertex,AbstractVertex} with 3 entries:
-  InputVertex(2)                                  => InputVertex(2)
-  InputVertex(1)                                  => InputVertex(1)
-  CompVertex(+, [InputVertex(1), InputVertex(2)]) => CompVertex(+, [InputVertex(1), InputVertex(2)])
-"""
-function copy!(memo::Dict{AbstractVertex, AbstractVertex}, v::AbstractVertex, cf=clone)
-    return get!(memo, v) do
-        # Recurse until inputs(v) is empty
-        ins = map(iv -> copy!(memo, iv, cf), inputs(v))
-        cf(v, ins...; cf=cf)
-    end
-end
+vertices(g::CompGraph) = unique(mapfoldl(ancestors, vcat, g.outputs))

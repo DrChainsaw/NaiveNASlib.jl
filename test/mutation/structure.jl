@@ -1,28 +1,47 @@
-
+import JuMP
 @testset "Structure tests" begin
 
     #Helper functions
-    nt(name) = t -> NamedTrait(t, name)
+    nt(name) = named(name)
     tf(name) = t -> nt(name)(t)
     inpt(size, id="in") = inputvertex(id, size)
-    av(in, outsize; name="av", comp = identity) = absorbvertex(comp, outsize, in, traitdecoration = tf(name))
-    sv(in, ins...; name="sv") = conc(in, ins..., dims=2, traitdecoration = tf(name))
-    sv(in; name="sv") = vertex(identity, nout(in), tf(name)(SizeStack()), in)
-    iv(ins...; name="iv") = +(traitconf(tf(name)) >> ins[1], ins[2:end]...)
-    imu(in, outsize; name="imu") = immutablevertex(identity, outsize, in, traitdecoration= tf(name))
+    av(in, outsize; name="av", comp = IndMem(MatMul(nout(in), outsize))) = absorbvertex(comp, in; traitdecoration = tf(name))
+    sv(in, ins...; name="sv") = conc(in, ins..., dims=2, traitdecoration = tf(name), outwrap=f -> IndMem(f, ins, sum(nout, ins)))
+    sv(in; name="sv") = vertex(tf(name)(SizeStack()), IndMem(identity, in, nout(in)), in)
+    iv(ins...; name="iv") = +(VertexConf(tf(name), f -> IndMem(f, ins, nout(ins[1]))) >> ins[1], ins[2:end]...)
+    imu(in, outsize; name="imu") = immutablevertex(MatMul(nout(in), outsize), in, traitdecoration= tf(name))
 
     @testset "Edge mutation" begin
         @testset "Edge removal" begin
 
-            @testset "Fail noop" begin
+            @testset "Fail noop $(nameof(typeof(strategy)))" for strategy in (
+                FailAlignSizeNoOp(),
+                PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp()),
+            )
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")
                 v2 = av(v1, 4, name="v2")
 
-                @test remove_edge!(v1, v2; strategy=FailAlignSizeNoOp()) == false
+                @test remove_edge!(v1, v2; strategy) == false
 
-                @test name.(inputs(v2)) == [name(v1)]
-                @test name.(outputs(v1)) == [name(v2)]
+                @test inputs(v2) == [v1]
+                @test outputs(v1) == [v2]
+                @test nin(v2) == [nout(v1)] == [5]
+            end
+
+            @testset "Fail warn" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                @test @test_logs (:warn, r"Could not align size") remove_edge!(v2, v4, strategy=FailAlignSizeWarn()) == false
+
+                @test inputs(v4) == [v1, v2, v3]
+                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
+                @test [nout(v4)] == nin(v5) == [3+4+5]
             end
 
             @testset "Remove from absorbing" begin
@@ -34,11 +53,11 @@
                 v5 = av(v2, 2, name="v5")
 
                 #Only because helper method av does not take muliple inputs!
-                create_edge!(v2, v3)
+                @test create_edge!(v2, v3)
                 @test inputs(v3) == [v1, v2]
 
                 #Now for the actual test...
-                remove_edge!(v2, v3)
+                @test remove_edge!(v2, v3)
                 @test inputs(v3) == [v1]
                 @test outputs(v1) == [v3]
                 @test nin(v3) == [nout(v1)] == [5]
@@ -56,7 +75,7 @@
                 v4 = av(v3, 3, name="v4")
                 v5 = av(v2, 2, name="v5")
 
-                remove_edge!(v2, v3)
+                @test remove_edge!(v2, v3)
                 @test inputs(v3) == [v1]
                 @test outputs(v1) == [v3]
                 @test nin(v4) == [nout(v3)] == nin(v3) == [nout(v1)] == [5]
@@ -74,7 +93,7 @@
                 v4 = av(v3, 3, name="v4")
                 v5 = av(v2, 2, name="v5")
 
-                remove_edge!(v2, v3, strategy=PostAlignJuMP(ΔNoutExact(v3, 2)))
+                @test remove_edge!(v2, v3, strategy=PostAlign(ΔNoutExact(v3, 2)))
                 @test inputs(v3) == [v1]
                 @test outputs(v1) == [v3]
                 @test nin(v4) == [nout(v3)] == nin(v3) == [nout(v1)] == [7]
@@ -93,7 +112,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1, v2, v1]
-                remove_edge!(v1, v3)
+                @test remove_edge!(v1, v3)
 
                 @test inputs(v3) == [v2, v1]
                 @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
@@ -113,7 +132,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1, v2, v1]
-                remove_edge!(v1, v3, nr=2)
+                @test remove_edge!(v1, v3, nr=2)
 
                 @test inputs(v3) == [v1, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
@@ -132,7 +151,7 @@
                 v4 = av(v3, 3, name="v4")
                 v5 = av(v2, 2, name="v5")
 
-                remove_edge!(v2, v3)
+                @test remove_edge!(v2, v3)
                 @test inputs(v3) == [v1]
                 @test outputs(v1) == [v3]
                 @test nin(v3) == [nout(v1)] == [8]
@@ -151,7 +170,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1, v2, v1]
-                remove_edge!(v1, v3)
+                @test remove_edge!(v1, v3)
 
                 @test inputs(v3) == [v2, v1]
                 @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
@@ -170,7 +189,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1, v2, v1]
-                remove_edge!(v1, v3, nr=2)
+                @test remove_edge!(v1, v3, nr=2)
 
                 @test inputs(v3) == [v1, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
@@ -191,22 +210,42 @@
                 @test inputs(v3) == [v0, v1, v2]
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,5,4]
                 @test [nout(v3)] == nin(v4) == [3+5+4]
-                @test nin_org(v3) == nout_org.([v0, v1, v2]) == [3,5,4]
-                @test [nout_org(v3)] == nin_org(v4) == [3+5+4]
+                @test nin(v3) == nout.([v0, v1, v2]) == [3,5,4]
+                @test [nout(v3)] == nin(v4) == [3+5+4]
 
-                struct RevertPost <: AbstractAlignSizeStrategy end
-                NaiveNASlib.postalignsizes(::RevertPost, vin, vout, pos) = NaiveNASlib.postalignsizes(FailAlignSizeRevert(), vin, vout, pos)
-
-                remove_edge!(v1, v3, strategy=RevertPost())
+                @test remove_edge!(v1, v3, strategy=PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp())) == false
 
                 @test inputs(v3) == [v0, v1, v2]
                 @test nin(v3) == nout.([v0, v1, v2]) == [3,5,4]
                 @test [nout(v3)] == nin(v4) == [3+5+4]
-                @test nin_org(v3) == nout_org.([v0, v1, v2]) == [3,5,4]
-                @test [nout_org(v3)] == nin_org(v4) == [3+5+4]
+                @test nin(v3) == nout.([v0, v1, v2]) == [3,5,4]
+                @test [nout(v3)] == nin(v4) == [3+5+4]
             end
 
-            @testset "PostSelectOutputs SizeInvariant" begin
+            @testset "Revert remove edge SizeStack duplicate nr $nr" for nr in (1,2)
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 5, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = sv(v0, v1, v2, v1, name = "v3")
+                v4 = av(v3, 3, name="v4")
+                v5 = av(v2, 2, name="v5")
+
+                @test inputs(v3) == [v0, v1, v2, v1]
+                @test nin(v3) == nout.([v0, v1, v2, v1]) == [3,5,4,5]
+                @test [nout(v3)] == nin(v4) == [3+5+4+5]
+                @test nin(v3) == nout.([v0, v1, v2, v1]) == [3,5,4,5]
+                @test [nout(v3)] == nin(v4) == [3+5+4+5]
+
+                @test remove_edge!(v1, v3; nr, strategy=PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp())) == false
+               
+                @test inputs(v3) == [v0, v1, v2, v1]
+                @test nin(v3) == nout.([v0, v1, v2, v1]) == [3,5,4,5]
+                @test [nout(v3)] == nin(v4) == [3+5+4+5]
+                @test nin(v3) == nout.([v0, v1, v2, v1]) == [3,5,4,5]
+                @test [nout(v3)] == nin(v4) == [3+5+4+5]
+            end
+
+            @testset "DecreaseBigger WithUtilityFun SizeInvariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -214,14 +253,15 @@
                 v4 = iv(v1, v2, v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                remove_edge!(v3, v4, strategy=PostSelectOutputs(align = DecreaseBigger(), valuefun = v -> 1:nout_org(v)))
+                @test remove_edge!(v3, v4, strategy=DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
                 @test inputs(v4) == [v1, v2]
                 @test nin(v4) == nout.([v1, v2]) == [4,4]
-                @test in_inds(op(v4)) == out_inds.(op.([v1,v2])) == [1:4, 1:4]
+                # We change the size before removing the edge, so lastins of v4 has 3 elements
+                @test lastins(v4)[1:2] == lastouts.([v1,v2]) == [1:4, 1:4]
             end
 
-            @testset "PostSelectOutputs SizeInvariant post align" begin
+            @testset "PostAlign WithUtilityFun SizeInvariant post align" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -229,14 +269,14 @@
                 v4 = iv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                remove_edge!(v3, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+                remove_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> 1:nout(v), AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v2]
                 @test nin(v4) == nout.([v1, v2]) == [4,4]
-                @test in_inds(op(v4)) == out_inds.(op.([v1,v2])) == [1:4, 1:4]
+                @test lastins(v4) == lastouts.([v1,v2]) == [1:4, 1:4]
             end
 
-            @testset "PostSelectOutputs SizeStack" begin
+            @testset "DecreaseBigger WithUtilityFun SizeStack" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 3, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -244,66 +284,35 @@
                 v4 = sv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                remove_edge!(v2, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+                @test remove_edge!(v2, v4, strategy=DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v))))
+
+                @test inputs(v4) == [v1, v3]
+                @test nin(v4) == nout.([v1, v3]) == [1,2]
+                @test lastouts(v1) == [3]
+                @test lastouts(v2) == [4]
+                @test lastouts(v3) == 4:5
+
+                @test lastouts(v4) == lastins(v5) ==[3,7,11,12]
+            end
+
+            @testset "PostAlign WithUtilityFun SizeStack" begin
+                v0 = inpt(3, "v0")
+                v1 = av(v0, 3, name="v1")
+                v2 = av(v0, 4, name="v2")
+                v3 = av(v0, 5, name="v3")
+                v4 = sv(v1,v2,v3, name = "v4")
+                v5 = av(v4, 3, name="v5")
+
+                remove_edge!(v2, v4, strategy=PostAlign(WithUtilityFun(v -> 1:nout(v), AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v3]
                 @test nin(v4) == nout.([v1, v3]) == [3,5]
-                @test out_inds(op(v1)) == 1:3
-                @test out_inds(op(v2)) == 1:4
-                @test out_inds(op(v3)) == 1:5
-                # This would be better if it was [1:3;8:12] but remove_vertex removes the edge before PostSelectOutputs has a chance to see it :(
-                @test out_inds(op(v4)) == 1:8
-                @test in_inds(op(v5)) == [1:8]
-            end
-
-            @testset "PostSelectOutputs fail size align" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 3, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = sv(v1,v2,v3, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                @test_logs (:warn, r"Could not align size") remove_edge!(v1, v4, strategy=PostSelectOutputs(align = FailAlignSizeWarn()))
-
-                @test inputs(v4) == [v1, v2, v3]
-                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
-                @test nin_org(v4) == nout_org.([v1, v2, v3]) == [3,4,5]
-                @test [nout(v4)] == nin(v5) == [3+4+5]
-                @test [nout_org(v4)] == nin_org(v5) == [3+4+5]
-            end
-
-            @testset "PostSelectOutputs fail select" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 3, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = sv(v1,v2,v3, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                @test_logs (:warn, r"Could not align size") remove_edge!(v2, v4, strategy=PostSelectOutputs(
-                align = PostAlignJuMP(), select = NoutRevert(), fallback=FailAlignSizeWarn()))
-
-                @test inputs(v4) == [v1, v2, v3]
-                @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
-                @test nin_org(v4) == nout_org.([v1, v2, v3]) == [3,4,5]
-                @test [nout(v4)] == nin(v5) == [3+4+5]
-                @test [nout_org(v4)] == nin_org(v5) == [3+4+5]
-            end
-
-            @testset "PostApplyMutation SizeStack" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 3, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = sv(v1,v2,v3, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                remove_edge!(v1, v4, strategy=PostApplyMutation())
-
-                @test inputs(v4) == [v2, v3]
-                @test nin(v4) == nin_org(v4) == nout.([v2, v3]) == [4,5]
-                @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [4+5]
+                @test lastouts(v1) == 1:3
+                @test lastouts(v2) == 1:4
+                @test lastouts(v3) == 1:5
+                # This would be better if it was [1:3;8:12] but remove_vertex removes the edge before PostAlign has a chance to see it :(
+                @test lastouts(v4) == 1:8
+                @test lastins(v5) == 1:8
             end
 
             @testset "Remove all $t" for (t, vf) in ((SizeStack, sv), (SizeInvariant, iv))
@@ -336,12 +345,15 @@
 
         @testset "Edge addition" begin
 
-            @testset "Fail noop" begin
+            @testset "Fail noop $(nameof(typeof(strategy)))" for strategy in (
+                FailAlignSizeNoOp(),
+                PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp()),
+            )
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")
                 v2 = av(v1, 4, name="v2")
 
-                @test create_edge!(v1, v2; strategy=FailAlignSizeNoOp()) == false
+                @test create_edge!(v1, v2; strategy) == false
 
                 @test name.(inputs(v2))== [name(v1)]
                 @test name.(outputs(v1)) == [name(v2)]
@@ -351,15 +363,18 @@
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 5, name="v1")
                 v2 = av(v0, 4, name="v2")
-                v3 = av(v1, 7, name = "v3")
+                # We use SizeDummy here because MatMul can only have one input
+                v3 = av(v1, 7, name = "v3", comp = IndMem(SizeDummy(nout(v1), 7)))
                 v4 = av(v3, 3, name="v4")
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1]
-                create_edge!(v2, v3)
+                @test create_edge!(v2, v3; strategy=PostAlign())
 
                 @test inputs(v3) == [v1, v2]
-                @test nin(v3) == [nout(v1), nout(v2)] == [5, 4]
+                # SizeDummy does not change its sizes when asked to Δsize with indices
+                # I think there are other tests which rely on that behaviour...
+                @test length.(lastins(v3)) == [nout(v1), nout(v2)] == [5, 4]
                 @test nin(v4) == [nout(v3)] == [7]
 
                 @test outputs(v2) == [v5, v3]
@@ -376,7 +391,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1]
-                create_edge!(v2, v3)
+                @test create_edge!(v2, v3)
 
                 @test inputs(v3) == [v1, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
@@ -395,7 +410,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1]
-                create_edge!(v2, v3, strategy=PostAlignJuMP(ΔNoutExact(v2, 2)))
+                @test create_edge!(v2, v3, strategy=PostAlign(TruncateInIndsToValid(AlignNinToNout(ΔNoutExact(v2, 2), ThrowΔSizeFailError()))))
 
                 @test inputs(v3) == [v1, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [11]
@@ -414,7 +429,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1, v1, v2]
-                create_edge!(v1, v3)
+                @test create_edge!(v1, v3)
 
                 @test inputs(v3) == [v1, v1, v2, v1]
                 @test nin(v4) == [nout(v3)] == [3nout(v1) + nout(v2)] == [19]
@@ -431,7 +446,7 @@
                 v3 = av(v2, 3, name="v3")
 
                 @test inputs(v2) == [v1]
-                create_edge!(v0, v2)
+                @test create_edge!(v0, v2)
 
                 @test inputs(v2) == [v1, v0]
                 @test nin(v3) == [nout(v2)] == [nout(v1) + nout(v0)] == [8]
@@ -448,7 +463,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1]
-                create_edge!(v2, v3)
+                @test create_edge!(v2, v3)
 
                 @test inputs(v3) == [v1, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [5]
@@ -467,7 +482,7 @@
                 v5 = av(v2, 2, name="v5")
 
                 @test inputs(v3) == [v1, v1, v2]
-                create_edge!(v1, v3)
+                @test create_edge!(v1, v3)
 
                 @test inputs(v3) == [v1, v1, v2, v1]
                 @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(v2)] == [4]
@@ -484,12 +499,26 @@
                 v3 = av(v2, 3, name="v3")
 
                 @test inputs(v2) == [v1]
-                create_edge!(v0, v2)
+                @test create_edge!(v0, v2)
 
                 @test inputs(v2) == [v1, v0]
                 @test nin(v3) == [nout(v2)] == [nout(v1)] == [nout(v0)] == [3]
 
                 @test outputs(v0) == [v1, v2]
+            end
+
+            @testset "Add to middle of invariant PostAlign" begin
+                v0 = inpt(3, "v0")
+                v1a = av(v0, 5; name="v1a")
+                v1b = av(v0, 5; name="v1b")
+                v2 = iv(v1a, v1b; name = "v2")
+                v3 = av(v2, 3; name="v3")
+
+                v1c = av(v0, 3; name="v1c")
+                create_edge!(v1c, v2; pos=2, strategy=PostAlign())
+
+                @test inputs(v2) == [v1a, v1c, v1b]
+                @test nin(v2) == [nout(v1a), nout(v1c), nout(v1b)] == [5,5,5]
             end
 
             @testset "Add with hidden SizeStack" begin
@@ -504,7 +533,7 @@
 
 
                 @test inputs(v3) == [v1]
-                create_edge!(v2, v3)
+                @test create_edge!(v2, v3)
 
                 @test inputs(v3) == [v1, v2]
                 @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [9]
@@ -527,10 +556,10 @@
                 v4 = av(v3, 3, name="v4")
 
                 @test inputs(v3) == [v1, vh]
-                create_edge!(v2, v3, strategy=AlignSizeBoth())
+                @test create_edge!(v2, v3, strategy=AlignSizeBoth())
 
                 @test inputs(v3) == [v1, vh, v2]
-                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(vh)] == [nout(v2)] == [4]
+                @test nin(v4) == [nout(v3)] == [nout(v1)] == [nout(vh)] == [nout(v2)] == [5]
             end
 
             @testset "Add with size cycle SizeInvariant" begin
@@ -545,7 +574,7 @@
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
 
-                @test_logs (:warn, r"Can not add edge") create_edge!(p1, v5)
+                @test @test_logs (:warn, r"Can not add edge") create_edge!(p1, v5) == false
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
             end
@@ -561,12 +590,12 @@
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
 
-                @test_logs (:warn, r"Can not add edge") create_edge!(ve, v4)
+                @test @test_logs (:warn, r"Can not add edge") create_edge!(ve, v4) == false
                 @test inputs(v5) == [v4, v2]
                 @test nin(v5) == [nout(v4), nout(v2)] == [5, 5]
             end
 
-            @testset "PostSelectOutputs SizeInvariant" begin
+            @testset "DecreaseBigger WithUtilityFun SizeInvariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -574,14 +603,17 @@
                 v4 = iv(v1, v2, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                create_edge!(v3, v4, strategy=PostSelectOutputs(align = DecreaseBigger(), valuefun = v -> 1:nout_org(v)))
+                @test create_edge!(v3, v4, strategy=DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
                 @test inputs(v4) == [v1, v2, v3]
+
                 @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
-                @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
+                # IndMem of v4 is updated before edge is added
+                @test lastins(v4) == lastouts.([v1,v2]) == [1:4, 1:4]
+                @test lastouts(v3) == 2:5
             end
 
-            @testset "PostSelectOutputs SizeInvariant post align" begin
+            @testset "PostAlign WithUtilityFun SizeInvariant" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 4, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -589,29 +621,36 @@
                 v4 = iv(v1,v2, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                create_edge!(v3, v4, strategy=PostSelectOutputs(valuefun = v -> 1:nout_org(v)))
+                # Use utility 0 to remove an index so we can see that the utility function has any effect
+                create_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> 0:nout(v)-1 , AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v2, v3]
                 @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]
-                @test in_inds(op(v4)) == out_inds.(op.([v1,v2,v3])) == [1:4, 1:4, 2:5]
+                @test lastins(v4) == lastouts.([v1,v2,v3]) == [1:4, 1:4, 2:5]
             end
 
-            @testset "PostSelectOutputs SizeInvariant add to immutable" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 3, name="v1")
-                v2 = av(v0, 5, name="v2")
-                v3 = iv(v0,v1, name = "v3")
-                v4 = av(v3, 3, name="v4")
+            if !Sys.isapple()
+                @testset "IncreaseSmaller SizeInvariant add to immutable" begin
+                    v0 = inpt(3, "v0")
+                    v1 = av(v0, 3, name="v1")
+                    v2 = av(v0, 5, name="v2")
+                    v3 = iv(v0,v1, name = "v3")
+                    v4 = av(v3, 3, name="v4")
 
-                create_edge!(v2, v3, strategy=PostSelectOutputs(align= IncreaseSmaller(), valuefun = v -> 1:nout_org(v)))
+                    create_edge!(v2, v3, strategy=IncreaseSmaller(mapstrat=WithUtilityFun(v -> 1:nout(v))))
 
-                @test inputs(v3) == [v0, v1, v2]
-                @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
-                @test in_inds(op(v3)) == out_inds.(op.([v1,v1,v2])) == [1:3, 1:3, 3:5]
-                @test in_inds(op(v4)) == [out_inds(op(v3))] == [1:3]
+                    @test inputs(v3) == [v0, v1, v2]
+                    @test nin(v3) == nout.([v0, v1, v2]) == [3,3,3]
+                    # IndMem of v3 is updated before edge is added
+                    @test lastins(v3) == lastouts.([v1,v1]) == [1:3, 1:3]
+                    @test lastouts(v2) == [3,4,5]
+                    @test [lastins(v4)] == [lastouts(v3)] == [1:3]
+                end
+            else
+                @warn "Skipping flaky test \"IncreaseSmaller SizeInvariant add to immutable\" on macOS" 
             end
 
-            @testset "PostSelectOutputs SizeStack" begin
+            @testset "SizeStack default" begin
                 v0 = inpt(3, "v0")
                 v1 = av(v0, 3, name="v1")
                 v2 = av(v0, 4, name="v2")
@@ -619,41 +658,15 @@
                 v4 = sv(v1,v2, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                create_edge!(v3, v4, strategy=PostSelectOutputs())
+                create_edge!(v3, v4)
 
                 @test inputs(v4) == [v1, v2, v3]
                 @test nin(v4) == nout.([v1, v2, v3]) == [3,4,5]
-                @test out_inds(op(v1)) == 1:3
-                @test out_inds(op(v2)) == 1:4
-                @test out_inds(op(v3)) == 1:5
-                @test out_inds(op(v4)) == [1:7;-ones(Int,5)]
-                @test in_inds(op(v5)) == [[1:7;-ones(Int,5)]]
-            end
-
-            @testset "PostSelectOutputs fail size align" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 3, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = sv(v1,v2, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align = FailAlignSizeWarn()))
-                @test inputs(v4) == [v1, v2]
-                @test nin(v4) == nout.([v1, v2]) == [3,4]
-            end
-
-            @testset "PostSelectOutputs fail select" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 4, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = iv(v1,v2, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                @test_logs (:warn, r"Could not align size") create_edge!(v3, v4, strategy=PostSelectOutputs(align=IncreaseSmaller(), select=NoutRevert(), fallback=FailAlignSizeWarn()))
-                @test inputs(v4) == [v1, v2]
-                @test nin(v4) == nout.([v1, v2]) == [4,4]
+                @test lastouts(v1) == 1:3
+                @test lastouts(v2) == 1:4
+                @test lastouts(v3) == 1:5
+                @test lastouts(v4) == 1:12
+                @test lastins(v5) == [1:7;-ones(Int,5)]
             end
 
             @testset "PostSelectOutputs SizeStack accidental aligned last" begin
@@ -664,61 +677,31 @@
                 v4 = sv(v1,v2,v3, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                # These kinda shenanigans is what one might do when one wants to remove an edge without replacing the input neurons of the next layer.
+                # These kinda shenanigans is what one might do when one wants to remove an edge without 
+                # replacing the input neurons of the next layer.
                 insert!(v2, v -> conc(v, dims=1), reverse)
                 dummy = outputs(v2)[]
-                remove_edge!(v2, dummy; strategy = NoSizeChange())
-
-                @test  create_edge!(v3, dummy, strategy = PostAlignJuMP())
+                @test remove_edge!(v2, dummy; strategy = NoSizeChange())
+    
+                # Strategy added to avoid the check for size-cycles here
+                @test create_edge!(v3, dummy; strategy=PostAlign(TruncateInIndsToValid(AlignNinToNout())))
                 @test remove!(dummy, RemoveStrategy(NoSizeChange()))
 
-                Δoutputs(v4, v -> ones(nout_org(v)))
                 @test inputs(v4) == [v1, v3, v3]
                 @test nin(v4) == nout.([v1, v3, v3]) == [3,5,5]
                 @test nin(v5) == [nout(v4)] == [13]
             end
-
-            @testset "PostApplyMutation SizeStack" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 3, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = sv(v1,v2, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                create_edge!(v3, v4, strategy=PostApplyMutation())
-
-                @test inputs(v4) == [v1, v2, v3]
-                @test nin(v4) == nin_org(v4) == nout.([v1, v2, v3]) == [3,4,5]
-                @test nin(v5) == nin_org(v5) == [nout(v4)] == [nout_org(v4)] == [3+4+5]
-            end
-
-            @testset "PostApplyMutation failure" begin
-                v0 = inpt(3, "v0")
-                v1 = av(v0, 4, name="v1")
-                v2 = av(v0, 4, name="v2")
-                v3 = av(v0, 5, name="v3")
-                v4 = iv(v1,v2, name = "v4")
-                v5 = av(v4, 3, name="v5")
-
-                Δnout(v2, -1)
-                create_edge!(v3, v4, strategy=PostApplyMutation(FailAlignSizeRevert()))
-
-                @test inputs(v4) == [v1, v2]
-                @test nin(v4) == nout.([v1, v2]) == [3,3]
-                @test nin_org(v4) == nout_org.([v1, v2]) == [4,4]
-            end
         end
 
         @testset "With size constraints" begin
-
-            struct SizeConstraintNoDecrease
-                constraint
-                nodecrease
+            mutable struct SizeConstraintNoDecrease
+                constraint::Int
+                nodecrease::Bool
+                nin::Int
+                nout::Int
              end
-            NaiveNASlib.minΔnoutfactor(c::SizeConstraintNoDecrease) = c.constraint
-            NaiveNASlib.minΔninfactor(c::SizeConstraintNoDecrease) = c.constraint
-            function NaiveNASlib.compconstraint!(s, c::SizeConstraintNoDecrease, data)
+
+            function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, ::AbstractJuMPΔSizeStrategy, c::SizeConstraintNoDecrease, data)
                 model = data.model
                 v = data.vertex
 
@@ -735,8 +718,18 @@
                     JuMP.@constraint(data.model, data.noutdict[data.vertex] >= nout(data.vertex))
                 end
             end
+            NaiveNASlib.nin(c::SizeConstraintNoDecrease) = [c.nin]
+            NaiveNASlib.nout(c::SizeConstraintNoDecrease) = c.nout
+            function NaiveNASlib.Δsize!(c::SizeConstraintNoDecrease, ins::AbstractVector, outs::AbstractVector)
+                if !ismissing(ins[1])
+                    c.nin = length(ins[1])
+                end
+                c.nout =length(outs)
+                nothing
+            end
+
             # Can't have kwarg due to https://github.com/JuliaLang/julia/issues/32350
-            av(in, outsize, constr, name="avs", nodecr=true) = av(in, outsize, name=name, comp = SizeConstraintNoDecrease(constr, nodecr))
+            av(in, outsize, constr, name="avs", nodecr=true) = av(in, outsize, name=name, comp = SizeConstraintNoDecrease(constr, nodecr, nout(in), outsize))
 
             @testset "Edge addition" begin
 
@@ -749,9 +742,8 @@
                     v5 = av(v3, 7, 7, "v5")
 
                     @test inputs(v3) == [v1]
-                    @test minΔninfactor(v3) == 70
 
-                    create_edge!(v2, v3)
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [28, 15]
@@ -765,9 +757,8 @@
                     v3 = av(v2, 5, 5, "v3")
 
                     @test inputs(v2) == [v1]
-                    @test minΔninfactor(v2) == 10
 
-                    create_edge!(v0, v2)
+                    @test create_edge!(v0, v2)
                     @test inputs(v2) == [v1, v0]
 
                     @test nin(v2) == [nout(v1), nout(v0)] == [10, 3]
@@ -783,9 +774,8 @@
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
-
-                    create_edge!(v2, v3)
+   
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [2, 6]
@@ -801,16 +791,15 @@
                     v5 = imu(v4, 3, name="v5")
 
                     @test inputs(v4) == [v1, v2]
-                    @test ismissing(minΔnoutfactor(v4))
 
-                    create_edge!(v3, v4)
+                    @test create_edge!(v3, v4)
                     @test inputs(v4) == [v1, v2, v3]
 
                     @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [5, 8, 5]
                     @test [nout(v4)] == nin(v5) == [18]
                 end
 
-                @testset "Fail for impossible size constraint" begin
+                @testset "Fail for impossible size constraint" begin                   
                     v0 = inpt(3, "v0")
                     v1 = av(v0, 8, 3, "v1")
                     v2 = av(v0, 11, 2, "v2")
@@ -818,9 +807,7 @@
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
-
-                    @test_throws ErrorException create_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeError())) 
                 end
 
                 @testset "Warn for impossible size constraint and revert" begin
@@ -832,9 +819,8 @@
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
+                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3) == false
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -849,9 +835,8 @@
                     v5 = av(v3, 7, 7, "v5")
 
                     @test inputs(v3) == [v1]
-                    @test minΔninfactor(v3) == 70
-
-                    create_edge!(v2, v3)
+                    
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [78, 78]
@@ -865,9 +850,8 @@
                     v3 = av(v2, 5, 6, "v3", false)
 
                     @test inputs(v2) == [v1]
-                    @test minΔninfactor(v2) == 6
 
-                    create_edge!(v0, v2)
+                    @test create_edge!(v0, v2)
                     @test inputs(v2) == [v1, v0]
 
                     @test nin(v2) == [nout(v1), nout(v0)] == [3, 3]
@@ -883,9 +867,8 @@
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    create_edge!(v2, v3)
+                    @test create_edge!(v2, v3)
                     @test inputs(v3) == [v1, v2]
 
                     @test nin(v3) == [nout(v1), nout(v2)] == [8, 8]
@@ -901,9 +884,8 @@
                     v5 = imu(v4, 3, name="v5")
 
                     @test inputs(v4) == [v1, v2]
-                    @test ismissing(minΔnoutfactor(v4))
 
-                    create_edge!(v3, v4)
+                    @test create_edge!(v3, v4)
                     @test inputs(v4) == [v1, v2, v3]
 
                     @test nin(v4) == [nout(v1), nout(v2), nout(v3)] == [10, 10, 10]
@@ -918,9 +900,8 @@
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    @test_throws ErrorException create_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError create_edge!(v2, v3,  strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeError()))
                 end
 
                 @testset "Warn for impossible size constraint and ignore" begin
@@ -932,9 +913,8 @@
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
+                    @test @test_logs (:warn, r"Could not align sizes") create_edge!(v2, v3) == false
 
                     @test inputs(v3) == [v1]
                     @test [nout(v1)] == nin(v3) == [nout(v3)] == nin(v4) == [8]
@@ -955,7 +935,7 @@
                     @test inputs(v3) == [v1, v2]
                     @test nin(v4) == [nout(v3)] == [nout(v1) + nout(v2)] == [14]
 
-                    remove_edge!(v2, v3)
+                    @test remove_edge!(v2, v3)
                     @test inputs(v3) == [v1]
 
                     @test nin(v4) == nin(v3) == [nout(v1)] == [8]
@@ -970,7 +950,7 @@
 
                     @test inputs(v2) == [v0, v1]
 
-                    remove_edge!(v1, v2)
+                    @test remove_edge!(v1, v2)
                     @test inputs(v2) == [v0]
 
                     @test nin(v2) == [nout(v0)] == [3]
@@ -980,15 +960,14 @@
                 @testset "Remove from nout-constrained to stacking with one immutable output" begin
                     v0 = inpt(3, "v0")
                     v1 = av(v0, 8, 2, "v1", false)
-                    v2 = av(v0, 10, 1, "v2", false) # Δfactor of 1 is of no help as v2 will be remove
+                    v2 = av(v0, 10, 1, "v2", false)
                     v3 = sv(v1,v2, name="v3")
-                    v4 = av(v3, 5, 1, "v4", false) # Δfactor of 1 is of no help as v5 is immutable
+                    v4 = av(v3, 5, 1, "v4", false)
                     v5 = imu(v3, 3, name="v5")
 
                     @test inputs(v3) == [v1,v2]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    remove_edge!(v2, v3)
+                    @test remove_edge!(v2, v3)
                     @test inputs(v3) == [v1]
 
                     @test nin(v3) == [nout(v1)] == [18]
@@ -1005,9 +984,8 @@
 
                     @test inputs(v4) == [v1, v2, v3]
                     @test [nout(v4)] == nin(v5) == [23]
-                    @test ismissing(minΔnoutfactor(v4))
 
-                    remove_edge!(v1, v4)
+                    @test remove_edge!(v1, v4)
                     @test inputs(v4) == [v2, v3]
 
                     @test nin(v4) == [nout(v2), nout(v3)] == [18, 5]
@@ -1022,9 +1000,8 @@
                     v4 = imu(v3, 3, name="v4")
 
                     @test inputs(v3) == [v1, v2]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    @test_throws ErrorException remove_edge!(v2, v3)
+                    @test_throws NaiveNASlib.SizeAlignFailError remove_edge!(v2, v3, strategy = PostAlign(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeError()))
                 end
 
                 @testset "Warn for impossible size constraint and revert" begin
@@ -1037,9 +1014,8 @@
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
                     @test [nout(v3)] == nin(v4) == [19]
-                    @test ismissing(minΔnoutfactor(v3))
 
-                    @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3, strategy = PostAlignJuMP(DefaultJuMPΔSizeStrategy(), fallback=FailAlignSizeWarn()))
+                    @test @test_logs (:warn, r"Could not align sizes") remove_edge!(v2, v3) == false
 
                     @test inputs(v3) == [v1,v2]
                     @test [nout(v1), nout(v2)] == nin(v3) == [8, 11]
@@ -1060,7 +1036,7 @@
             @test inputs(v2) != outputs(v1)
             graph = CompGraph(v0, v2)
 
-            @test graph(3) == 3
+            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
 
             insert!(v1, v -> av(v, nout(v), name="vnew1"))
 
@@ -1068,7 +1044,7 @@
             vnew1 = inputs(v2)[]
             @test [nout(v1)] == nin(vnew1) == [nout(vnew1)] == nin(v2) == [5]
 
-            @test graph(3) == 3
+            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
 
             @test inputs(vnew1) == [v1]
             @test outputs(vnew1) == [v2]
@@ -1082,8 +1058,7 @@
 
             @test [nout(vnew1)] == nin(vnew2) == [nout(vnew3)] == nin(v2) == [5]
 
-            @test graph(3) == 3
-
+            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
         end
 
         @testset "Add to one of many inputs" begin
@@ -1121,12 +1096,15 @@
 
     @testset "Vertex removal" begin
 
-        @testset "Fail noop" begin
+        @testset "Fail noop $(nameof(typeof(strategy)))" for strategy in (
+            FailAlignSizeNoOp(),
+            PostAlign(ΔSizeFailNoOp(), FailAlignSizeNoOp()),
+        )
             v0 = inpt(3, "v0")
             v1 = av(v0, 5, name="v1")
             v2 = av(v1, 4, name="v2")
 
-            @test remove!(v1, RemoveStrategy(FailAlignSizeNoOp())) == false
+            @test remove!(v1, RemoveStrategy(strategy)) == false
 
             @test name.(inputs(v2)) == [name(v1)]
             @test name.(outputs(v1)) == [name(v2)]
@@ -1138,14 +1116,14 @@
             v2 = av(v1, 4, name="v2")
             v3 = av(v2, 6, name="v3")
 
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v3) == [v1]
             @test outputs(v1) == [v3]
             @test nin(v3) == [nout(v1)] == [5]
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v3
-            remove!(v1)
+            @test remove!(v1)
             @test inputs(v3) == [v0]
             @test outputs(v0) == [v3]
             @test nin(v3) == [nout(v0)] == [3]
@@ -1161,13 +1139,13 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [4,3,6]
             @test nin(v5) == [nout(v4)] == [3+4+6]
 
             #Now lets try without connecting the inputs to v4
-            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [3, 6]
             @test nin(v5) == [nout(v4)] == [3+6]
@@ -1183,13 +1161,13 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [4,7,6]
             @test nin(v5) == [nout(v4)] == [4+7+6]
 
             #Now lets try without connecting the inputs to v4
-            remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v1))))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [7, 6]
             @test nin(v5) == [nout(v4)] == [7+6]
@@ -1205,14 +1183,14 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [3,3,3]
             @test nin(v5) == [nout(v4)] == [3]
 
             #Now lets try without connecting the inputs to v4
             # NoSizeChange is just to avoid touching the input vertex
-            remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [3, 3]
             @test nin(v5) == [nout(v4)] == [3]
@@ -1228,14 +1206,14 @@
 
             # Note, input to v1 can not be changed, we must decrease
             # nin of v4 (and v5)
-            remove!(v2)
+            @test remove!(v2)
             @test inputs(v4) == [v1, v0, v3]
             @test nin(v4) == [nout(v1), nout(v0), nout(v3)] == [7,7,7]
             @test nin(v5) == [nout(v4)] == [7]
 
             #Now lets try without connecting the inputs to v4
             # NoSizeChange is just to avoid touching the input vertex
-            remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test remove!(v1, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v4) == [v0, v3]
             @test nin(v4) == [nout(v0), nout(v3)] == [7, 7]
             @test nin(v5) == [nout(v4)] == [7]
@@ -1248,13 +1226,13 @@
             v3 = sv(v1,v2,v2,v1, name="v3")
             v4 = av(v3, 7, name="v4")
 
-            remove!(v1)
+            @test remove!(v1)
             @test inputs(v3) == [v0, v2, v2, v0]
             @test nin(v3) == [nout(v0), nout(v2), nout(v2), nout(v0)] == [3,5,5,3]
             @test nin(v4) == [nout(v3)] == [3+5+5+3]
 
             #Now lets try without connecting the inputs to v3
-            remove!(v2, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v2))))
+            @test remove!(v2, RemoveStrategy(ConnectNone(), ChangeNinOfOutputs(-nout(v2))))
             @test inputs(v3) == [v0, v0]
             @test nin(v3) == [nout(v0), nout(v0)] == [3,3]
             @test nin(v4) == [nout(v3)] == [3+3]
@@ -1267,14 +1245,14 @@
             v3 = iv(v1,v2,v2,v1, name="v3")
             v4 = av(v3, 7, name="v4")
 
-            remove!(v1)
+            @test remove!(v1)
             @test inputs(v3) == [v0, v2, v2, v0]
             @test nin(v3) == [nout(v0), nout(v2), nout(v2), nout(v0)] == [3,3,3,3]
             @test nin(v4) == [nout(v3)] == [3]
 
             #Now lets try without connecting the inputs to v3
             # NoSizeChange is just to avoid touching the input vertex
-            remove!(v2, RemoveStrategy(ConnectNone(), NoSizeChange()))
+            @test remove!(v2, RemoveStrategy(ConnectNone(), NoSizeChange()))
             @test inputs(v3) == [v0, v0]
             @test nin(v3) == [nout(v0), nout(v0)] == [3,3]
             @test nin(v4) == [nout(v3)] == [3]
@@ -1288,17 +1266,17 @@
             v4 = av(v1, 7)
             v5 = av(v2, 8)
 
-            remove!(v2)
+            @test remove!(v2)
             @test outputs(v1) == [v5, v3, v4]
             @test nin(v5) == nin(v3) == nin(v4) == [nout(v1)] == [5]
 
             # Test that it is possible to remove vertex without any outputs
-            remove!(v3)
+            @test remove!(v3)
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [6]
         end
 
-        @testset "Remove one of many outputs PostAlignJuMP" begin
+        @testset "Remove one of many outputs PostAlign" begin
             v0 = inpt(3)
             v1 = av(v0, 4, name="v1")
             v2 = av(v1, 5, name="v2")
@@ -1306,14 +1284,36 @@
             v4 = av(v1, 7, name="v4")
             v5 = av(v2, 8, name="v5")
 
-            remove!(v2, RemoveStrategy(PostAlignJuMP()))
+            @test remove!(v2, RemoveStrategy(PostAlign()))
             @test outputs(v1) == [v5, v3, v4]
             @test nin(v5) == nin(v3) == nin(v4) == [nout(v1)] == [4]
 
             # Test that it is possible to remove vertex without any outputs
-            remove!(v3, RemoveStrategy(PostAlignJuMP()))
+            @test remove!(v3, RemoveStrategy(PostAlign()))
             @test outputs(v1) == [v5, v4]
             @test nin(v5) == nin(v4) == [nout(v1)] == [4]
+        end
+
+        @testset "Remove with negative utility IncreaseSmaller" begin
+            v0 = inpt(3)
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+            v3 = av(v2, 3, name="v3")
+
+            @test remove!(v2, RemoveStrategy(IncreaseSmaller(;mapstrat=WithUtilityFun(v -> v == v1 ? -1 : 1), fallback=ΔSizeFailNoOp())))
+
+            @test [nout(v1)] == nin(v3) == [5]
+        end
+
+        @testset "Remove with negative utility DecreaseBigger" begin
+            v0 = inpt(3)
+            v1 = av(v0, 5, name="v1")
+            v2 = av(v1, 4, name="v2")
+            v3 = av(v2, 3, name="v3")
+
+            @test remove!(v2, RemoveStrategy(DecreaseBigger(;mapstrat=WithUtilityFun(v -> v == v2 ? -1 : 1), fallback=ΔSizeFailNoOp())))
+
+            @test [nout(v1)] == nin(v3) == [4]
         end
 
         @testset "Hidden immutable" begin
@@ -1323,7 +1323,7 @@
             v3 = av(v2, 5)
 
             #Danger! Must realize that size of v1 can not be changed!
-            remove!(v2)
+            @test remove!(v2)
             @test outputs(v1) == [v3]
             @test inputs(v3) == [v1]
             @test nin(v3) == [nout(v1)] == [3]
@@ -1338,11 +1338,8 @@
             v2 = av(join, 16, name = "v2") # 16 is not divisible by 3!
             v3 = av(v2, 4, name="v3")
 
-            @test minΔnoutfactor_only_for.(outputs(v2)) == [1]
-            @test minΔnoutfactor_only_for.(inputs(v2)) == [3]
-
             # Impossible to set nout of join to 16 as it is a join of the same vertex 3 times (which is obviously a senseless construct)
-            remove!(v2)
+            @test remove!(v2)
             @test nin(v3) == [nout(join)] == [3nout(v1)] == [15]
         end
 
@@ -1351,7 +1348,7 @@
             v2 = av(v1, 5, name="v2")
             v3 = imu(v2, 4, name="v3")
 
-            @test_throws ErrorException remove!(v2)
+            @test_throws NaiveNASlib.SizeAlignFailError remove!(v2, RemoveStrategy(AlignSizeBoth(;fallback=FailAlignSizeError())))
         end
 
         @testset "Warn for impossible removal and ignore" begin
@@ -1359,7 +1356,7 @@
             v2 = av(v1, 5, name="v2")
             v3 = imu(v2, 4, name="v3")
 
-            @test_logs (:warn, r"Could not align sizes") remove!(v2, RemoveStrategy(AlignSizeBoth(FailAlignSizeWarn())))
+            @test @test_logs (:warn, r"Could not align sizes") remove!(v2) == false
 
             @test outputs(v1) == [v2]
             @test inputs(v2) == [v1]
@@ -1370,40 +1367,48 @@
         end
 
         @testset "Size constraints" begin
+            JuMP = NaiveNASlib.JuMP
+            struct SizeConstraint{T}
+                constraint::Int
+                w::T
+            end
 
-            struct SizeConstraint constraint; end
-            NaiveNASlib.minΔnoutfactor(c::SizeConstraint) = c.constraint
-            NaiveNASlib.minΔninfactor(c::SizeConstraint) = c.constraint
+            function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, s, c::SizeConstraint, data)
+                fv_out = JuMP.@variable(data.model, integer=true)
+                JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
+    
+                ins = filter(vin -> vin in keys(data.noutdict), inputs(data.vertex))
+                fv_in = JuMP.@variable(data.model, [1:length(ins)], integer=true)
+                JuMP.@constraint(data.model, [i=1:length(ins)], c.constraint * fv_in[i] ==  nout(ins[i]) - data.noutdict[ins[i]])
+            end
+            NaiveNASlib.Δsizetype(c::SizeConstraint) = NaiveNASlib.Δsizetype(c.w)
+            NaiveNASlib.nout(c::SizeConstraint) = nout(c.w)
+            NaiveNASlib.nin(c::SizeConstraint) = nin(c.w)
+            NaiveNASlib.Δsize!(c::SizeConstraint, insize::AbstractVector, outsize::AbstractVector) = Δsize!(c.w, insize, outsize)
 
             @testset "Incompatible size constraints" begin
 
-                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
                 v2 = av(v1, 5, name = "v2")
-                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
-
-                @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
-                @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
+                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
 
                 # Impossible to increase v1 by 5 due to SizeConstraint(3)
                 # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
-                # However, if we decrease v1 by 2 and increase v3 by 3 we will hit home!
+                # However, if we increase v1 by 2*2 and increase v3 by 3*3 we will hit home!
                 # Fallback to AlignBoth which does just that
-                remove!(v2)
-                @test nin(v3) == [nout(v1)] == [8]
+                @test remove!(v2)
+                @test nin(v3) == [nout(v1)] == [14]
             end
 
             @testset "Incompatible size constraints transparent vertex" begin
 
-                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
                 v2 = sv(v1, name = "v2")
-                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3))
-
-                @test minΔnoutfactor_only_for.(outputs(v2)) == [3]
-                @test minΔnoutfactor_only_for.(inputs(v2)) == [2]
+                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
 
                 # Size is already aligned due to transparent. Just test that this
                 # does not muck things up
-                remove!(v2, RemoveStrategy(AlignSizeBoth()))
+                @test remove!(v2, RemoveStrategy(AlignSizeBoth()))
                 @test nin(v3) == [nout(v1)] == [10]
             end
         end
@@ -1418,28 +1423,28 @@
                 v5 = iv(v4, v1, name="v5")
                 v6 = av(v5, 4, name="v6")
 
-                remove!(v4)
+                @test remove!(v4)
                 @test inputs(v5) == [v3, v1]
                 @test nin(v5) == [nout(v3), nout(v1)] == [10, 10]
                 @test nin(v6) == [nout(v5)] == [10]
 
-                remove!(v3)
+                @test remove!(v3)
                 @test inputs(v5) == [v2, v1]
                 @test nin(v5) == [nout(v2), nout(v1)] == [10, 10]
                 @test nin(v6) == [nout(v5)] == [10]
 
-                remove!(v2)
+                @test remove!(v2)
                 @test inputs(v5) == [v1, v1]
                 @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
                 @test nin(v6) == [nout(v5)] == [10]
 
                 v7 = av(v6, 13, name="v7")
-                remove!(v6)
+                @test remove!(v6)
                 @test nin(v5) == [nout(v1), nout(v1)] == [10, 10]
                 @test nin(v7) == [nout(v5)] == [10]
 
                 v8 = av(v7, 3, name="v8")
-                remove!(v7)
+                @test remove!(v7)
                 @test nin(v5) == [nout(v1), nout(v1)] == [13, 13]
                 @test nin(v7) == [nout(v5)] == [13]
             end
@@ -1453,7 +1458,7 @@
                 v4 = av(v3, 12, name="v4")
                 v5 = av(v4, 7, name="v5")
 
-                remove!(v4)
+                @test remove!(v4)
                 @test inputs(v5) == [v3]
                 @test outputs(v3) == [v5]
 
@@ -1469,7 +1474,7 @@
                 v6 = iv(v3, v4, name="v6")
                 v7 = av(v6, 2, name="v7")
 
-                remove!(v5)
+                @test remove!(v5)
                 @test inputs(v6) == [v3, v4]
                 @test nin(v6) == [nout(v3), nout(v4)] == [3, 3]
             end
@@ -1485,7 +1490,7 @@
                 v4 = iv(v3, name="v4")
                 v5 = av(v4, 12, name="v5")
 
-                remove!(v2)
+                @test remove!(v2)
                 @test inputs(p1) == inputs(p2₁) == [v1]
                 @test nin(p1) == nin(p2₁) == [nout(v1)] == [5]
             end
@@ -1498,7 +1503,7 @@
                 v5 = iv(v4, name="v5")
                 v6 = "v6" >> v5 + v2
 
-                remove!(v4, RemoveStrategy(CheckNoSizeCycle()))
+                @test remove!(v4, RemoveStrategy(CheckNoSizeCycle()))
                 @test inputs(v5) == [v3]
                 @test nin(v5) == [nout(v3)] == [5]
             end
@@ -1513,7 +1518,7 @@
                 v5 = "v5" >> v4 + v2
 
                 # Evilness: Removing p1 would create a "size transparent loop" where nout(v4) = nout(v4) + nout(p2)
-                @test_logs (:warn, "Can not remove vertex $(p1)! Size cycle detected!") remove!(p1)
+                @test @test_logs (:warn, "Can not remove vertex $(p1)! Size cycle detected!") remove!(p1) == false
                 @test inputs(v4) == [p1, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5
@@ -1529,7 +1534,7 @@
                 v4 = sv(p1b,p2, name="v4")
                 v5 = "v5" >> v4 + v2
 
-                remove!(p1b)
+                @test remove!(p1b)
                 @test inputs(v4) == [p1a, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5
@@ -1545,7 +1550,7 @@
                 v4 = sv(p1b,p2, name="v4")
                 v5 = "v5" >> v4 + v2
 
-                remove!(p1a)
+                @test remove!(p1a)
                 @test inputs(v4) == [p1b, p2]
                 @test nout.(inputs(v4)) == nin(v4) == [3,2]
                 @test sum(nin(v4)) == nout(v4) == 5
