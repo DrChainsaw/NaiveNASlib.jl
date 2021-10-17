@@ -321,8 +321,8 @@ v4, l4 = vertexandlayer(merged, 2)
 [ 1 3 5 7  9 11 13 ;
   2 4 6 8 10 12 14 ]
 
-# Now, lets decrease `v1` by 1 and force `merged` to retain its size
-# which in turn forces `v2` to grow by 1.
+# Now, lets decrease `v2` by 1 and force `merged` to retain its size
+# which in turn forces `v1` to grow by 1.
 # Assign utility 10 to neurons 1 and 3 of `v2` and 1 for all other neurons in the model. 
 @test Δnout!(v2 => -1, merged => 0) do v
     v == v2 ? [10, 1, 10] : 1
