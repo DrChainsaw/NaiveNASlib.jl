@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Size Strategies · NaiveNASlib</title><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.039/juliamono-regular.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.11/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">NaiveNASlib</a></span></div><form class="docs-search" action="../../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../../">Introduction</a></li><li><a class="tocitem" href="../../../examples/quicktutorial/">Quick Tutorial</a></li><li><a class="tocitem" href="../../../examples/advancedtutorial/">Advanced Tutorial</a></li><li><a class="tocitem" href="../../../terminology/">Terminology</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../simple/createvertex/">Vertex Creation</a></li><li><a class="tocitem" href="../../simple/graph/">Graph Operations</a></li><li><a class="tocitem" href="../../simple/queryvertex/">Access vertex data</a></li><li><a class="tocitem" href="../../simple/mutatevertex/">Vertex Mutation</a></li><li><input class="collapse-toggle" id="menuitem-5-5" type="checkbox" checked/><label class="tocitem" for="menuitem-5-5"><span class="docs-label">Advanced</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../graphquery/">Advanced Graph Functions</a></li><li class="is-active"><a class="tocitem" href>Size Strategies</a></li><li><a class="tocitem" href="../structure/">Vertex Connection Strategies</a></li><li><a class="tocitem" href="../traits/">Extra Vertex Traits</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5-6" type="checkbox"/><label class="tocitem" for="menuitem-5-6"><span class="docs-label">Extend</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../extend/vertices/">Vertex Types</a></li><li><a class="tocitem" href="../../extend/strategies/">Strategy Base Types</a></li><li><a class="tocitem" href="../../extend/traits/">Trait Types</a></li><li><a class="tocitem" href="../../extend/misc/">Other Functions</a></li></ul></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">API Reference</a></li><li><a class="is-disabled">Advanced</a></li><li class="is-active"><a href>Size Strategies</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Size Strategies</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/master/docs/src/reference/advanced/size.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Size-Strategies"><a class="docs-heading-anchor" href="#Size-Strategies">Size Strategies</a><a id="Size-Strategies-1"></a><a class="docs-heading-anchor-permalink" href="#Size-Strategies" title="Permalink"></a></h1><p>As shown in <a href="../../../examples/advancedtutorial/#Advanced-Tutorial">Advanced Tutorial</a> size strategies give a high degree of flexibility when it comes to changing the size of vertices in the graph.</p><p>All size strategies are executed through the <a href="../../extend/misc/#NaiveNASlib.Δsize!-Tuple{Any, AbstractVector{T} where T, AbstractVector{T} where T}"><code>Δsize!</code></a> function.</p><p>Imported to namespace by</p><pre><code class="language-julia hljs">using NaiveNASlib.Advanced</code></pre><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.DefaultJuMPΔSizeStrategy" href="#NaiveNASlib.DefaultJuMPΔSizeStrategy"><code>NaiveNASlib.DefaultJuMPΔSizeStrategy</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">DefaultJuMPΔSizeStrategy &lt;: AbstractJuMPΔSizeStrategy
+DefaultJuMPΔSizeStrategy()</code></pre><p>Default strategy which applies default constraints or objectives to a model. </p><p>Intended use is for strategies which apply special constraints or objectives to a subset of the vertices.</p><p>Also useful when configuring <a href="../../extend/strategies/#NaiveNASlib.DecoratingJuMPΔSizeStrategy"><code>DecoratingJuMPΔSizeStrategies</code></a>.</p><p><strong>Examples</strong></p><p>Use to get add special constraints for a subset of vertices:</p><pre><code class="language-julia hljs">function NaiveNASlib.addsomeconstraint!(s::MySpecialStrategy, v::AbstractVertex, data)
+    if v === s.targetvertex
+        # Add some special constraints here
+    else
+        # Use the default
+        NaiveNASlib.addsomeconstraint!(DefaultJuMPΔSizeStrategy(), v::AbstractVertex, data)
+    end
+end</code></pre><p>Use with a <a href="../../extend/strategies/#NaiveNASlib.DecoratingJuMPΔSizeStrategy"><code>DecoratingJuMPΔSizeStrategy</code></a>:</p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Advanced
+
+julia&gt; WithUtilityFun(defaultutility, DefaultJuMPΔSizeStrategy())
+WithUtilityFun{typeof(defaultutility), DefaultJuMPΔSizeStrategy}(NaiveNASlib.defaultutility, DefaultJuMPΔSizeStrategy())</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L91-L121">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNinExact" href="#NaiveNASlib.ΔNinExact"><code>NaiveNASlib.ΔNinExact</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">ΔNinExact(args...; fallback)</code></pre><p>Return a <code>ΔNout{Exact}</code> configured to set <code>nout</code> of the inputs to vertices in <code>args</code> to the given sizes.</p><p>For vertices with more than one input, the size change must be expressed as a tuple with one element per input.  Use <code>missing</code> to indicate that no special treatment is needed for an input.</p><p>Accepts either a <code>Dict</code> or arguments used to create a <code>Dict</code> (e.g. a set of <code>Pair</code>s or a generator).</p><p>By default, <code>fallback</code> is set to give a warning and then try again with <a href="#NaiveNASlib.ΔNinRelaxed"><code>ΔNinRelaxed(args...)</code></a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
+
+julia&gt; module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=&gt;ins[1], 1=&gt;outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
+
+julia&gt; using .TestNNLib;
+
+julia&gt; iv = affine(inputvertex(&quot;in&quot;, 3), 6);
+
+julia&gt; v1 = affine(iv, 4);
+
+julia&gt; v2 = affine(iv, 5);
+
+julia&gt; ΔNinExact(v1, 3);
+
+julia&gt; ΔNinExact(v1 =&gt; -3, v2 =&gt; -2);
+
+julia&gt; ΔNinExact(Dict(v1 =&gt; 3, v2 =&gt; 2));
+
+julia&gt; v3 = conc(affine(iv, 4), affine(iv, 5), affine(iv, 6); dims=2);
+
+julia&gt; v4 = conc(affine(iv, 7), affine(iv, 8); dims=2);
+
+julia&gt; ΔNinExact(v3, 3, missing, 2);
+
+julia&gt; ΔNinExact(v3 =&gt; (3, missing, 2), v4 =&gt; (-2, 0));</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L293-L306">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNinRelaxed" href="#NaiveNASlib.ΔNinRelaxed"><code>NaiveNASlib.ΔNinRelaxed</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">ΔNinRelaxed(args...; fallback)</code></pre><p>Same as <a href="#NaiveNASlib.ΔNinExact"><code>ΔNinExact</code></a> except <code>Exact</code> is replaced by <code>Relaxed</code> and <code>fallback</code> set to <a href="#NaiveNASlib.ΔSizeFailNoOp"><code>ΔSizeFailNoOp</code></a> by default.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
+
+julia&gt; module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=&gt;ins[1], 1=&gt;outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
+
+julia&gt; using .TestNNLib;
+
+julia&gt; iv = affine(inputvertex(&quot;in&quot;, 3), 6);
+
+julia&gt; v1 = affine(iv, 4);
+
+julia&gt; v2 = affine(iv, 5);
+
+julia&gt; ΔNinRelaxed(v1, 3);
+
+julia&gt; ΔNinRelaxed(v1 =&gt; -3, v2 =&gt; -2);
+
+julia&gt; ΔNinRelaxed(Dict(v1 =&gt; 3, v2 =&gt; 2));
+
+julia&gt; v3 = conc(affine(iv, 4), affine(iv, 5), affine(iv, 6); dims=2);
+
+julia&gt; v4 = conc(affine(iv, 7), affine(iv, 8); dims=2);
+
+julia&gt; ΔNinRelaxed(v3, 3, missing, 2);
+
+julia&gt; ΔNinRelaxed(v3 =&gt; (3, missing, 2), v4 =&gt; (-2, 0));</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L309-L315">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNin" href="#NaiveNASlib.ΔNin"><code>NaiveNASlib.ΔNin</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">ΔNin(args...;[fallback])</code></pre><p>Splits <code>args</code> into relaxed and exact size changes and creates the appropriate strategy (one of <code>ΔNout{Exact}, ΔNout{Relaxed} or ΔNoutMix</code>).</p><p>Fallback strategy may be supplied through the <code>fallback</code> keyword. Defaults to <code>ΔNinRelaxed</code> for all given vertices.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
+
+julia&gt; module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=&gt;ins[1], 1=&gt;outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
+
+julia&gt; using .TestNNLib;
+
+julia&gt; iv = affine(inputvertex(&quot;in&quot;, 3), 6);
+
+julia&gt; v1 = affine(iv, 4);
+
+julia&gt; v2 = affine(iv, 5);
+
+julia&gt; ΔNin(v1, 3);
+
+julia&gt; ΔNin(v1 =&gt; -3, v2 =&gt; -2);
+
+julia&gt; ΔNin(Dict(v1 =&gt; 3, v2 =&gt; 2));
+
+julia&gt; v3 = conc(affine(iv, 4), affine(iv, 5), affine(iv, 6); dims=2);
+
+julia&gt; v4 = conc(affine(iv, 7), affine(iv, 8); dims=2);
+
+julia&gt; ΔNin(v3, 3, missing, 2);
+
+julia&gt; ΔNin(v3 =&gt; (3, missing, 2), v4 =&gt; (-2, 0));
+
+julia&gt; ΔNin(v3, relaxed(3), missing, 2);
+
+julia&gt; ΔNin(v3 =&gt; (relaxed(3), missing, 2), v4 =&gt; relaxed(-2, 0));</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L383-L395">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNoutExact" href="#NaiveNASlib.ΔNoutExact"><code>NaiveNASlib.ΔNoutExact</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">ΔNoutExact(args...; fallback)</code></pre><p>Return a <code>ΔNout{Exact}</code> with <code>fallback</code> set to give a warning and then try again with <a href="#NaiveNASlib.ΔNoutRelaxed"><code>ΔNoutRelaxed(args...)</code></a>.</p><p>Accepts either a <code>Dict</code> or arguments used to create a <code>Dict</code> (e.g. a set of <code>Pair</code>s or a generator).</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
+
+julia&gt; module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=&gt;ins[1], 1=&gt;outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
+
+julia&gt; using .TestNNLib;
+
+julia&gt; iv = affine(inputvertex(&quot;in&quot;, 3), 6);
+
+julia&gt; v1 = affine(iv, 4);
+
+julia&gt; v2 = affine(iv, 5);
+
+julia&gt; ΔNoutExact(v1, 3);
+
+julia&gt; ΔNoutExact(v1 =&gt; -3, v2 =&gt; -2);
+
+julia&gt; ΔNoutExact(Dict(v1 =&gt; 3, v2 =&gt; 2));</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L256-L264">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNoutRelaxed" href="#NaiveNASlib.ΔNoutRelaxed"><code>NaiveNASlib.ΔNoutRelaxed</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">ΔNoutRelaxed(args...;fallback)</code></pre><p>Return a <code>ΔNout{Relaxed}</code> with <code>fallback</code> set to <a href="#NaiveNASlib.ΔSizeFailNoOp"><code>ΔSizeFailNoOp</code></a>.</p><p>Accepts either a <code>Dict</code> or arguments used to create a <code>Dict</code> (e.g. a set of <code>Pair</code>s or a generator).</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
+
+julia&gt; module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=&gt;ins[1], 1=&gt;outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
+
+julia&gt; using .TestNNLib;
+
+julia&gt; iv = affine(inputvertex(&quot;in&quot;, 3), 6);
+
+julia&gt; v1 = affine(iv, 4);
+
+julia&gt; v2 = affine(iv, 5);
+
+julia&gt; ΔNoutRelaxed(v1, 3);
+
+julia&gt; ΔNoutRelaxed(v1 =&gt; -3, v2 =&gt; -2);
+
+julia&gt; ΔNoutRelaxed(Dict(v1 =&gt; 3, v2 =&gt; 2));</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L267-L275">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNout-Tuple" href="#NaiveNASlib.ΔNout-Tuple"><code>NaiveNASlib.ΔNout</code></a> — <span class="docstring-category">Method</span></header><section><div><pre><code class="language-julia hljs">ΔNout(args...;[fallback])</code></pre><p>Splits <code>args</code> into relaxed and exact size changes and creates the appropriate strategy (one of <code>ΔNout{Exact}, ΔNout{Relaxed} or ΔNoutMix</code>).</p><p>Fallback strategy may be supplied through the <code>fallback</code> keyword. Defaults to <code>ΔNoutRelaxed</code> for all given vertices.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib, NaiveNASlib.Extend, NaiveNASlib.Advanced
+
+julia&gt; module TestNNLib
+           using NaiveNASlib, NaiveNASlib.Extend
+           mutable struct Affine{T} W::Matrix{T} end
+           NaiveNASlib.nout(a::Affine) = size(a.W, 1)
+           NaiveNASlib.nin(a::Affine) = [size(a.W, 2)]
+           NaiveNASlib.Δsize!(a::Affine, ins::AbstractVector, outs::AbstractVector) = a.W = parselect(a.W, 2=&gt;ins[1], 1=&gt;outs)
+           affine(in, outsize) = absorbvertex(Affine(ones(outsize, nout(in))), in)
+           export affine
+       end;
+
+julia&gt; using .TestNNLib;
+
+julia&gt; iv = affine(inputvertex(&quot;in&quot;, 3), 6);
+
+julia&gt; v1 = affine(iv, 4);
+
+julia&gt; v2 = affine(iv, 5);
+
+julia&gt; ΔNout(v1, 3);
+
+julia&gt; ΔNout(v1 =&gt; -3, v2 =&gt; -2);
+
+julia&gt; ΔNout(Dict(v1 =&gt; 3, v2 =&gt; 2));
+
+julia&gt; ΔNout(v1, relaxed(2));
+
+julia&gt; ΔNout(v1 =&gt; relaxed(2), v2 =&gt; -1);</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L365-L377">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔNout" href="#NaiveNASlib.ΔNout"><code>NaiveNASlib.ΔNout</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">ΔNout &lt;: AbstractJuMPΔSizeStrategy
+ΔNout{T, V, F}(Δs::Dict{V, Int}, fallback::F)</code></pre><p>Strategy for changing nout of vertices.</p><p>For each key-value pair in <code>v, Δ</code> in <code>Δs</code>, change <a href="../../simple/queryvertex/#NaiveNASlib.nout"><code>nout(v)</code></a> by <code>Δ</code>, i.e new size is <code>nout(v) + Δ</code>.</p><p>If <code>T == Exact</code>, size change will be added as a constraint to the model which means that the operation will fail if it is not possible to change <code>nout(v)</code> by exactly <code>Δ</code>.</p><p>If <code>T == Relaxed</code>, size change will be added as an objective to the model which means that <code>nout(v)</code> might  not change by exactly <code>Δ</code>. In addition, a constraint that <code>nout(v)</code> must change is also added.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L173-L186">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.WithUtilityFun" href="#NaiveNASlib.WithUtilityFun"><code>NaiveNASlib.WithUtilityFun</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">WithUtilityFun{F, S} &lt;: AbstractΔSizeStrategy
+WithUtilityFun(utilityfun::F, strategy::S)</code></pre><p>Applies neuron indices selection with <code>strategy</code> and using <code>utilityfun</code> to compute the utility of neurons indices.</p><p>Note that <code>utilityfun</code> will override any utility function supplied in function call. Thus it is possible use  <code>WithUtilityFun</code> to change utility function e.g. when switching to a fallback strategy.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L525-L533">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.UpperInsertBound" href="#NaiveNASlib.UpperInsertBound"><code>NaiveNASlib.UpperInsertBound</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">UpperInsertBound{V&lt;:AbstractDict{&lt;:AbstractVertex, &lt;:Integer}, S, F} &lt;: DecoratingJuMPΔSizeStrategy
+UpperInsertBound(vbounds; strategy, fallback)
+UpperInsertBound(vs, bound::Integer; strategy, fallback)</code></pre><p>Sets upper bound for how many new neurons to insert of each vertex <code>v</code> in <code>vbounds</code> to <code>vbounds[v]</code> and then applies neuron indices  selection with <code>strategy</code> (default <a href="#NaiveNASlib.DefaultJuMPΔSizeStrategy"><code>DefaultJuMPΔSizeStrategy</code></a>).</p><p>Alternatively, sets the upper bound of each vertex in <code>vs</code> to <code>bound</code>. Applies <code>bound</code> to all vertices if <code>vs</code> is empty.</p><p>Mostly useful to minimize solver time in cases when one does not want any new neurons as disallowing this allows skipping a couple of constraints.</p><p>If it fails, the operation will be retried with the <code>fallback</code> strategy (default <a href="#NaiveNASlib.ΔSizeFailNoOp"><code>ΔSizeFailNoOp</code></a>).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L544-L557">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.WithKwargs" href="#NaiveNASlib.WithKwargs"><code>NaiveNASlib.WithKwargs</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">WithKWargs{KW, S} &lt;: AbstractAfterΔSizeStrategy
+WithKwargs(strategy; kwargs...)</code></pre><p>Adds keyword argument <code>kwargs</code> to any calls to <a href="../../extend/misc/#NaiveNASlib.Δsize!-Tuple{Any, AbstractVector{T} where T, AbstractVector{T} where T}"><code>Δsize!</code></a> after sizes have been determined.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L581-L586">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.LogΔSizeExec" href="#NaiveNASlib.LogΔSizeExec"><code>NaiveNASlib.LogΔSizeExec</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">LogΔSizeExec &lt;: AbstractJuMPΔSizeStrategy
+LogΔSizeExec(msgfun)
+LogΔSizeExec(msgfun, level::Logging.LogLevel)
+LogΔSizeExec(msgfun, level::Logging.LogLevel, andthen::AbstractJuMPΔSizeStrategy)</code></pre><p>Logs <code>msgfun(v)</code> at log level <code>level</code>, then executes <a href="../../extend/strategies/#NaiveNASlib.AbstractJuMPΔSizeStrategy"><code>AbstractJuMPΔSizeStrategy</code></a> <code>andthen</code> for vertex <code>v</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L69-L76">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ThrowΔSizeFailError" href="#NaiveNASlib.ThrowΔSizeFailError"><code>NaiveNASlib.ThrowΔSizeFailError</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">ThrowΔSizeFailError &lt;: AbstractJuMPΔSizeStrategy
+ThrowΔSizeFailError(msg::String)</code></pre><p>Throws an <code>ΔSizeFailError</code> with message <code>msg</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L45-L50">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.ΔSizeFailNoOp" href="#NaiveNASlib.ΔSizeFailNoOp"><code>NaiveNASlib.ΔSizeFailNoOp</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">ΔSizeFailNoOp &lt;: AbstractJuMPΔSizeStrategy
+ΔSizeFailNoOp()</code></pre><p>Does not perform any action.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L59-L64">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.AlignNinToNout" href="#NaiveNASlib.AlignNinToNout"><code>NaiveNASlib.AlignNinToNout</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">AlignNinToNout{S, F} &lt;: DecoratingJuMPΔSizeStrategy
+AlignNinToNout(;vstrat::S, fallback::F)
+AlignNinToNout(vstrat::S, fallback::F)</code></pre><p>Adds variables and constraints for <code>nin(vi) == nout.(inputs(vi))</code>.</p><p>Generally useful when doing structural changes such are removing/adding vertices or edges.</p><p>If it fails, the operation will be retried with the <code>fallback</code> strategy (default <a href="#NaiveNASlib.ΔSizeFailNoOp"><code>ΔSizeFailNoOp</code></a>).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L431-L441">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.TruncateInIndsToValid" href="#NaiveNASlib.TruncateInIndsToValid"><code>NaiveNASlib.TruncateInIndsToValid</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">TruncateInIndsToValid{S} &lt;: AbstractΔSizeStrategy
+TruncateInIndsToValid()
+TruncateInIndsToValid(s::S)</code></pre><p>Ensures that all selected input indices are within range of existing input indices after applying <code>s</code>  (default <a href="#NaiveNASlib.DefaultJuMPΔSizeStrategy"><code>DefaultJuMPΔSizeStrategy</code></a>).</p><p>Not needed in normal cases, but certain structural mutations (e.g create_edge!) may cause this to happen  due to how constraints are (not) created when original sizes do not align in conjunction with how result of  selection is interpreted.</p><p>An example of when it is needed is when adding an edge from vertex <code>vi</code> to an invariant vertex <code>vo</code> where  <a href="../../simple/queryvertex/#NaiveNASlib.nout"><code>nout(vi)</code></a> <code>&gt;</code> <a href="../../simple/queryvertex/#NaiveNASlib.nout"><code>nout(vo)</code></a>. In this case it is expected that the result of the optimization is that the indices <code>1:nout(vi)</code> of <code>vi</code> shall be kept. However, this will propagate to <code>vo</code> which will be  instructed to keep indices it does not have. With this strategy, all indices which are larger than <code>nout(vo)</code> will be replaced by <code>-1</code> (which indicates that new parameters shall be created) </p><p>While this may be considered a flaw in the output selection procedure, it is rare enough so that in most cases  when it happens it is the result of a user error or lower level bug. Therefore this strategy is left optional  to be used only in cases when mismatches are expected.</p><p>Note that in most normal cases, this has no effect since vertices capable of getting new input edges generally  don&#39;t have parameters.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L491-L515">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.TimeLimitΔSizeStrategy" href="#NaiveNASlib.TimeLimitΔSizeStrategy"><code>NaiveNASlib.TimeLimitΔSizeStrategy</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">TimeLimitΔSizeStrategy{S} &lt;: DecoratingJuMPΔSizeStrategy
+TimeLimitΔSizeStrategy(limit::Number)
+TimeLimitΔSizeStrategy(limit::Number, base::S)</code></pre><p>Sets the time limit for the solver to <code>limit</code>. Use strategy <code>base</code> for all other aspects. </p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L125-L131">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.TimeOutAction" href="#NaiveNASlib.TimeOutAction"><code>NaiveNASlib.TimeOutAction</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">TimeOutAction{S,A,F} &lt;: DecoratingJuMPΔSizeStrategy
+TimeOutAction(action::A, base::S, fallback::F)
+TimeOutAction(base; fallback)</code></pre><p>Calls <code>action(model)</code> if JuMP model <code>model</code> has status <code>MOI.TIME_LIMIT</code> after optimization stops. Use strategy <code>base</code> for all other aspects.</p><p>Default action is to display a warning and then apply <code>fallback</code> (default <a href="#NaiveNASlib.ΔSizeFailNoOp"><code>ΔSizeFailNoOp</code></a>).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L143-L151">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.AfterΔSizeCallback" href="#NaiveNASlib.AfterΔSizeCallback"><code>NaiveNASlib.AfterΔSizeCallback</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia hljs">AfterΔSizeCallback{F, S} &lt;: AbstractAfterΔSizeStrategy
+AfterΔSizeCallback(cbfun::F, basestrat::S=ThrowΔSizeFailError())</code></pre><p>Calls <code>cbfun(v, Δ, isnout)</code> for all vertices which change size after having been asked to change their sizes as a result of <code>basestrat</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L597-L602">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.logafterΔsize" href="#NaiveNASlib.logafterΔsize"><code>NaiveNASlib.logafterΔsize</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">logafterΔsize(printfun=nameorrepr;level=Logging.Info, base=DefaultJuMPΔSizeStrategy())</code></pre><p>Return an <a href="#NaiveNASlib.AfterΔSizeCallback"><code>AfterΔSizeCallback</code></a> configured to log size changes with log level <code>level</code>.</p><p>For a given vertex <code>v</code>, <code>printfun(v)</code> will be used in the logged string.</p><p>Strategy <code>base</code> will be used to change sizes (e.g if <a href="../../extend/misc/#NaiveNASlib.Δsize!-Tuple{Any, AbstractVector{T} where T, AbstractVector{T} where T}"><code>Δsize!(logafterΔsize(base))</code></a> is called).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L612-L620">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.validateafterΔsize" href="#NaiveNASlib.validateafterΔsize"><code>NaiveNASlib.validateafterΔsize</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">validateafterΔsize(printfun=nameorrepr; base=DefaultJuMPΔSizeStrategy())</code></pre><p>Return an <a href="#NaiveNASlib.AfterΔSizeCallback"><code>AfterΔSizeCallback</code></a> configured to validate that sizes (nin and nout) are consistent after a size change and throw a <code>ΔSizeFailError</code> if validation fails.</p><p>For a given vertex <code>v</code>, <code>printfun(v)</code> will be used in the error message should the size validation fail.</p><p>Strategy <code>base</code> will be used to change sizes (e.g if <a href="../../extend/misc/#NaiveNASlib.Δsize!-Tuple{Any, AbstractVector{T} where T, AbstractVector{T} where T}"><code>Δsize!(validateafterΔsize(base))</code></a> is called).</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/60517cfef5b3dd6bcfc2bcd652bfba5eb0f6cded/src/mutation/sizestrategies.jl#L631-L640">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../graphquery/">« Advanced Graph Functions</a><a class="docs-footer-nextpage" href="../structure/">Vertex Connection Strategies »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.10 on <span class="colophon-date" title="Tuesday 26 October 2021 19:51">Tuesday 26 October 2021</span>. Using Julia version 1.6.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
