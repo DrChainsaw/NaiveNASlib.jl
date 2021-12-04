@@ -37,7 +37,7 @@ This is done through labeling vertices into three major types:
     output -> input). The main operation in this category is concatenation of activations. 
 
 * [`SizeInvariant`](@ref): Assumes [`[nout(v)]`](@ref nout) `==` [`unique(nin(v))`](@ref nin). This means that size changes propagate both forwards and backwards
-    as changing any input size or the output size means all others must change as well. In this category we find typically find
+    as changing any input size or the output size means all others must change as well. In this category we typically find
   element wise operations, but also normalization and pooling operations tend to fall into this category. 
 
 NaiveNASlib also uses the term [`SizeTransparent`](@ref) to denote the latter two (i.e any vertex which is not [`SizeAbsorb`](@ref)).
