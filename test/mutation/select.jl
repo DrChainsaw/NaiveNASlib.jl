@@ -790,7 +790,7 @@ import JuMP
         g = CompGraph(inpt, v4)
         @test size(g(ones(3))) == (nout(v4),)
 
-        @test remove!(v3, RemoveStrategy(DecreaseBigger()))
+        @test remove!(v3, RemoveStrategy(DecreaseBigger(mapstrat=WithUtilityFun(v -> 1:nout(v)))))
 
         # What happened now is that nin(v4) got decreased from 4 to 2. 
         # However, there was absolutely no need at all to select anything from v2 and before as they have not changed.

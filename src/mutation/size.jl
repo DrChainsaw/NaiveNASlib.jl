@@ -363,8 +363,8 @@ function noutrelax!(case, Δs, vertices, data)
     Δnout_const = @expression(model, [data.noutdict[v] - nout(v) for v in keys(Δs) if Δs[v] != 0])
 
     B = @variable(model, [1:length(Δnout_const)], Bin)
-    M = 1e5
-    ϵ = 1e-2 # abs(Δnout_const) must be larger than this
+    M = 1e5 # Largest size change we can imagine for a layer must be smaller than this.
+    ϵ = 0.9 # abs(Δnout_const) must be larger than this
     @constraint(model, Δnout_const .+ M .* B .>= ϵ)
     @constraint(model, Δnout_const .+ M .* B .<= M .- ϵ)
    

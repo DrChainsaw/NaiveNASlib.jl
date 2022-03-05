@@ -80,7 +80,7 @@ end
 FailAlignSizeWarn(;andthen=FailAlignSizeNoOp(), msgfun=(vin,vout) -> "Could not align sizes of $(vin) and $(vout)!") = FailAlignSizeWarn(andthen, msgfun)
 
 const doc_mapstrat = """
-`mapstrat` can be used to wrap the [`AbstractΔSizeStrategy`](@ref) in a [`DecoratingJuMPΔSizeStrategy`](@ref). Main intended usecase is [`WithUtilityFun`](@ref). 
+`mapstrat` can be used to wrap the [`AbstractΔSizeStrategy`](@ref) in a [`DecoratingJuMPΔSizeStrategy`](@ref). Main intended usecase is [`WithUtilityFun`](@ref). Note one might want to supply the same `mapstrat` to any fallback strategies. 
 """
 
 """
@@ -113,12 +113,12 @@ struct DecreaseBigger{S, F} <: AbstractAlignSizeStrategy
     fallback::S
     mapstrat::F
 end
-DecreaseBigger(;fallback=AlignSizeBoth(),mapstrat=identity) = DecreaseBigger(fallback, mapstrat)
+DecreaseBigger(;mapstrat=identity, fallback=AlignSizeBoth(;mapstrat)) = DecreaseBigger(fallback, mapstrat)
 
 """
     IncreaseSmaller <: AbstractAlignSizeStrategy
     IncreaseSmaller()
-    IncreaseSmaller(;fallback, mapstrat)
+    IncreaseSmaller(;mapstrat, fallback)
 
 Try to align size by increasing in the direction (in/out) which has the smaller size.
 Fallback to another strategy (default [`DecreaseBigger`](@ref)) if size change is not possible.
@@ -129,7 +129,7 @@ struct IncreaseSmaller{S,F} <: AbstractAlignSizeStrategy
     fallback::S
     mapstrat::F
 end
-IncreaseSmaller(;fallback=DecreaseBigger(),mapstrat=identity) = IncreaseSmaller(fallback, mapstrat)
+IncreaseSmaller(;mapstrat=identity, fallback=DecreaseBigger(;mapstrat)) = IncreaseSmaller(fallback, mapstrat)
 
 """
     CheckNoSizeCycle <: AbstractAlignSizeStrategy
