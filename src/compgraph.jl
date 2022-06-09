@@ -39,7 +39,7 @@ function (g::CompGraph)(x...)
     if length(outputs(g)) == 1
         return output!(memo, first(outputs(g)))
     end
-    return Tuple(map(v -> output!(memo, v), outputs(g)))
+    return map(v -> output!(memo, v), Tuple(outputs(g)))
 end
 
 """
@@ -91,6 +91,42 @@ function output!(memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
         inpt = map(iv -> output!(memo, iv), inputs(v))
         v(inpt...)
     end::V
+end
+
+## rrule synopsis: This is pretty much all about avoiding the gradient of get!
+## We do this by calling get! in the primal part of a rrule
+## Consequence of this is that we also put the pullbacks in the memo so that
+## they are always available as we recurse through the graph
+## Now, since memo is preloaded with inputs we intercept the call to output!
+## and add a dummy pullback to the existing intputs, then we proceed with the
+## specialized output_rrule! which assumes there is a (y, pullback) tuple in
+## memo for every vertex.
+## Since we don't want to mend together pullbacks from multiple input vertices
+## recursively we do the recursion in _output_rrule! which does not have a 
+## rrule defined for it and thus we outsource the recursion and map-unzipping 
+## to the AD
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output!), memo, v)
+    for (k,v) in memo
+        memo[k] = (v, Δ -> ntuple(i -> NoTangent(), 3)) # TODO: Gradient of input, i.e the x in CompGraph(x)
+    end
+    return rrule_via_ad(config, output_rrule!, memo, v)
+end
+
+function output_rrule!(args...)
+    throw(ArgumentError("output_rrule! must only be called when computing gradients!"))
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output_rrule!), memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
+    get!(memo, v) do 
+        rrule_via_ad(config, _output_rrule!, memo, v) 
+    end::V
+end
+
+function _output_rrule!(memo, v)
+    inpt = map(iv -> output_rrule!(memo, iv),  inputs(v))
+    res = v(inpt...)
+    return res
 end
 
 """

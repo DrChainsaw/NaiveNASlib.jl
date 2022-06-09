@@ -10,6 +10,9 @@ import Cbc
 import Functors
 using Functors: @functor, functor
 
+import ChainRulesCore
+import ChainRulesCore: rrule, rrule_via_ad, RuleConfig, HasReverseMode, NoTangent
+
 # Computation graph
 export CompGraph, nvertices, vertices, findvertices, inputs, outputs, name
 
