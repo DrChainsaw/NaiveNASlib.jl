@@ -119,51 +119,6 @@ function _output_rrule!(memo, v::AbstractVertex)
     memo[v] = v(inpt...)
 end
 
-#= 
-import ChainRulesCore: Tangent, backing, ZeroTangent
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output!), memo, v)
-    vs = ancestors(v, collect(AbstractVertex, keys(memo)))[length(memo)+1:end]
-    res, pb = rrule_via_ad(config, output_loop!, memo, v, vs)
-
-    res, function(Δ) 
-        _, δmemo, δv, δvs = pb(Δ)
-        vgrads = Dict(zip(vs, δvs))  
-        bres = (NoTangent(), δmemo, stich_grads(v, vgrads))
-        return bres[1], bres[2], NoTangent(), NoTangent()
-    end
-end
-
-vertifytangent(v, vg) = nothing
-
-function output_loop!(memo, v, vs)
-    for vn in vs
-        vins = inputs(vn) # Types don't seem to be inferred if put in map
-        memotup = ntuple(Returns(memo), length(vins))
-        inpt = map(getindex, memotup, vins)
-        memo[vn] = vn(inpt...)
-    end
-    return memo[v]
-end
-
-stich_grads(f, ::InputVertex, args...) = ZeroTangent()
-stich_grads(v::AbstractVertex, vgrads) = stich_grads(identity, v, v, vgrads)
-function stich_grads(f, v::AbstractVertex, vkey, vgrads)
-    vkey in keys(vgrads) || return ZeroTangent()
-    mergetangent(f(vgrads[vkey]), (;base=stich_grads(g -> f(g).base, base(v), vkey, vgrads)))
-end
-
-function stich_grads(f, v::CompVertex, vkey, vgrads)
-    mygrad = f(vgrads[vkey])
-    newins = map(iv -> stich_grads(iv, vgrads), inputs(v))
-    newt = mergetangent(mygrad, (;inputs=newins))
-    return newt
-end
-
-function mergetangent(t::Tangent{P}, newelems) where P 
-    newbacking = merge(backing(t), newelems)
-    Tangent{P, typeof(newbacking)}(newbacking)
-end =#
-
 """
     nvertices(g::CompGraph)
 
