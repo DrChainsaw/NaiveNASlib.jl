@@ -93,41 +93,76 @@ function output!(memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
     end::V
 end
 
-## rrule synopsis: This is pretty much all about avoiding the gradient of get!
-## We do this by calling get! in the primal part of a rrule
-## Consequence of this is that we also put the pullbacks in the memo so that
-## they are always available as we recurse through the graph
-## Now, since memo is preloaded with inputs we intercept the call to output!
-## and add a dummy pullback to the existing intputs, then we proceed with the
-## specialized output_rrule! which assumes there is a (y, pullback) tuple in
-## memo for every vertex.
-## Since we don't want to mend together pullbacks from multiple input vertices
-## recursively we do the recursion in _output_rrule! which does not have a 
-## rrule defined for it and thus we outsource the recursion and map-unzipping 
-## to the AD
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output!), memo, v)
-    for (k,v) in memo
-        memo[k] = (v, Δ -> ntuple(i -> NoTangent(), 3)) # TODO: Gradient of input, i.e the x in CompGraph(x)
+    rrule_via_ad(config, output_rrule!, memo, v)
+end
+
+function output_rrule!(args...) end
+
+# Temp workaround for https://github.com/FluxML/Zygote.jl/issues/1111
+# Only purpose is to retur NoTangent, so whole function can be deleted
+# if when issue is resolved
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output_rrule!), memo, v)
+    res, back = rrule_via_ad(config, _output_rrule!, memo, v)
+    return res, function (d)
+        back(d)
+        return NoTangent(), NoTangent(), NoTangent()
     end
-    return rrule_via_ad(config, output_rrule!, memo, v)
 end
 
-function output_rrule!(args...)
-    throw(ArgumentError("output_rrule! must only be called when computing gradients!"))
-end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output_rrule!), memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
-    get!(memo, v) do 
-        rrule_via_ad(config, _output_rrule!, memo, v) 
-    end::V
-end
-
-function _output_rrule!(memo, v)
+function _output_rrule!(memo, v::AbstractVertex)
+    # rrule for get not implemented
+    v in keys(memo) && return memo[v]
     inpt = map(iv -> output_rrule!(memo, iv),  inputs(v))
-    res = v(inpt...)
-    return res
+    memo[v] = v(inpt...)
 end
+
+#= 
+import ChainRulesCore: Tangent, backing, ZeroTangent
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output!), memo, v)
+    vs = ancestors(v, collect(AbstractVertex, keys(memo)))[length(memo)+1:end]
+    res, pb = rrule_via_ad(config, output_loop!, memo, v, vs)
+
+    res, function(Δ) 
+        _, δmemo, δv, δvs = pb(Δ)
+        vgrads = Dict(zip(vs, δvs))  
+        bres = (NoTangent(), δmemo, stich_grads(v, vgrads))
+        return bres[1], bres[2], NoTangent(), NoTangent()
+    end
+end
+
+vertifytangent(v, vg) = nothing
+
+function output_loop!(memo, v, vs)
+    for vn in vs
+        vins = inputs(vn) # Types don't seem to be inferred if put in map
+        memotup = ntuple(Returns(memo), length(vins))
+        inpt = map(getindex, memotup, vins)
+        memo[vn] = vn(inpt...)
+    end
+    return memo[v]
+end
+
+stich_grads(f, ::InputVertex, args...) = ZeroTangent()
+stich_grads(v::AbstractVertex, vgrads) = stich_grads(identity, v, v, vgrads)
+function stich_grads(f, v::AbstractVertex, vkey, vgrads)
+    vkey in keys(vgrads) || return ZeroTangent()
+    mergetangent(f(vgrads[vkey]), (;base=stich_grads(g -> f(g).base, base(v), vkey, vgrads)))
+end
+
+function stich_grads(f, v::CompVertex, vkey, vgrads)
+    mygrad = f(vgrads[vkey])
+    newins = map(iv -> stich_grads(iv, vgrads), inputs(v))
+    newt = mergetangent(mygrad, (;inputs=newins))
+    return newt
+end
+
+function mergetangent(t::Tangent{P}, newelems) where P 
+    newbacking = merge(backing(t), newelems)
+    Tangent{P, typeof(newbacking)}(newbacking)
+end =#
 
 """
     nvertices(g::CompGraph)
