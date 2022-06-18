@@ -39,7 +39,7 @@ function (g::CompGraph)(x...)
     if length(outputs(g)) == 1
         return output!(memo, first(outputs(g)))
     end
-    return Tuple(map(v -> output!(memo, v), outputs(g)))
+    return map(v -> output!(memo, v), Tuple(outputs(g)))
 end
 
 """

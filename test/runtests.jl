@@ -17,6 +17,9 @@ include("testutil.jl")
 	
 	include("prettyprint.jl")
 
+	@info "Testing gradients"
+	include("chainrules.jl")
+
 	@info "Testing mutation"
 
 	include("mutation/vertex.jl")

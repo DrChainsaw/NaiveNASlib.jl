@@ -10,6 +10,9 @@ import Cbc
 import Functors
 using Functors: @functor, functor
 
+import ChainRulesCore
+import ChainRulesCore: rrule, rrule_via_ad, RuleConfig, HasReverseMode, NoTangent
+
 # Computation graph
 export CompGraph, nvertices, vertices, findvertices, inputs, outputs, name
 
@@ -40,5 +43,7 @@ include("api/vertex.jl")
 include("api/size.jl")
 include("api/Advanced.jl")
 include("api/Extend.jl")
+
+include("chainrules.jl")
 
 end # module
