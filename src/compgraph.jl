@@ -93,32 +93,6 @@ function output!(memo::AbstractDict{K,V}, v::AbstractVertex) where {K,V}
     end::V
 end
 
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output!), memo, v)
-    rrule_via_ad(config, output_rrule!, memo, v)
-end
-
-function output_rrule!(args...) end
-
-# Temp workaround for https://github.com/FluxML/Zygote.jl/issues/1111
-# Only purpose is to retur NoTangent, so whole function can be deleted
-# if when issue is resolved
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(output_rrule!), memo, v)
-    res, back = rrule_via_ad(config, _output_rrule!, memo, v)
-    return res, function (d)
-        back(d)
-        return NoTangent(), NoTangent(), NoTangent()
-    end
-end
-
-
-function _output_rrule!(memo, v::AbstractVertex)
-    # rrule for get not implemented
-    v in keys(memo) && return memo[v]
-    inpt = map(iv -> output_rrule!(memo, iv),  inputs(v))
-    memo[v] = v(inpt...)
-end
-
 """
     nvertices(g::CompGraph)
 

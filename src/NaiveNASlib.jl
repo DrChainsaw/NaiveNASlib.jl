@@ -44,4 +44,6 @@ include("api/size.jl")
 include("api/Advanced.jl")
 include("api/Extend.jl")
 
+include("chainrules.jl")
+
 end # module
