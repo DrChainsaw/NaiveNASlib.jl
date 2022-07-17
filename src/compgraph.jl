@@ -102,7 +102,7 @@ nvertices(g::CompGraph) = length(vertices(g))
 
 Base.getindex(g::CompGraph, args...) = getindex(vertices(g), args...)
 Base.firstindex(g::CompGraph) = firstindex(vertices(g))
-Base.lastindex(g) = lastindex(vertices(g))
+Base.lastindex(g::CompGraph) = lastindex(vertices(g))
 
 """
     findvertices(vname::AbstractString, g::CompGraph)
