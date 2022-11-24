@@ -71,7 +71,10 @@
             end
             function _testgrads(v::CompVertex, seen, res, exp, name) 
                 @testset "Check grads for $name" begin
-                    @test res.computation == getindex(exp, name)
+                    # Ops like + and cat seem to get a gradient for contents even though they don't have such a field
+                    if !isa(getindex(exp, name), NamedTuple{(:contents,)})
+                        @test res.computation == getindex(exp, name)
+                    end
                 end
                 foreach(enumerate(inputs(v))) do (i, vi)
                     testgrads(vi, seen, res.inputs[i], exp)
