@@ -144,9 +144,10 @@
             @test trait(v) isa MockTrait
         end
 
-        rmtrait(f, x) = Functors._default_walk(f, x)
-        rmtrait(f, t::MockTrait) = t.t
-        grapholdtrait = fmap(identity, graphnewtrait; walk=rmtrait)
+        struct RmTrait <: Functors.AbstractWalk end
+        (::RmTrait)(f, x) = Functors.DefaultWalk()(f, x)
+        (::RmTrait)(f, t::MockTrait) = t.t
+        grapholdtrait = fmap(identity, graphnewtrait; walk=RmTrait())
        
         expected = (SizeAbsorb, SizeStack)
         @testset "Check trait for vertex $i" for (i, v) in enumerate(filter(v -> v ∉ inputs(grapholdtrait), vertices(grapholdtrait)))

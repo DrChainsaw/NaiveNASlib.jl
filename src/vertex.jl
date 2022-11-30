@@ -6,6 +6,7 @@ Vertex base type.
 abstract type AbstractVertex end
 
 Base.Broadcast.broadcastable(v::AbstractVertex) = Ref(v)
+Functors.usecache(::Union{AbstractDict, AbstractSet}, ::AbstractVertex) = true
 
 """
     inputs(v)
