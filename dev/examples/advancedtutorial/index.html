@@ -69,21 +69,24 @@ layer2 = linearvertex(layer1, 4)
 
 graph = CompGraph(invertex, layer2)
 
-@test name.(vertices(graph)) == [&quot;in&quot;, &quot;MutationVertex::SizeAbsorb&quot;, &quot;MutationVertex::SizeAbsorb&quot;]</code></pre><p>Ok, lets add names to <code>layer1</code> and <code>layer2</code> and change the name of <code>invertex</code> by using <code>Functors</code>.</p><pre><code class="language-julia hljs">import Functors</code></pre><p>Add a name to <code>layer1</code> and <code>layer2</code></p><pre><code class="language-julia hljs">function walk(f, v::MutationVertex)
+@test name.(vertices(graph)) == [&quot;in&quot;, &quot;MutationVertex::SizeAbsorb&quot;, &quot;MutationVertex::SizeAbsorb&quot;]</code></pre><p>Ok, lets add names to <code>layer1</code> and <code>layer2</code> and change the name of <code>invertex</code> by using <code>Functors</code>.</p><pre><code class="language-julia hljs">import Functors
+
+struct RenameWalk &lt;: Functors.AbstractWalk end</code></pre><p>Always used CachedWalk on CompGraphs and vertices!!</p><pre><code class="language-julia hljs">walk = Functors.CachedWalk(RenameWalk())</code></pre><p>Add a name to <code>layer1</code> and <code>layer2</code></p><pre><code class="language-julia hljs">function (::RenameWalk)(recurse, v::MutationVertex)
     # This is probably not practical to do in a real graph, so make sure you have names when first creating it...
     name = v == layer1 ? &quot;layer1&quot; : &quot;layer2&quot;
     addname(x) = x
     # SizeAbsorb has no fields, otherwise we would have had to use walk to wrap it
     addname(t::SizeAbsorb) = NamedTrait(name, t)
-    Functors._default_walk(v) do x
-        Functors.fmap(addname, x; walk)
+    Functors.DefaultWalk()(v) do x
+        Functors.fmap(addname, x; walk, cache=nothing)
     end
-end</code></pre><p>Change name of <code>invertex</code> once we get there. We could also just have made a string version of <code>addname</code> above since there are no other strings in the graph, but this is safer.</p><pre><code class="language-julia hljs">function walk(f, v::InputVertex)
+end</code></pre><p>Change name of <code>invertex</code> once we get there. We could also just have made a string version of <code>addname</code> above since there are no other strings in the graph, but this is safer.</p><pre><code class="language-julia hljs">function (::RenameWalk)(recurse, v::InputVertex)
     rename(x) = x
     rename(s::String) = &quot;in changed&quot;
-    Functors._default_walk(v) do x
-        Functors.fmap(rename, x; walk)
+    Functors.DefaultWalk()(v) do x
+        Functors.fmap(rename, x; walk, cache=nothing)
     end
-end</code></pre><p>Everything else just gets functored as normal.</p><pre><code class="language-julia hljs">walk(f, x) = Functors._default_walk(f, x)</code></pre><p>I must admit that thinking about what this does makes me a bit dizzy...</p><pre><code class="language-julia hljs">namedgraph = Functors.fmap(identity, graph; walk)
+end</code></pre><p>Everything else just gets functored as normal.</p><pre><code class="language-julia hljs">(::RenameWalk)(recurse, x) = Functors.DefaultWalk()(recurse, x)</code></pre><p>I must admit that thinking about what this does makes me a bit dizzy...</p><pre><code class="language-julia hljs">namedgraph = Functors.fmap(walk, identity, graph)
 
-@test name.(vertices(namedgraph)) == [&quot;in changed&quot;, &quot;layer1&quot;, &quot;layer2&quot;]</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../quicktutorial/">« Quick Tutorial</a><a class="docs-footer-nextpage" href="../../terminology/">Terminology »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Friday 25 November 2022 17:01">Friday 25 November 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+@test name.(vertices(namedgraph)) == [&quot;in changed&quot;, &quot;layer1&quot;, &quot;layer2&quot;]
+@test graph(ones(2, 1)) == namedgraph(ones(2,1))</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../quicktutorial/">« Quick Tutorial</a><a class="docs-footer-nextpage" href="../../terminology/">Terminology »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Thursday 1 December 2022 18:54">Thursday 1 December 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
