@@ -359,7 +359,7 @@ Return `Δ => Relaxed()` which indicates that `Δ` shall be relaxed when changin
 See [`Δnout!`](@ref) and [`Δnin!`](@ref).
 """
 relaxed(Δ::Integer) = Δ => Relaxed()
-relaxed(Δs::Tuple{Vararg{<:Maybe{Int}}}) = Δs => Relaxed()
+relaxed(Δs::Tuple{Vararg{Maybe{Int}}}) = Δs => Relaxed()
 relaxed(Δs...) = Δs => Relaxed()
 
 """

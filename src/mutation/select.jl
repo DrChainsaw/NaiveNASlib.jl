@@ -389,7 +389,9 @@ function createselectvars!(case, ::AbstractJuMPΔSizeStrategy, vs, data)
 end
 
 selectmodel(case::NeuronIndices, s::DecoratingJuMPΔSizeStrategy, vs, utilityfun) = selectmodel(case, base(s), vs, utilityfun) 
-selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, vs, utilityfun) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0, "seconds" => 20))
+function selectmodel(::NeuronIndices, ::AbstractJuMPΔSizeStrategy, vs, utilityfun) 
+    JuMP.Model(JuMP.optimizer_with_attributes(HiGHS.Optimizer, "log_to_console"=>false, "time_limit" => 20.0))
+end
 function selectmodel(case::NeuronIndices, s::TimeLimitΔSizeStrategy, vs, utilityfun) 
     model = selectmodel(case, base(s), vs, utilityfun)
     JuMP.set_time_limit_sec(model, s.limit)

@@ -6,7 +6,7 @@ using Logging: LogLevel, @logmsg
 
 import JuMP
 using JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE, MOI.FEASIBLE_POINT
-import Cbc
+import HiGHS
 import Functors
 using Functors: @functor, functor
 
