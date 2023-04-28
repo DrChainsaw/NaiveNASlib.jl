@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Vertex Creation · NaiveNASlib</title><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">NaiveNASlib</a></span></div><form class="docs-search" action="../../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../../">Introduction</a></li><li><a class="tocitem" href="../../../examples/quicktutorial/">Quick Tutorial</a></li><li><a class="tocitem" href="../../../examples/advancedtutorial/">Advanced Tutorial</a></li><li><a class="tocitem" href="../../../terminology/">Terminology</a></li><li><span class="tocitem">API Reference</span><ul><li class="is-active"><a class="tocitem" href>Vertex Creation</a></li><li><a class="tocitem" href="../graph/">Graph Operations</a></li><li><a class="tocitem" href="../queryvertex/">Access vertex data</a></li><li><a class="tocitem" href="../mutatevertex/">Vertex Mutation</a></li><li><input class="collapse-toggle" id="menuitem-5-5" type="checkbox"/><label class="tocitem" for="menuitem-5-5"><span class="docs-label">Advanced</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../advanced/graphquery/">Advanced Graph Functions</a></li><li><a class="tocitem" href="../../advanced/size/">Size Strategies</a></li><li><a class="tocitem" href="../../advanced/structure/">Vertex Connection Strategies</a></li><li><a class="tocitem" href="../../advanced/traits/">Extra Vertex Traits</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5-6" type="checkbox"/><label class="tocitem" for="menuitem-5-6"><span class="docs-label">Extend</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../extend/vertices/">Vertex Types</a></li><li><a class="tocitem" href="../../extend/strategies/">Strategy Base Types</a></li><li><a class="tocitem" href="../../extend/traits/">Trait Types</a></li><li><a class="tocitem" href="../../extend/misc/">Other Functions</a></li></ul></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">API Reference</a></li><li class="is-active"><a href>Vertex Creation</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Vertex Creation</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/master/docs/src/reference/simple/createvertex.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Vertex-Creation"><a class="docs-heading-anchor" href="#Vertex-Creation">Vertex Creation</a><a id="Vertex-Creation-1"></a><a class="docs-heading-anchor-permalink" href="#Vertex-Creation" title="Permalink"></a></h1><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.inputvertex" href="#NaiveNASlib.inputvertex"><code>NaiveNASlib.inputvertex</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">inputvertex(name, size)</code></pre><p>Return an immutable input type vertex with the given <code>name</code> and <code>size</code>.</p><p>Typically used as &quot;entry&quot; point to a computation graph.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; inputvertex(&quot;input&quot;, 5)
+InputSizeVertex(InputVertex(input, outputs=[]), 5)
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L2-L17">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.immutablevertex" href="#NaiveNASlib.immutablevertex"><code>NaiveNASlib.immutablevertex</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">immutablevertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
+immutablevertex(vname::AbstractString, computation, inputs::AbstractVertex...; traitdecoration=identity)
+immutablevertex(computation, vname::AbstractString, inputs::AbstractVertex...; traitdecoration=identity)</code></pre><p>Return an immutable computation type vertex.</p><p>Use <code>traitdecoration</code> to attach other traits, such as <a href="../../advanced/traits/#NaiveNASlib.named"><code>named</code></a>, <a href="../../advanced/traits/#NaiveNASlib.logged"><code>logged</code></a> or <a href="../../advanced/traits/#NaiveNASlib.validated"><code>validated</code></a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = immutablevertex(x -&gt; x * [1 2 3; 4 5 6], inputvertex(&quot;input&quot;, 2));
+
+julia&gt; v([1 2])
+1×3 Matrix{Int64}:
+ 9  12  15
+
+julia&gt; v = immutablevertex(&quot;v&quot;, x -&gt; x * [1 2 3; 4 5 6], inputvertex(&quot;input&quot;, 2));
+
+julia&gt; name(v)
+&quot;v&quot;
+
+julia&gt; v = immutablevertex(&quot;v&quot;, inputvertex(&quot;input&quot;, 2)) do x
+           x * [1 2 3; 4 5 6]
+       end;
+
+julia&gt; name(v)
+&quot;v&quot;       </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L51-L55">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.absorbvertex" href="#NaiveNASlib.absorbvertex"><code>NaiveNASlib.absorbvertex</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">absorbvertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
+absorbvertex(vname::AbstractString, computation, inputs::AbstractVertex...; traitdecoration=identity)
+absorbvertex(computation, vname::AbstractString, inputs::AbstractVertex...; traitdecoration=identity)</code></pre><p>Return a mutable computation type vertex which absorbs size changes. Typical example of this is a neural network layer wrapping a parameter array.</p><p>Use <code>traitdecoration</code> to attach other traits, such as <a href="../../advanced/traits/#NaiveNASlib.named"><code>named</code></a>, <a href="../../advanced/traits/#NaiveNASlib.logged"><code>logged</code></a> or <a href="../../advanced/traits/#NaiveNASlib.validated"><code>validated</code></a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = absorbvertex(x -&gt; x * [1 2 3; 4 5 6], inputvertex(&quot;input&quot;, 2));
+
+julia&gt; v([1 2])
+1×3 Matrix{Int64}:
+ 9  12  15
+
+julia&gt; v = absorbvertex(&quot;v&quot;, x -&gt; x * [1 2 3; 4 5 6], inputvertex(&quot;input&quot;, 2));
+
+julia&gt; name(v)
+&quot;v&quot;
+
+julia&gt; v = absorbvertex(&quot;v&quot;, inputvertex(&quot;input&quot;, 2)) do x
+           x * [1 2 3; 4 5 6]
+       end;
+
+julia&gt; name(v)
+&quot;v&quot;       </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L83-L87">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.invariantvertex" href="#NaiveNASlib.invariantvertex"><code>NaiveNASlib.invariantvertex</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">invariantvertex(computation, inputs::AbstractVertex...; traitdecoration=identity)
+invariantvertex(vname::AbstractString, computation, inputs::AbstractVertex...; traitdecoration=identity)
+invariantvertex(computation, vname::AbstractString, inputs::AbstractVertex...; traitdecoration=identity)</code></pre><p>Return a mutable computation type vertex which is size invariant, i.e <code>nin == nout</code>.</p><p>Use <code>traitdecoration</code> to attach other traits, such as <a href="../../advanced/traits/#NaiveNASlib.named"><code>named</code></a>, <a href="../../advanced/traits/#NaiveNASlib.logged"><code>logged</code></a> or <a href="../../advanced/traits/#NaiveNASlib.validated"><code>validated</code></a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = invariantvertex(x -&gt; 2 .* x, inputvertex(&quot;input&quot;, 2));
+
+julia&gt; nin(v)
+1-element Vector{Int64}:
+ 2
+
+julia&gt; nout(v)
+2
+
+julia&gt; v([1 2])
+1×2 Matrix{Int64}:
+ 2  4
+
+julia&gt; v = invariantvertex(&quot;v&quot;, x -&gt; 2 .* x, inputvertex(&quot;input&quot;, 2));
+
+julia&gt; name(v)
+&quot;v&quot;
+
+julia&gt; v = invariantvertex(&quot;v&quot;, inputvertex(&quot;input&quot;, 2)) do x
+           2 .* x
+       end;
+
+julia&gt; name(v)
+&quot;v&quot;    </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L116-L120">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="NaiveNASlib.conc" href="#NaiveNASlib.conc"><code>NaiveNASlib.conc</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
+conc(vname::AbstractString, v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)</code></pre><p>Return a mutable vertex which concatenates input along dimension <code>dim</code>.</p><p>Use <code>traitdecoration</code> to attach other traits, such as <a href="../../advanced/traits/#NaiveNASlib.named"><code>named</code></a>, <a href="../../advanced/traits/#NaiveNASlib.logged"><code>logged</code></a> or <a href="../../advanced/traits/#NaiveNASlib.validated"><code>validated</code></a>.</p><p>Use <code>outwrap=f</code> to wrap the concatenation function in <code>f</code>.</p><p><code>conc(vname::AbstractString,...;traitdecoration = f, ...)</code> is equivalent to <code>conc(...;traitdecoration=named(vname) ∘ f, ...)</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = conc(inputvertex.([&quot;in1&quot;, &quot;in2&quot;, &quot;in3&quot;], 1:3)..., dims=1);
+
+julia&gt; nin(v)
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+
+julia&gt; nout(v)
+6
+
+julia&gt; v([1], [2, 3], [4, 5, 6])
+6-element Vector{Int64}:
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+
+julia&gt; v = conc(inputvertex.([&quot;in1&quot;, &quot;in2&quot;, &quot;in3&quot;], 1:3)..., dims=1, outwrap = f -&gt; (x...) -&gt; 2f(x...));
+ 
+julia&gt; v([1], [2, 3], [4, 5, 6])
+6-element Vector{Int64}:
+  2
+  4
+  6
+  8
+ 10
+ 12</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L155-L202">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="Base.:+" href="#Base.:+"><code>Base.:+</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">+(v::AbstractVertex, vs::AbstractVertex...)</code></pre><p>Return a mutable vertex which performs (broadcasted) elementwise addition of its inputs.</p><p>An <code>AbstractString</code>, <code>Function</code> or <code>VertexConf</code> can be supplied through the <code>&gt;&gt;</code> operator.  An <code>AbstractString</code> will be used as the name of the vertex, a <code>Function f</code> will wrap the  output so that the vertex computation becomes <code>f(+.(x...))</code> and <code>VertexConf</code> can be used to supply both a name and a function.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = inputvertex(&quot;in1&quot;, 2) + inputvertex(&quot;in2&quot;, 2) + inputvertex(&quot;in3&quot; ,2);
+
+julia&gt; nin(v)
+3-element Vector{Int64}:
+ 2
+ 2
+ 2
+
+julia&gt; nout(v)
+2
+
+julia&gt; v([1, 2], [3, 4], [5, 6])
+2-element Vector{Int64}:
+  9
+ 12
+
+julia&gt; v = &quot;v&quot; &gt;&gt; inputvertex(&quot;in1&quot;, 3) + inputvertex(&quot;in2&quot;, 3);
+
+julia&gt; name(v)
+&quot;v&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L249-L285">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="Base.:-" href="#Base.:-"><code>Base.:-</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">-(v1::AbstractVertex, v2::AbstractVertex)</code></pre><p>Return a mutable vertex which performs (broadcasted) elementwise subtraction of its inputs.</p><p>An <code>AbstractString</code>, <code>Function</code> or <code>VertexConf</code> can be supplied through the <code>&gt;&gt;</code> operator.  An <code>AbstractString</code> will be used as the name of the vertex, a <code>Function f</code> will wrap the  output so that the vertex computation becomes <code>f(-.(x...))</code> and <code>VertexConf</code> can be used to supply both a name and a function.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = inputvertex(&quot;in1&quot;, 2) - inputvertex(&quot;in2&quot;, 2);
+
+julia&gt; nin(v)
+2-element Vector{Int64}:
+ 2
+ 2
+
+julia&gt; nout(v)
+2
+
+julia&gt; v([1, 2], [3, 4])
+2-element Vector{Int64}:
+ -2
+ -2
+
+
+julia&gt; v = &quot;v&quot; &gt;&gt; inputvertex(&quot;in1&quot;, 3) - inputvertex(&quot;in2&quot;, 3);
+
+julia&gt; name(v)
+&quot;v&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L330-L366">source</a></section><section><div><pre><code class="nohighlight hljs">-(v::AbstractVertex)</code></pre><p>Return a mutable vertex which performs elementwise negation of its input.</p><p>An <code>AbstractString</code>, <code>Function</code> or <code>VertexConf</code> can be supplied through the <code>&gt;&gt;</code> operator.  An <code>AbstractString</code> will be used as the name of the vertex, a <code>Function f</code> will wrap the  output so that the vertex computation becomes <code>f(-.(x...))</code> and <code>VertexConf</code> can be used to supply both a name and a function. Due to operator precedence, this has to be done in the following order: <code>-(conf &gt;&gt; v)</code></p><p>#Examples</p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = -inputvertex(&quot;in&quot;, 2);
+
+julia&gt; v([1,2])
+2-element Vector{Int64}:
+ -1
+ -2
+
+julia&gt; v = -(&quot;v&quot; &gt;&gt; inputvertex(&quot;in&quot;, 2));
+
+julia&gt; name(v)
+&quot;v&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L371-L399">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="Base.:*" href="#Base.:*"><code>Base.:*</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">*(v::AbstractVertex, vs::AbstractVertex...)
+*(conf::VertexConf, v::AbstractVertex, vs::AbstractVertex...)</code></pre><p>Return a mutable vertex which performs (broadcasted) elementwise multiplication of its inputs.</p><p>An <code>AbstractString</code>, <code>Function</code> or <code>VertexConf</code> can be supplied through the <code>&gt;&gt;</code> operator.  An <code>AbstractString</code> will be used as the name of the vertex, a <code>Function f</code> will wrap the  output so that the vertex computation becomes <code>f(*.(x...))</code> and <code>VertexConf</code> can be used to supply both a name and a function.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = inputvertex(&quot;in1&quot;, 2) * inputvertex(&quot;in2&quot;, 2) * inputvertex(&quot;in3&quot; ,2);
+
+julia&gt; nin(v)
+3-element Vector{Int64}:
+ 2
+ 2
+ 2
+
+julia&gt; nout(v)
+2
+
+julia&gt; v([1, 2], [3, 4], [5, 6])
+2-element Vector{Int64}:
+ 15
+ 48
+
+julia&gt; v = &quot;v&quot; &gt;&gt; inputvertex(&quot;in1&quot;, 3) * inputvertex(&quot;in2&quot;, 3);
+
+julia&gt; name(v)
+&quot;v&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L289-L326">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="Base.:/" href="#Base.:/"><code>Base.:/</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia hljs">/(v1::AbstractVertex, v2::AbstractVertex)
+/(conf::VertexConf, v1::AbstractVertex, v2::AbstractVertex)</code></pre><p>Return a mutable vertex which performs (broadcasted) elementwise division of its inputs.</p><p>An <code>AbstractString</code>, <code>Function</code> or <code>VertexConf</code> can be supplied through the <code>&gt;&gt;</code> operator.  An <code>AbstractString</code> will be used as the name of the vertex, a <code>Function f</code> will wrap the  output so that the vertex computation becomes <code>f(/.(x...))</code> and <code>VertexConf</code> can be used to supply both a name and a function.</p><p><strong>Examples</strong></p><pre><code class="language-julia-repl hljs">julia&gt; using NaiveNASlib
+
+julia&gt; v = inputvertex(&quot;in1&quot;, 2) / inputvertex(&quot;in2&quot;, 2);
+
+julia&gt; nin(v)
+2-element Vector{Int64}:
+ 2
+ 2
+
+julia&gt; nout(v)
+2
+
+julia&gt; v([6, 8], [2, 4])
+2-element Vector{Float64}:
+ 3.0
+ 2.0
+
+julia&gt; v = &quot;v&quot; &gt;&gt; inputvertex(&quot;in1&quot;, 3) / inputvertex(&quot;in2&quot;, 3);
+
+julia&gt; name(v)
+&quot;v&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/4115bcac93a276b999eda7973dfd796185415690/src/api/vertex.jl#L403-L439">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../../terminology/">« Terminology</a><a class="docs-footer-nextpage" href="../graph/">Graph Operations »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Friday 28 April 2023 20:27">Friday 28 April 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
