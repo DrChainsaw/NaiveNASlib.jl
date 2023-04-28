@@ -1,6 +1,6 @@
 name = "NaiveNASlib"
 uuid = "bd45eb3e-47ce-54bd-9eaf-e86c5f900853"
-version = "2.0.9"
+version = "2.0.10"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
