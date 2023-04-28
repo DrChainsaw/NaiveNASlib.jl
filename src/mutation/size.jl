@@ -195,7 +195,9 @@ end
 
 Return a `JuMP.Model` for executing strategy `s` on `vertices`.
 """
-sizemodel(::AbstractJuMPΔSizeStrategy, vertices) = JuMP.Model(JuMP.optimizer_with_attributes(Cbc.Optimizer, "loglevel"=>0))
+function sizemodel(::AbstractJuMPΔSizeStrategy, vertices) 
+    JuMP.Model(JuMP.optimizer_with_attributes(HiGHS.Optimizer, "log_to_console"=>false, "time_limit"=>20.0))
+end
 function sizemodel(s::TimeLimitΔSizeStrategy, vs) 
     model = sizemodel(base(s), vs)
     JuMP.set_time_limit_sec(model, s.limit)

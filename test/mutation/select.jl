@@ -693,11 +693,11 @@ import JuMP
 
         @test Δnout!(v -> 1:nout(v), v3 => relaxed(-5), v1 => 2, v2 => relaxed(0))
 
-        @test nin(v3) == [nout(v1), nout(v2)] == [5, 7]
-        @test nout(v3) == sum(nin(v3)) == 12
+        @test nin(v3) == [nout(v1), nout(v2)] == [5, 6]
+        @test nout(v3) == sum(nin(v3)) == 11
 
-        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1,2,3,-1,-1], [4,5,6,7,8,9,10]]
-        @test lastouts(v3) == lastins(v4) == [1,2,3,-1,-1,7,8,9,10,11,12,13] 
+        @test lastins(v3) == [lastouts(v1), lastouts(v2)] == [[1,2,3,-1,-1], [5,6,7,8,9,10]]
+        @test lastouts(v3) == lastins(v4) == [1,2,3,-1,-1,8,9,10,11,12,13] 
 
         @test size(g(ones(3))) == (nout(v3),)
     end
@@ -903,12 +903,15 @@ import JuMP
         v2 = cc(v1, v0, v1; name="v2")
         v3 = "v3" >> v2 + v2
 
-        @test @test_logs (:warn, "Solver timed out") Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(); fallback=ΔSizeFailNoOp()), v3) == false
+        # We need this for solver to timeout, or else it will solve it too quickly
+        basestrat = ΔNout(v1 => relaxed(-30))
+
+        @test @test_logs (:warn, "Solver timed out") Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(;base = basestrat); fallback=ΔSizeFailNoOp()), v3) == false
 
         modelres = nothing
         action = m -> (modelres = m; return false)
 
-        @test Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(;action); fallback=ΔSizeFailNoOp()), v3) == false
+        @test Δsize!(TimeLimitΔSizeStrategy(0.001, TimeOutAction(;action, base=basestrat); fallback=ΔSizeFailNoOp()), v3) == false
 
         @test modelres isa JuMP.Model
     end
