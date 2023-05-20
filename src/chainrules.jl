@@ -26,7 +26,6 @@ memovalue(m::LinkedMemo) = memovalue(m.this)
 
 _memoize(vm::AbstractMemo, v, o) = _memoize(vm, Memo(v, o))
 _memoize(vm1::AbstractMemo, vm2::Memo) = LinkedMemo(vm1, vm2)
-_memoize(vm1::Memo, vm2::Memo) = LinkedMemo(vm2, vm1)
 
 get_or_compute(f, m::AbstractMemo, key) = get_or_compute(f, m, key, m)
 
@@ -40,7 +39,7 @@ function get_or_compute(f, m::Memo, key, topmemo)
 end
 
 Base.pairs(m::Memo) = tuple(memokey(m) => memovalue(m))
-Base.pairs(m::LinkedMemo) = Iterators.flatten((pairs(m.next), pairs(m.this)))
+Base.pairs(m::LinkedMemo) = Iterators.flatten((pairs(m.this), pairs(m.next)))
 
 function Base.show(io::IO, m::AbstractMemo) 
     print(io, "Memo(")
