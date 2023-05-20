@@ -35,12 +35,11 @@ CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = Com
 
 function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
-    #memo = Dict{AbstractVertex, Any}(zip(inputs(g), x))
     memo = init_memo(inputs(g), x)
     if length(outputs(g)) == 1
-        return output!(memo, first(outputs(g)))
+        return compute_graph(memo, first(outputs(g)))
     end
-    return map(v -> output!(memo, v), Tuple(outputs(g)))
+    return map(v -> compute_graph(memo, v), Tuple(outputs(g)))
 end
 
 """

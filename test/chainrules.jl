@@ -1,14 +1,5 @@
 @testset "ChainRules" begin
 
-    function with_explicit_grads(f)
-        try
-            NaiveNASlib.enable_explicit_gradients[] = true
-            f()   
-        finally
-            NaiveNASlib.enable_explicit_gradients[] = false
-        end
-    end
-
     # We don't implement any primitive rrules in here, so we just test that the plumbing works with some popular AD
     # Therefore ChainRulesTestUtils does not seem useful
     @testset "Zygote" begin
@@ -25,18 +16,16 @@
             @test gradient(v1, 2.0, 3.0) == gradient(+, 2.0, 3.0)
             @test gradient(v -> v(2.0, 3.0), v1) == (nothing,)
             
-            with_explicit_grads() do
-                graph = CompGraph([vi1, vi2], v3)
-                function fgraph(vi1,vi2) 
-                    v1 = vi1 + vi2
-                    v2 = vi1 * v1
-                    v3 = v1 / v2
-                end
-
-                @test gradient(graph, 2.0, 3.0) == gradient(fgraph, 2.0, 3.0)
-                # No parameters
-                @test gradient(g -> g(2.0, 3.0), graph) == (nothing,)
+            graph = CompGraph([vi1, vi2], v3)
+            function fgraph(vi1,vi2) 
+                v1 = vi1 + vi2
+                v2 = vi1 * v1
+                v3 = v1 / v2
             end
+
+            @test gradient(graph, 2.0, 3.0) == gradient(fgraph, 2.0, 3.0)
+            # No parameters
+            @test gradient(g -> g(2.0, 3.0), graph) == (nothing,)
         end
 
         @testset "With parameters" begin
@@ -64,6 +53,9 @@
             function _testgrads(::InputSizeVertex, seen, res, exp, name) end
 
             function _testgrads(v::AbstractVertex, seen, res::RT, exp, name) where RT 
+                # Or else the gradient is nothing. Previous Dict mutation approach resulted in the full fieldname 
+                # tree with all values set to nothing (e.g. (base=(computation=nothing, inputs=[nothing, nothing])).
+                # Not sure if that was better or worse than what it is now.
                 if computation(v) isa ImMatMul
                     @testset "Check gradient structure for $(name) of type $(typeof(v))" begin
                         @test hasfield(RT, :base)
@@ -114,35 +106,30 @@
 
             x = reshape(collect(Float32, 1:6), 2, 3)
             @testset "Explicit gradients" begin
-                with_explicit_grads() do
-                    graph, fgraph  = makegraphs()
-                    @test graph(x) == fgraph(x)
+                graph, fgraph  = makegraphs()
+                @test graph(x) == fgraph(x)
 
-                    @test gradient(sum ∘ graph, x) == gradient(sum ∘ fgraph, x)
-                    res = gradient(g -> sum(g(x)), graph)
-                    exp = gradient(f -> sum(f(x)), fgraph)
-                    testgrads(graph, res..., exp...)       
-                end
+                @test gradient(sum ∘ graph, x) == gradient(sum ∘ fgraph, x)
+                res = gradient(g -> sum(g(x)), graph)
+                exp = gradient(f -> sum(f(x)), fgraph)
+                testgrads(graph, res..., exp...)       
             end
 
             @testset "Implicit gradients" begin
                 graph, fgraph  = makegraphs()
                 @test graph(x) == fgraph(x)
 
-                # Explicit gradients are needed with new memoization strategy
-                with_explicit_grads() do
-                    ps = getfield.(filter(c -> c isa ImMatMul, computation.(vertices(graph))), :W) |> Zygote.Params
-                    res = gradient(() -> sum(graph(x)), ps)
-                    exp = gradient(() -> sum(fgraph(x)), ps)
+                ps = getfield.(filter(c -> c isa ImMatMul, computation.(vertices(graph))), :W) |> Zygote.Params
+                res = gradient(() -> sum(graph(x)), ps)
+                exp = gradient(() -> sum(fgraph(x)), ps)
 
-                    @test length(ps) == length(res) == length(exp) == 3
-    
-                    @testset "Gradient for $(name(v))" for v in filter(v -> computation(v) isa ImMatMul, vertices(graph))
-                        p = computation(v).W
-                        @test p in keys(res)
-                        @test p in keys(exp)
-                        @test res[p] == exp[p]
-                    end
+                @test length(ps) == length(res) == length(exp) == 3
+
+                @testset "Gradient for $(name(v))" for v in filter(v -> computation(v) isa ImMatMul, vertices(graph))
+                    p = computation(v).W
+                    @test p in keys(res)
+                    @test p in keys(exp)
+                    @test res[p] == exp[p]
                 end
             end
         end

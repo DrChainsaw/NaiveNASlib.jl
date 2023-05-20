@@ -41,7 +41,7 @@ include("testutil.jl")
 	include("examples.jl")
 
 	if Int !== Int32
-		# Don't test documentation unless 64-bit os since some example print numerical types
+		# Don't test documentation unless 64-bit since some example print numerical types
 		import Documenter
 		Documenter.doctest(NaiveNASlib)
 	end
