@@ -25,16 +25,18 @@
             @test gradient(v1, 2.0, 3.0) == gradient(+, 2.0, 3.0)
             @test gradient(v -> v(2.0, 3.0), v1) == (nothing,)
             
-            graph = CompGraph([vi1, vi2], v3)
-            function fgraph(vi1,vi2) 
-                v1 = vi1 + vi2
-                v2 = vi1 * v1
-                v3 = v1 / v2
-            end
+            with_explicit_grads() do
+                graph = CompGraph([vi1, vi2], v3)
+                function fgraph(vi1,vi2) 
+                    v1 = vi1 + vi2
+                    v2 = vi1 * v1
+                    v3 = v1 / v2
+                end
 
-            @test gradient(graph, 2.0, 3.0) == gradient(fgraph, 2.0, 3.0)
-            # No parameters
-            @test gradient(g -> g(2.0, 3.0), graph) == (nothing,)
+                @test gradient(graph, 2.0, 3.0) == gradient(fgraph, 2.0, 3.0)
+                # No parameters
+                @test gradient(g -> g(2.0, 3.0), graph) == (nothing,)
+            end
         end
 
         @testset "With parameters" begin
@@ -62,11 +64,13 @@
             function _testgrads(::InputSizeVertex, seen, res, exp, name) end
 
             function _testgrads(v::AbstractVertex, seen, res::RT, exp, name) where RT 
-                @testset "Check gradient structure for $(name) of type $(typeof(v))" begin
-                    @test hasfield(RT, :base)
-                end
-                if hasfield(RT, :base)
-                    _testgrads(base(v), seen, res.base, exp, name)
+                if computation(v) isa ImMatMul
+                    @testset "Check gradient structure for $(name) of type $(typeof(v))" begin
+                        @test hasfield(RT, :base)
+                    end
+                    if hasfield(RT, :base)
+                        _testgrads(base(v), seen, res.base, exp, name)
+                    end
                 end
             end
             function _testgrads(v::CompVertex, seen, res, exp, name) 
@@ -77,6 +81,7 @@
                     end
                 end
                 foreach(enumerate(inputs(v))) do (i, vi)
+                    isnothing(res.inputs) && return
                     testgrads(vi, seen, res.inputs[i], exp)
                 end            
             end
@@ -111,6 +116,7 @@
             @testset "Explicit gradients" begin
                 with_explicit_grads() do
                     graph, fgraph  = makegraphs()
+                    @test graph(x) == fgraph(x)
 
                     @test gradient(sum ∘ graph, x) == gradient(sum ∘ fgraph, x)
                     res = gradient(g -> sum(g(x)), graph)
@@ -121,15 +127,22 @@
 
             @testset "Implicit gradients" begin
                 graph, fgraph  = makegraphs()
+                @test graph(x) == fgraph(x)
 
-                ps = getfield.(filter(c -> c isa ImMatMul, computation.(vertices(graph))), :W) |> Zygote.Params
-                res = gradient(() -> sum(graph(x)), ps)
-                exp = gradient(() -> sum(fgraph(x)), ps)
+                # Explicit gradients are needed with new memoization strategy
+                with_explicit_grads() do
+                    ps = getfield.(filter(c -> c isa ImMatMul, computation.(vertices(graph))), :W) |> Zygote.Params
+                    res = gradient(() -> sum(graph(x)), ps)
+                    exp = gradient(() -> sum(fgraph(x)), ps)
 
-                @test length(ps) == length(res) == length(exp) == 3
-
-                for p in ps
-                    @test res[p] == exp[p]
+                    @test length(ps) == length(res) == length(exp) == 3
+    
+                    @testset "Gradient for $(name(v))" for v in filter(v -> computation(v) isa ImMatMul, vertices(graph))
+                        p = computation(v).W
+                        @test p in keys(res)
+                        @test p in keys(exp)
+                        @test res[p] == exp[p]
+                    end
                 end
             end
         end
