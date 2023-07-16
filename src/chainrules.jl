@@ -30,11 +30,11 @@ _memoize(vm1::AbstractMemo, vm2::Memo) = LinkedMemo(vm1, vm2)
 get_or_compute(f, m::AbstractMemo, key) = get_or_compute(f, m, key, m)
 
 function get_or_compute(f, m::LinkedMemo, key, topmemo)
-    memokey(m) == key && return topmemo, memovalue(m)
+    memokey(m) === key && return topmemo, memovalue(m)
     get_or_compute(f, m.next, key, topmemo)
 end
 function get_or_compute(f, m::Memo, key, topmemo)
-    memokey(m) == key && return topmemo, memovalue(m)
+    memokey(m) === key && return topmemo, memovalue(m)
     f(key)
 end
 
@@ -69,7 +69,7 @@ function output_with_memo(memo, v::AbstractVertex)
     get_or_compute(memo, v) do vv
         mnew, inpt = _calc_outs(memo, inputs(vv))
         out = vv(inpt...)
-        _memoize(mnew, vv, out), out
+        length(outputs(vv)) > 1 ? (_memoize(mnew, vv, out), out) : (mnew, out)
     end 
 end
 
