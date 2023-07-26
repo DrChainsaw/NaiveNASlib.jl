@@ -33,8 +33,13 @@ CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = Com
 
 @functor CompGraph
 
+const timestamp = Ref(time())
+
 function (g::CompGraph)(x...)
     @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
+    ChainRulesCore.ignore_derivatives() do
+        timestamp[] = time()
+    end
     memo = init_memo(inputs(g), x)
     if length(outputs(g)) == 1
         return compute_graph(memo, first(outputs(g)))
