@@ -78,7 +78,7 @@ compute_graph(memo::AbstractArray, v) = last(output_with_memo(memo, v))
 output_with_memo(memo, v::AbstractVertex) = get_or_compute(memo, v) do mmemo, vv
     mnew, ins = _calc_outs3(mmemo, inputs(vv))
     out = vv(ins...)
-    _maybe_memoize(mnew, vv, out), out
+    (vv isa MutationVertex && length(outputs(vv)) > 1) ? (_memoize(mnew, vv, out), out) : (mnew, out)
 end
 # This seems to be worse for compile times compared to just having an if statement in output_with_memo
 _maybe_memoize(memo, v, out) = _memoize(memo, v, out) # For vertices which don't support outputs
