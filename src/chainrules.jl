@@ -27,7 +27,7 @@ memovalue(m::LinkedMemo) = memovalue(m.this)
 _memoize(vm::AbstractMemo, v, o) = _memoize(vm, Memo(v, o))
 _memoize(vm1::AbstractMemo, vm2::Memo) = LinkedMemo(vm1, vm2)
 
-get_or_compute(f, m::AbstractMemo, key) = get_or_compute(f, m, key, m)
+get_or_compute(f, m::AbstractMemo, key) = get_or_compute3(f, m, key, m)
 
 function get_or_compute(f, m::LinkedMemo, key, topmemo)
     memokey(m) === key && return (topmemo, memovalue(m))
@@ -47,6 +47,28 @@ function get_or_compute2(f, m::AbstractMemo, key, topmemo)
     memokey(m) === key && return topmemo, memovalue(m)
     f(topmemo, key)
 end
+
+# Generated variant of the above
+function get_or_compute_expr(f, m::Type{<:LinkedMemo{PT}}, key, topmemo) where PT
+    ex = quote
+        memokey(m) === key && return topmemo, memovalue(m)
+        m = m.next
+    end
+    append!(ex.args, get_or_compute_expr(f, PT, key, topmemo).args)
+    return ex
+end
+function get_or_compute_expr(f, m::Type{<:Memo}, key, topmemo)
+    quote
+        memokey(m) === key && return topmemo, memovalue(m)
+        f(topmemo, key)
+    end
+end
+
+
+@generated function get_or_compute3(f, m::AbstractMemo, key, topmemo)
+    get_or_compute_expr(f, m, key, topmemo)
+end
+
 
 Base.pairs(m::Memo) = tuple(memokey(m) => memovalue(m))
 Base.pairs(m::LinkedMemo) = Iterators.flatten((pairs(m.this), pairs(m.next)))
@@ -80,33 +102,6 @@ output_with_memo(memo, v::AbstractVertex) = get_or_compute(memo, v) do mmemo, vv
     out = vv(ins...)
     (vv isa MutationVertex && length(outputs(vv)) > 1) ? (_memoize(mnew, vv, out), out) : (mnew, out)
 end
-# This seems to be worse for compile times compared to just having an if statement in output_with_memo
-_maybe_memoize(memo, v, out) = _memoize(memo, v, out) # For vertices which don't support outputs
-_maybe_memoize(memo, v::MutationVertex, out) =  length(outputs(v)) > 1 ? _memoize(memo, v, out) : memo
-
-# ChainRules/Zygote friendly combination of map and reduction (map over vs, reduction of memo)
-# Tuple might seem unnecessary/detrimental, but without it compile times randomly blow up
-_calc_outs(memo, vs::AbstractArray) = _calc_outs(memo, Tuple(vs))
-function _calc_outs(memo, vs::Tuple)
-    mnew, in1 = output_with_memo(memo, vs[1])
-    _calc_outs(mnew, vs, 2, in1)
-end
-function _calc_outs(memo, vs::Tuple, ind, ins...)
-    ind > length(vs) && return memo, ins
-    mnew, inind = output_with_memo(memo, vs[ind])
-    _calc_outs(mnew, vs, ind+1, ins..., inind)
-end
-
-_calc_outs2(memo, vs::AbstractArray) = _calc_outs2(memo, Tuple(vs))
-function _calc_outs2(memo, vs::Tuple)
-    ins = tuple()
-    mnew = memo
-    for v in vs
-        mnew, newin = output_with_memo(mnew, v)
-        ins = (ins..., newin)
-    end
-    mnew, ins
-end
 
 import Base.Cartesian: @nexprs
 
@@ -119,5 +114,3 @@ _calc_outs3(memo, vs::AbstractArray) = _calc_outs3(memo, Tuple(vs))
         mnew, tuple($(outs...))
     end
 end
-
-
