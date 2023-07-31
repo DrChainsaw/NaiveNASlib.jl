@@ -15,7 +15,7 @@ function ImmutableCompVertex(v::AbstractVertex, seen=IdDict())
     end
 end
 ImmutableCompVertex(v::AbstractVertex, noutputs, seen) = ImmutableCompVertex(base(v), noutputs, seen) 
-ImmutableCompVertex(v::InputVertex, noutputs, seen) = TypedInputVertex{length(seen)}()
+ImmutableCompVertex(::InputVertex, noutputs, seen) = TypedInputVertex{length(seen)}()
 function ImmutableCompVertex(v::CompVertex, noutputs, seen::IdDict) 
     ins = ImmutableCompVertex.(Tuple(inputs(v)), Ref(seen))
     comp = striptostable(v.computation)
@@ -29,12 +29,13 @@ outputs(v::ImmutableCompVertex) = v.outputs
 import NaiveNASflux: LazyMutable, MutableLayer, ActivationContribution
 
 striptostable(f) = f
-function striptostable(lm::LazyMutable) 
+## This should go in NaioveNASflux
+#= function striptostable(lm::LazyMutable) 
     NaiveNASflux.forcemutation(lm)
     striptostable(lm.mutable)
 end
 striptostable(ml::MutableLayer) = ml.layer
-striptostable(ac::ActivationContribution) = ActivationContribution(striptostable(ac.layer), ac.contribution, ac.method)
+striptostable(ac::ActivationContribution) = ActivationContribution(striptostable(ac.layer), ac.contribution, ac.method) =#
 
 struct ImmutableCompGraph{I, O}
     inputs::I
