@@ -8,6 +8,7 @@ Memo(p::Pair) = Memo(first(p), last(p))
 Memo(itr) = foldl((m, e) -> _memoize(m, e...), Iterators.drop(itr, 1); init=Memo(first(itr)...))
 
 
+init_memo(v::AbstractVertex, x) = Memo(v, x)
 init_memo(ks::AbstractArray, vs) = init_memo(Tuple(ks), vs)
 init_memo(ks, vs) = init_memo(Memo(first(ks), first(vs)), Base.tail(ks), Base.tail(vs))
 init_memo(m, ks, vs) = isempty(ks) ? m : init_memo(_memoize(m, first(ks), first(vs)), Base.tail(ks), Base.tail(vs))
@@ -94,23 +95,28 @@ function get_or_compute(f, a::AbstractArray, key)
 end
 _memoize(a::AbstractArray, k, v) = vcat(a, k => v)
 
-compute_graph(memo::AbstractMemo, v) = last(output_with_memo(memo, v))
-compute_graph(memo::AbstractArray, v) = last(output_with_memo(memo, v))
+compute_graph(memo, v::AbstractVertex) = last(output_with_memo(memo, v))
+compute_graph(memo, vs::Tuple) = last(_calc_outs(memo, vs))
 
 output_with_memo(memo, v::AbstractVertex) = get_or_compute(memo, v) do mmemo, vv
-    mnew, ins = _calc_outs3(mmemo, inputs(vv))
+    mnew, ins = _calc_outs(mmemo, inputs(vv))
     out = vv(ins...)
     (vv isa MutationVertex && length(outputs(vv)) > 1) ? (_memoize(mnew, vv, out), out) : (mnew, out)
 end
 
-import Base.Cartesian: @nexprs
-
-_calc_outs3(memo, vs::AbstractArray) = _calc_outs3(memo, Tuple(vs))
-@generated function _calc_outs3(memo, vs::Tuple{Vararg{Any, N}}) where N
+function _calc_outs_expr(memoname, vsname, ::Type{<:Tuple{Vararg{Any, N}}}) where N
     outs = ntuple( i -> Symbol(:out_, i), Val(N))
+    calcexpr = map(i -> :((mnew, $(outs[i])) = output_with_memo(mnew, $vsname[$i])), 1:N)
     quote
-        mnew = memo
-        @nexprs $N j->((mnew, out_j) = output_with_memo(mnew, vs[j]))
+        mnew = $memoname
+        $(calcexpr...)
         mnew, tuple($(outs...))
     end
 end
+
+
+_calc_outs(memo, vs::AbstractArray) = _calc_outs(memo, Tuple(vs))
+@generated function _calc_outs(memo, vs::Tuple{Vararg{Any, N}}) where N
+    _calc_outs_expr(:memo, :vs, vs)
+end
+

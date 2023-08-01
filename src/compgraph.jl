@@ -23,38 +23,49 @@ julia> CompGraph(inputs(v1), [v1, v2])(2,3)
 ```
 
 """
-struct CompGraph{I<:AbstractVector{<:AbstractVertex}, O<:AbstractVector{<:AbstractVertex}}
+struct CompGraph{I<:Union{Tuple, AbstractVertex}, O<:Union{Tuple, AbstractVertex}}
     inputs::I
     outputs::O
+    function CompGraph(input, output)
+        ivs = _vectotuple(input)
+        ovs = _vectotuple(output)
+        new{typeof(ivs), typeof(ovs)}(ivs, ovs)
+    end
 end
-CompGraph(input::AbstractVertex, output::AbstractVertex) = CompGraph([input], [output])
-CompGraph(input::AbstractVector{<:AbstractVertex}, output::AbstractVertex) = CompGraph(input, [output])
-CompGraph(input::AbstractVertex, output::AbstractVector{<:AbstractVertex}) = CompGraph([input], output)
+# The check is mostly to maintain legacy behaviour where a graph with a single output vertex always
+# gave a non-tuple output
+_vectotuple(x::AbstractVector) = length(x) === 1 ? x[1] : Tuple(x)
+_vectotuple(x) = x
 
 @functor CompGraph
 
-function (g::CompGraph)(x...)
-    @assert length(x) == length(g.inputs) "Must supply one input for each input vertex!"
-    memo = init_memo(inputs(g), x)
-    if length(outputs(g)) == 1
-        return compute_graph(memo, first(outputs(g)))
-    end
-    last(_calc_outs3(memo, outputs(g)))
+function (g::CompGraph{<:AbstractVertex})(x)
+    memo = init_memo(g.inputs, x)
+    compute_graph(memo, g.outputs)
 end
+
+function (g::CompGraph{<:Tuple{Vararg{Any, N}}})(x::Vararg{Any, N}) where N
+    memo = init_memo(g.inputs, x)
+    compute_graph(memo, g.outputs)
+end
+
+(g::CompGraph)(x...) = throw(AssertionError("Must supply one input for each input vertex! Has $(length(g.inputs)) input vertices but got $(length(x)) inputs!"))
 
 """
     inputs(g::CompGraph) 
 
 Return the inputs vertices of `g`.
 """
-inputs(g::CompGraph) = g.inputs
+inputs(g::CompGraph{<:Tuple}) = collect(g.inputs)
+inputs(g::CompGraph{<:AbstractVertex}) = [g.inputs]
 
 """
     outputs(g::CompGraph) 
 
 Return the output vertices of `g`.
 """
-outputs(g::CompGraph) = g.outputs
+outputs(g::CompGraph{<:Any, <:Tuple}) = collect(g.outputs)
+outputs(g::CompGraph{<:Any, <:AbstractVertex}) = [g.outputs]
 
 """
     output!(memo::AbstractDict{K, V}, v::AbstractVertex) where {K,V}
@@ -193,4 +204,5 @@ julia> vertices(graph)
  CompVertex(*), inputs=[CompVertex(+), InputVertex(2)]
 ```
 """
-vertices(g::CompGraph) = unique(mapfoldl(ancestors, vcat, g.outputs))
+vertices(g::CompGraph{<:Any, <:Tuple}) = unique(mapfoldl(ancestors, vcat, outputs(g)))
+vertices(g::CompGraph{<:Any, <:AbstractVertex}) = ancestors(g.outputs)

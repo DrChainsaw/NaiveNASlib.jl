@@ -631,9 +631,9 @@ import JuMP
             CompGraph(inpt, v7)
         end
 
-        genstrat(::Type{ΔNout{Exact}}, g) = ΔNoutExact(g.outputs[1], -7)
-        genstrat(::Type{ΔNout{Relaxed}}, g) = ΔNoutRelaxed(g.outputs[1], -7)
-        genstrat(::typeof(ΔNinExact), g) = ΔNinExact(g.outputs[1], (-7, missing))
+        genstrat(::Type{ΔNout{Exact}}, g) = ΔNoutExact(outputs(g)[1], -7)
+        genstrat(::Type{ΔNout{Relaxed}}, g) = ΔNoutRelaxed(outputs(g)[1], -7)
+        genstrat(::typeof(ΔNinExact), g) = ΔNinExact(outputs(g)[1], (-7, missing))
         
         @testset "$basestrat" for basestrat in (
             ΔNout{Exact},

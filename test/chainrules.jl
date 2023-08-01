@@ -40,9 +40,11 @@
             
             (mm::ImMatMul)(x) = mm.W * x
 
-           testgrads(g::CompGraph, res, exp; seen=Base.IdSet()) = foreach(enumerate(outputs(g))) do (i, vo)
+            testgrads(g::CompGraph{<:Any, <:Tuple}, res, exp; seen=Base.IdSet()) = foreach(enumerate(outputs(g))) do (i, vo)
                 testgrads(vo, seen, res.outputs[i] ,exp)
-           end
+            end
+
+            testgrads(g::CompGraph{<:Any, <:AbstractVertex}, res, exp; seen=Base.IdSet()) = testgrads(g.outputs, seen, res.outputs ,exp)            
 
             function testgrads(v::AbstractVertex, seen, res, exp) 
                 v in seen && return
