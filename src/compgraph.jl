@@ -269,8 +269,8 @@ Base.pairs(m::LinkedMemo) = Iterators.flatten((pairs(m.this), pairs(m.next)))
 function Base.show(io::IO, m::AbstractMemo) 
     print(io, "Memo(")
     namearr = map(pairs(m)) do (k, v)
-        k isa AbstractVertex && return name(k) => typeof(v)
-        k => typeof(v) 
+        k isa AbstractVertex && return string(name(k), " => ", typeof(v))
+        string(k, " => ", typeof(v)) 
     end
 
     print(io, join(namearr, ", "))

@@ -2,6 +2,27 @@
 
     using Functors: fmap
 
+    @testset "Memo" begin
+        import NaiveNASlib: init_memo, _memoize, get_or_compute
+
+        key1 = inputvertex("v1", 1)
+        val1 = ones(1,1)
+        memo1 = init_memo(key1, val1)
+
+        @test get_or_compute((m, k) -> "not found!", memo1, key1) == (memo1, val1)
+
+        key2 = CompVertex(identity, [key1])
+        val2 = zeros(1, 1)
+        memo2 = _memoize(memo1, key2, val2)
+
+        @test get_or_compute((m,k) -> true, memo1, key2)
+        @test get_or_compute((m,k) -> "not found!", memo2, key1) == (memo2, val1)
+        @test get_or_compute((m,k) -> "not found!", memo2, key2) == (memo2, val2)
+
+        @test sprint(show, memo1) == "Memo(v1 => Matrix{Float64})"
+        @test sprint(show, memo2) == "Memo(CompVertex => Matrix{Float64}, v1 => Matrix{Float64})"
+    end
+
     @testset "Scalar computation graphs" begin
 
         # Setup a simple scalar graph which sums two numbers
