@@ -206,3 +206,96 @@ julia> vertices(graph)
 """
 vertices(g::CompGraph{<:Any, <:Tuple}) = unique(mapfoldl(ancestors, vcat, outputs(g)))
 vertices(g::CompGraph{<:Any, <:AbstractVertex}) = ancestors(g.outputs)
+
+## Non-public stuff to compute the CompGraph in a Zygote (and hopefully generally reverse-AD friendly) manner
+
+compute_graph(memo, v::AbstractVertex) = last(output_with_memo(memo, v))
+compute_graph(memo, vs::Tuple) = last(_calc_outs(memo, vs))
+
+# Memo structs are similar to Base.ImmutableDict but tailormade for the CompGraph case
+# also experimented with just using a (untyped) Vector with key => value pairs and 
+# that worked too and had similar performance (maybe a little bit worse).
+# Just feels better to have somewhat type stable memoization
+abstract type AbstractMemo end
+
+struct Memo{VT, OT} <: AbstractMemo
+    key::VT
+    value::OT
+end
+
+init_memo(v::AbstractVertex, x) = Memo(v, x)
+init_memo(ks, vs) = init_memo(Memo(first(ks), first(vs)), Base.tail(ks), Base.tail(vs))
+init_memo(m, ks, vs) = isempty(ks) ? m : init_memo(_memoize(m, first(ks), first(vs)), Base.tail(ks), Base.tail(vs))
+
+memokey(m::Memo) = m.key
+memovalue(m::Memo) = m.value
+
+struct LinkedMemo{PT<:AbstractMemo, VM <: Memo} <: AbstractMemo
+    next::PT
+    this::VM
+end
+memokey(m::LinkedMemo) = memokey(m.this)
+memovalue(m::LinkedMemo) = memovalue(m.this)
+
+_memoize(vm::AbstractMemo, v, o) = _memoize(vm, Memo(v, o))
+_memoize(vm1::AbstractMemo, vm2::Memo) = LinkedMemo(vm1, vm2)
+
+get_or_compute(f, m::AbstractMemo, key) = get_or_compute(f, m, key, m)
+
+# Zygote seems to prefer generated functions over recursion and loops
+function get_or_compute_expr(f, m::Type{<:LinkedMemo{PT}}, key, topmemo) where PT
+    ex = quote
+        memokey(m) === key && return topmemo, memovalue(m)
+        m = m.next
+    end
+    append!(ex.args, get_or_compute_expr(f, PT, key, topmemo).args)
+    return ex
+end
+function get_or_compute_expr(f, m::Type{<:Memo}, key, topmemo)
+    quote
+        memokey(m) === key && return topmemo, memovalue(m)
+        f(topmemo, key)
+    end
+end
+
+@generated function get_or_compute(f, m::AbstractMemo, key, topmemo)
+    get_or_compute_expr(f, m, key, topmemo)
+end
+
+# Only used for show method below, so we don't care that it is slow
+Base.pairs(m::Memo) = tuple(memokey(m) => memovalue(m))
+Base.pairs(m::LinkedMemo) = Iterators.flatten((pairs(m.this), pairs(m.next)))
+
+function Base.show(io::IO, m::AbstractMemo) 
+    print(io, "Memo(")
+    namearr = map(pairs(m)) do (k, v)
+        k isa AbstractVertex && return name(k) => typeof(v)
+        k => typeof(v) 
+    end
+
+    print(io, join(namearr, ", "))
+    print(io, ")")
+end
+
+output_with_memo(memo, v::AbstractVertex) = get_or_compute(memo, v) do mmemo, vv
+    mnew, ins = _calc_outs(mmemo, inputs(vv))
+    out = vv(ins...)
+    # Memoizing everything or having a method to dispatch on MutationVertex resulted in worse gradient performance
+    (vv isa MutationVertex && length(outputs(vv)) > 1) ? (_memoize(mnew, vv, out), out) : (mnew, out)
+end
+
+function _calc_outs_expr(memoname, vsname, ::Type{<:Tuple{Vararg{Any, N}}}) where N
+    outs = ntuple( i -> Symbol(:out_, i), Val(N))
+    calcexpr = map(i -> :((mnew, $(outs[i])) = output_with_memo(mnew, $vsname[$i])), 1:N)
+    quote
+        mnew = $memoname
+        $(calcexpr...)
+        mnew, tuple($(outs...))
+    end
+end
+
+_calc_outs(memo, vs::AbstractArray) = _calc_outs(memo, Tuple(vs))
+# Again: Zygote greatly preferred the generated function here over recursive and loop versions
+@generated function _calc_outs(memo, vs::Tuple{Vararg{Any, N}}) where N
+    _calc_outs_expr(:memo, :vs, vs)
+end

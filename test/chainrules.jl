@@ -80,7 +80,7 @@
                 end            
             end
 
-            function makegraphs() 
+            function makesisographs() 
                 l1 = ImMatMul(2, 3)
                 l2 = ImMatMul(3, 3)
                 l4 = ImMatMul(6, 3)
@@ -106,26 +106,102 @@
                 end          
             end
 
-            x = reshape(collect(Float32, 1:6), 2, 3)
-            @testset "Explicit gradients" begin
-                graph, fgraph  = makegraphs()
-                @test graph(x) == fgraph(x)
+            function makemisograps()
+                l1 = ImMatMul(2, 3)
+                l2 = ImMatMul(4, 3)
 
-                @test gradient(sum ∘ graph, x) == gradient(sum ∘ fgraph, x)
-                res = gradient(g -> sum(g(x)), graph)
-                exp = gradient(f -> sum(f(x)), fgraph)
+                vi1 = inputvertex("vi1", 2)
+                vi2 = inputvertex("vi2", 4)
+                v1 = absorbvertex("l1", l1, vi1)
+                v2 = absorbvertex("l2", l2, vi2)
+                v3 = "v3" >> v1 + v2
+                graph = CompGraph([vi1, vi2], v3)
+                
+                # Same function as graph but as a normal function
+                graph, function fgraph(vi1, vi2)
+                    v1 = l1(vi1)
+                    v2 = l2(vi2)
+                    v3 = v1 .+ v2
+                end
+            end
+
+            function makesimographs()
+                l1 = ImMatMul(2, 3)
+                l2 = ImMatMul(3, 4)
+                l3 = ImMatMul(3, 5)
+
+
+                vi = inputvertex("vi1", 2)
+                v1 = absorbvertex("l1", l1, vi)
+                v2 = absorbvertex("l2", l2, v1)
+                v3 = absorbvertex("l3", l3, v1)
+                graph = CompGraph(vi, [v2, v3])
+                
+                # Same function as graph but as a normal function
+                graph, function fgraph(vi)
+                    v1 = l1(vi)
+                    v2 = l2(v1)
+                    v3 = l3(v1)
+                    (v2, v3)
+                end
+            end
+
+            function makemimographs()
+                l1 = ImMatMul(2, 3)
+                l2 = ImMatMul(4, 3)
+
+                vi1 = inputvertex("vi1", 2)
+                vi2 = inputvertex("vi2", 4)
+                v1 = absorbvertex("l1", l1, vi1)
+                v2 = absorbvertex("l2", l2, vi2)
+                v3 = "v3" >> v1 + v2
+                v4 = conc("v4", v3, v2; dims=1)
+                graph = CompGraph([vi1, vi2], [v3, v4])
+                
+                # Same function as graph but as a normal function
+                graph, function fgraph(vi1, vi2)
+                    v1 = l1(vi1)
+                    v2 = l2(vi2)
+                    v3 = v1 .+ v2
+                    v4 = cat(v3, v2; dims=1)
+                    (v3, v4)
+                end
+            end
+
+            tsum(x) = sum(x)
+            tsum(x::Tuple) = sum(sum, x)
+
+            vi1 = reshape(collect(Float32, 1:6) , 2, 3)
+            vi2 = reshape(collect(Float32, 1:12), 4, 3)
+            @testset "Explicit gradients $makegraphs" for (makegraphs, x) in (
+                (makesisographs, (vi1,)),
+                (makemisograps, (vi1, vi2)),
+                (makesimographs, (vi1,)),
+                (makemimographs, (vi1, vi2))
+            )
+                graph, fgraph  = makegraphs()
+                @test graph(x...) == fgraph(x...)
+
+                @test gradient(tsum ∘ graph, x...) == gradient(tsum ∘ fgraph, x...)
+                exp = gradient(f -> tsum(f(x...)), fgraph)
+                res = gradient(g -> tsum(g(x...)), graph)
                 testgrads(graph, res..., exp...)       
             end
 
-            @testset "Implicit gradients" begin
+            @testset "Implicit gradients $makegraphs" for (makegraphs, x) in (
+                (makesisographs, (vi1,)),
+                (makemisograps, (vi1, vi2)),
+                (makesimographs, (vi1,)),
+                (makemimographs, (vi1, vi2))
+            )
                 graph, fgraph  = makegraphs()
-                @test graph(x) == fgraph(x)
+                @test graph(x...) == fgraph(x...)
 
                 ps = getfield.(filter(c -> c isa ImMatMul, computation.(vertices(graph))), :W) |> Zygote.Params
-                res = gradient(() -> sum(graph(x)), ps)
-                exp = gradient(() -> sum(fgraph(x)), ps)
+                res = gradient(() -> tsum(graph(x...)), ps)
+                exp = gradient(() -> tsum(fgraph(x...)), ps)
 
-                @test length(ps) == length(res) == length(exp) == 3
+                @test length(ps) == length(res) == length(exp) > 0
 
                 @testset "Gradient for $(name(v))" for v in filter(v -> computation(v) isa ImMatMul, vertices(graph))
                     p = computation(v).W
