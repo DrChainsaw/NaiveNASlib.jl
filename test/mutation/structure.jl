@@ -1034,7 +1034,7 @@ import JuMP
             @test inputs(v2) != outputs(v1)
             graph = CompGraph(v0, v2)
 
-            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
+            @test size(graph(ones(3, 1))) == (nout(outputs(graph)[1]), 1)
 
             insert!(v1, v -> av(v, nout(v), name="vnew1"))
 
@@ -1042,7 +1042,7 @@ import JuMP
             vnew1 = inputs(v2)[]
             @test [nout(v1)] == nin(vnew1) == [nout(vnew1)] == nin(v2) == [5]
 
-            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
+            @test size(graph(ones(3, 1))) == (nout(outputs(graph)[1]), 1)
 
             @test inputs(vnew1) == [v1]
             @test outputs(vnew1) == [v2]
@@ -1056,7 +1056,7 @@ import JuMP
 
             @test [nout(vnew1)] == nin(vnew2) == [nout(vnew3)] == nin(v2) == [5]
 
-            @test size(graph(ones(3, 1))) == (nout(graph.outputs[1]), 1)
+            @test size(graph(ones(3, 1))) == (nout(outputs(graph)[1]), 1)
         end
 
         @testset "Add to one of many inputs" begin
@@ -1366,12 +1366,12 @@ import JuMP
 
         @testset "Size constraints" begin
             JuMP = NaiveNASlib.JuMP
-            struct SizeConstraint{T}
+            struct SizeConstraintStructureTests{T}
                 constraint::Int
                 w::T
             end
 
-            function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, s, c::SizeConstraint, data)
+            function NaiveNASlib.compconstraint!(::NaiveNASlib.NeuronIndices, s, c::SizeConstraintStructureTests, data)
                 fv_out = JuMP.@variable(data.model, integer=true)
                 JuMP.@constraint(data.model, c.constraint * fv_out ==  nout(data.vertex) - data.noutdict[data.vertex])
     
@@ -1379,19 +1379,19 @@ import JuMP
                 fv_in = JuMP.@variable(data.model, [1:length(ins)], integer=true)
                 JuMP.@constraint(data.model, [i=1:length(ins)], c.constraint * fv_in[i] ==  nout(ins[i]) - data.noutdict[ins[i]])
             end
-            NaiveNASlib.Δsizetype(c::SizeConstraint) = NaiveNASlib.Δsizetype(c.w)
-            NaiveNASlib.nout(c::SizeConstraint) = nout(c.w)
-            NaiveNASlib.nin(c::SizeConstraint) = nin(c.w)
-            NaiveNASlib.Δsize!(c::SizeConstraint, insize::AbstractVector, outsize::AbstractVector) = Δsize!(c.w, insize, outsize)
+            NaiveNASlib.Δsizetype(c::SizeConstraintStructureTests) = NaiveNASlib.Δsizetype(c.w)
+            NaiveNASlib.nout(c::SizeConstraintStructureTests) = nout(c.w)
+            NaiveNASlib.nin(c::SizeConstraintStructureTests) = nin(c.w)
+            NaiveNASlib.Δsize!(c::SizeConstraintStructureTests, insize::AbstractVector, outsize::AbstractVector) = Δsize!(c.w, insize, outsize)
 
             @testset "Incompatible size constraints" begin
 
-                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraintStructureTests(2, MatMul(3, 10)))
                 v2 = av(v1, 5, name = "v2")
-                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
+                v3 = av(v2, 4, name="v3", comp = SizeConstraintStructureTests(3, MatMul(nout(v2), 4)))
 
-                # Impossible to increase v1 by 5 due to SizeConstraint(3)
-                # But also impossible to decrease nin of v3 by 5 due to SizeConstraint(2)
+                # Impossible to increase v1 by 5 due to SizeConstraintStructureTests(3)
+                # But also impossible to decrease nin of v3 by 5 due to SizeConstraintStructureTests(2)
                 # However, if we increase v1 by 2*2 and increase v3 by 3*3 we will hit home!
                 # Fallback to AlignBoth which does just that
                 @test remove!(v2)
@@ -1400,9 +1400,9 @@ import JuMP
 
             @testset "Incompatible size constraints transparent vertex" begin
 
-                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraint(2, MatMul(3, 10)))
+                v1 = av(inpt(3), 10, name="v1", comp = SizeConstraintStructureTests(2, MatMul(3, 10)))
                 v2 = sv(v1, name = "v2")
-                v3 = av(v2, 4, name="v3", comp = SizeConstraint(3, MatMul(nout(v2), 4)))
+                v3 = av(v2, 4, name="v3", comp = SizeConstraintStructureTests(3, MatMul(nout(v2), 4)))
 
                 # Size is already aligned due to transparent. Just test that this
                 # does not muck things up

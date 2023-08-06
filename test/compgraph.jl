@@ -2,13 +2,34 @@
 
     using Functors: fmap
 
+    @testset "Memo" begin
+        import NaiveNASlib: init_memo, _memoize, get_or_compute
+
+        key1 = inputvertex("v1", 1)
+        val1 = ones(1,1)
+        memo1 = init_memo(key1, val1)
+
+        @test get_or_compute((m, k) -> "not found!", memo1, key1) == (memo1, val1)
+
+        key2 = "v2"
+        val2 = zeros(1, 1)
+        memo2 = _memoize(memo1, key2, val2)
+
+        @test get_or_compute((m,k) -> true, memo1, key2)
+        @test get_or_compute((m,k) -> "not found!", memo2, key1) == (memo2, val1)
+        @test get_or_compute((m,k) -> "not found!", memo2, key2) == (memo2, val2)
+
+        @test sprint(show, memo1) == "Memo(v1 => Matrix{Float64})"
+        @test sprint(show, memo2) == "Memo(v2 => Matrix{Float64}, v1 => Matrix{Float64})"
+    end
+
     @testset "Scalar computation graphs" begin
 
         # Setup a simple scalar graph which sums two numbers
         ins = InputVertex.(1:3)
         sumvert = CompVertex(+, ins[1], ins[2])
         scalevert = CompVertex(x -> 2x, sumvert)
-        graph = CompGraph(inputs(sumvert), [scalevert])
+        graph = CompGraph(inputs(sumvert), scalevert)
         sumvert2 = CompVertex((x,y) -> x+y+2, ins[1], ins[3])
         graph2out = CompGraph(ins, [scalevert, sumvert2])
 
@@ -25,24 +46,35 @@
             @test graph([2], [3]) == [10]
             @test graph(0.5, 1.3) ≈ 3.6
             @test graph2out(4,5,8) == (18, 14)
+            @test_throws AssertionError("Must supply one input for each input vertex! Has 2 input vertices but got 1 inputs!") graph(2)
         end
     end
 
     @testset "Array computation graphs" begin
-
         # Setup a graph which scales one of the inputs by 3 and then merges is with the other
         ins = InputVertex.(1:2)
         scalevert = CompVertex(x -> 3 .* x, ins[1])
-        mergegraph1 = CompGraph(ins, [CompVertex(hcat, ins[2], scalevert)])
-        mergegraph2 = CompGraph(ins, [CompVertex(hcat, scalevert, ins[2])])
+        mergegraph1 = CompGraph(ins, CompVertex(hcat, ins[2], scalevert))
+        mergegraph2 = CompGraph(ins, CompVertex(hcat, scalevert, ins[2]))
 
         @testset "Computation tests" begin
-            @test CompGraph([ins[1]], [scalevert])(ones(Int64, 1, 2)) == [3 3]
+            @test CompGraph([ins[1]], scalevert)(ones(Int64, 1, 2)) == [3 3]
 
             @test mergegraph1(ones(Int64, 3,2), ones(Int64, 3,3)) == [1 1 1 3 3; 1 1 1 3 3; 1 1 1 3 3]
             @test mergegraph2(ones(Int64, 3,2), ones(Int64, 3,3)) == [3 3 1 1 1; 3 3 1 1 1; 3 3 1 1 1]
         end
+    end
 
+    @testset "Zero inputs" begin
+        import NaiveNASlib: AbstractVertex
+        # Does not seem very useful, but I made some tests in ONNXNaiveNASflux which ended up using this
+        sourcevert1 = CompVertex(() -> 1, AbstractVertex[])
+        sourcevert2 = CompVertex(() -> 2, AbstractVertex[])
+        sumvert1 = CompVertex(+, [sourcevert1, sourcevert2])
+        sumvert2 = CompVertex(+, [sourcevert1, sumvert1])
+        graph = CompGraph([], sumvert2)
+
+        @test graph() == 4
     end
 
     @testset "Simple graph copy" begin

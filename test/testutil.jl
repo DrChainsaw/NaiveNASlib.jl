@@ -19,7 +19,7 @@ function issame(a1::AbstractArray{T,1}, a2::AbstractArray{T,1}, visited=Abstract
     length(a1) != length(a2) && return false
     return all(map(vs -> issame(vs..., visited), zip(a1,a2)))
 end
-issame(g1::CompGraph, g2::CompGraph, visited=AbstractVertex[]) = issame(g1.outputs, g2.outputs, visited)
+issame(g1::CompGraph, g2::CompGraph, visited=AbstractVertex[]) = issame(outputs(g1), outputs(g2), visited)
 issame(d1, d2, visited=AbstractVertex[]) = d1 == d2
 
 function showstr(f, v)

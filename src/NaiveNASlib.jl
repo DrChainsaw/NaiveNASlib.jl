@@ -1,5 +1,7 @@
 module NaiveNASlib
 
+using PrecompileTools
+
 import Statistics
 import Logging
 using Logging: LogLevel, @logmsg
@@ -9,9 +11,6 @@ using JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE
 import HiGHS
 import Functors
 using Functors: @functor, functor
-
-import ChainRulesCore
-import ChainRulesCore: rrule, rrule_via_ad, RuleConfig, HasReverseMode, NoTangent
 
 # Computation graph
 export CompGraph, nvertices, vertices, findvertices, inputs, outputs, name
@@ -39,11 +38,15 @@ include("mutation/size.jl")
 include("mutation/select.jl")
 include("mutation/structure.jl")
 
-include("api/vertex.jl")
+
+@recompile_invalidations begin
+    # Haven't checked whether this does invalidate, but it does syntax punning (which I do regret a bit today)
+    # on some Base methods, e.g. +
+    include("api/vertex.jl")
+end
 include("api/size.jl")
 include("api/Advanced.jl")
 include("api/Extend.jl")
 
-include("chainrules.jl")
-
+include("precompile.jl")
 end # module

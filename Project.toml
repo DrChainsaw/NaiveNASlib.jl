@@ -3,16 +3,15 @@ uuid = "bd45eb3e-47ce-54bd-9eaf-e86c5f900853"
 version = "2.0.10"
 
 [deps]
-ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
-ChainRulesCore = "1.15"
 Functors = "0.4"
 HiGHS = "1"
 JuMP = "0.21, 0.22, 0.23, 1"
