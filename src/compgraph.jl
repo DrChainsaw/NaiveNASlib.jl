@@ -222,10 +222,13 @@ struct Memo{VT, OT} <: AbstractMemo
     key::VT
     value::OT
 end
+Memo() = Memo(tuple(), tuple()) # Use this as a sentinel value for empty memo
 
 init_memo(v::AbstractVertex, x) = Memo(v, x)
 init_memo(ks, vs) = init_memo(Memo(first(ks), first(vs)), Base.tail(ks), Base.tail(vs))
 init_memo(m, ks, vs) = isempty(ks) ? m : init_memo(_memoize(m, first(ks), first(vs)), Base.tail(ks), Base.tail(vs))
+# CompGraphs can have zero inputs. Not useful in general, but shows up in some tests of ONNXNaiveNASflux
+init_memo(::Tuple{}, ::Tuple{}) = Memo() 
 
 memokey(m::Memo) = m.key
 memovalue(m::Memo) = m.value
@@ -237,6 +240,7 @@ end
 memokey(m::LinkedMemo) = memokey(m.this)
 memovalue(m::LinkedMemo) = memovalue(m.this)
 
+_memoize(::Memo{Tuple{}, Tuple{}}, v, o) = Memo(v, o)
 _memoize(vm::AbstractMemo, v, o) = _memoize(vm, Memo(v, o))
 _memoize(vm1::AbstractMemo, vm2::Memo) = LinkedMemo(vm1, vm2)
 
@@ -281,7 +285,7 @@ output_with_memo(memo, v::AbstractVertex) = get_or_compute(memo, v) do mmemo, vv
     mnew, ins = _calc_outs(mmemo, inputs(vv))
     out = vv(ins...)
     # Memoizing everything or having a method to dispatch on MutationVertex resulted in worse gradient performance
-    (vv isa MutationVertex && length(outputs(vv)) > 1) ? (_memoize(mnew, vv, out), out) : (mnew, out)
+    (!isa(vv, MutationVertex) || length(outputs(vv)) > 1) ? (_memoize(mnew, vv, out), out) : (mnew, out)
 end
 
 function _calc_outs_expr(memoname, vsname, ::Type{<:Tuple{Vararg{Any, N}}}) where N

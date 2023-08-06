@@ -51,7 +51,6 @@
     end
 
     @testset "Array computation graphs" begin
-
         # Setup a graph which scales one of the inputs by 3 and then merges is with the other
         ins = InputVertex.(1:2)
         scalevert = CompVertex(x -> 3 .* x, ins[1])
@@ -64,7 +63,18 @@
             @test mergegraph1(ones(Int64, 3,2), ones(Int64, 3,3)) == [1 1 1 3 3; 1 1 1 3 3; 1 1 1 3 3]
             @test mergegraph2(ones(Int64, 3,2), ones(Int64, 3,3)) == [3 3 1 1 1; 3 3 1 1 1; 3 3 1 1 1]
         end
+    end
 
+    @testset "Zero inputs" begin
+        import NaiveNASlib: AbstractVertex
+        # Does not seem very useful, but I made some tests in ONNXNaiveNASflux which ended up using this
+        sourcevert1 = CompVertex(() -> 1, AbstractVertex[])
+        sourcevert2 = CompVertex(() -> 2, AbstractVertex[])
+        sumvert1 = CompVertex(+, [sourcevert1, sourcevert2])
+        sumvert2 = CompVertex(+, [sourcevert1, sumvert1])
+        graph = CompGraph([], sumvert2)
+
+        @test graph() == 4
     end
 
     @testset "Simple graph copy" begin
