@@ -1,6 +1,6 @@
 name = "NaiveNASlib"
 uuid = "bd45eb3e-47ce-54bd-9eaf-e86c5f900853"
-version = "2.0.10"
+version = "2.0.11"
 
 [deps]
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
