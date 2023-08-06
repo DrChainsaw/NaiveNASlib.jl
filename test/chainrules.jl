@@ -12,15 +12,17 @@
             v1 = "add" >> vi1 + vi2
             v2 = "mul" >> vi1 * v1
             v3 = "div" >> v1 / v2
+            v4 = "sub" >> v3 - v2
 
             @test gradient(v1, 2.0, 3.0) == gradient(+, 2.0, 3.0)
             @test gradient(v -> v(2.0, 3.0), v1) == (nothing,)
             
-            graph = CompGraph([vi1, vi2], v3)
+            graph = CompGraph([vi1, vi2], v4)
             function fgraph(vi1,vi2) 
                 v1 = vi1 + vi2
                 v2 = vi1 * v1
                 v3 = v1 / v2
+                v4 = v3 - v2
             end
 
             @test gradient(graph, 2.0, 3.0) == gradient(fgraph, 2.0, 3.0)

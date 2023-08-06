@@ -48,4 +48,5 @@ include("api/size.jl")
 include("api/Advanced.jl")
 include("api/Extend.jl")
 
+include("precompile.jl")
 end # module
