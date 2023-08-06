@@ -11,7 +11,7 @@
 
         @test get_or_compute((m, k) -> "not found!", memo1, key1) == (memo1, val1)
 
-        key2 = CompVertex(identity, [key1])
+        key2 = "v2"
         val2 = zeros(1, 1)
         memo2 = _memoize(memo1, key2, val2)
 
@@ -20,7 +20,7 @@
         @test get_or_compute((m,k) -> "not found!", memo2, key2) == (memo2, val2)
 
         @test sprint(show, memo1) == "Memo(v1 => Matrix{Float64})"
-        @test sprint(show, memo2) == "Memo(CompVertex => Matrix{Float64}, v1 => Matrix{Float64})"
+        @test sprint(show, memo2) == "Memo(v2 => Matrix{Float64}, v1 => Matrix{Float64})"
     end
 
     @testset "Scalar computation graphs" begin
