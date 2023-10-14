@@ -32,14 +32,18 @@ makedocs(   sitename="NaiveNASlib",
                         "reference/advanced/size.md",
                         "reference/advanced/structure.md",
                         "reference/advanced/traits.md",
+                        "reference/advanced/infixconf.md",
                     ],
                     "Extend" => [
                         "reference/extend/vertices.md",
                         "reference/extend/strategies.md",
                         "reference/extend/traits.md",
-                        "reference/extend/misc.md"
-                    ]
-                ]
+                        "reference/extend/misc.md",
+                    ],
+                ],
+                "Internal" => [
+                    "reference/internal/internal.md",
+                ],
             ],
             modules = [NaiveNASlib],
         )
