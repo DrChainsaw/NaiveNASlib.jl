@@ -46,6 +46,7 @@ makedocs(   sitename="NaiveNASlib",
                 ],
             ],
             modules = [NaiveNASlib],
+            warnonly=[:missing_docs],
         )
 function touchfile(filename, rootdir=nndir, destdir="test/examples")
     filepath = joinpath(rootdir, destdir, filename)
