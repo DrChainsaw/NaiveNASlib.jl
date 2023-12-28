@@ -223,7 +223,18 @@ struct VertexConf{TD, OW}
     traitdecoration::TD
     outwrap::OW
 end
+"""
+    traitconf(t)
+
+Shortcut for [`VertexConf(;traitdecoration=t)`](@ref).
+"""
 traitconf(t) = VertexConf(traitdecoration=t)
+
+"""
+    outwrapconf(o)
+
+Shortcut for [`VertexConf(;outwrap=o)`](@ref).
+"""
 outwrapconf(o) = VertexConf(outwrap=o)
 VertexConf(;traitdecoration = identity, outwrap = identity)= VertexConf(traitdecoration, outwrap)
 

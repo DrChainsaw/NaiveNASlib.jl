@@ -56,16 +56,17 @@ end
 
 Return the inputs vertices of `g`.
 """
-inputs(g::CompGraph{<:Tuple}) = collect(g.inputs)
-inputs(g::CompGraph{<:AbstractVertex}) = [g.inputs]
+inputs(g::CompGraph) = _toarray(g.inputs)
 
 """
     outputs(g::CompGraph) 
 
 Return the output vertices of `g`.
 """
-outputs(g::CompGraph{<:Any, <:Tuple}) = collect(g.outputs)
-outputs(g::CompGraph{<:Any, <:AbstractVertex}) = [g.outputs]
+outputs(g::CompGraph) = _toarray(g.outputs)
+
+_toarray(v::AbstractVertex) = [v]
+_toarray(t::Tuple) = collect(t)
 
 """
     output!(memo::AbstractDict{K, V}, v::AbstractVertex) where {K,V}
