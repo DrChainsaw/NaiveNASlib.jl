@@ -211,7 +211,7 @@ end
 (::RenameWalk)(recurse, x) = Functors.DefaultWalk()(recurse, x) 
 
 # I must admit that thinking about what this does makes me a bit dizzy...
-namedgraph = Functors.fmap(walk, identity, graph)
+namedgraph = Functors.execute(walk, graph)
 
 @test name.(vertices(namedgraph)) == ["in changed", "layer1", "layer2"]
 @test graph(ones(2, 1)) == namedgraph(ones(2,1))
