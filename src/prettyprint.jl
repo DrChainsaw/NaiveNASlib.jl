@@ -72,7 +72,10 @@ function graphsummary(io, g::CompGraph, extracolumns...;
     rowhighligts = PrettyTables.Highlighter(Returns(true), function(h, x, i, j)
         !isnothing(inputhl) &&  i <= length(inputs(g)) && return inputhl
         !isnothing(outputhl) && i > length(t[1]) - length(outputs(g)) && return outputhl
-        length(t[1]) > 7 && iseven(i - isnothing(inputhl) * length(inputs(g))) && return PrettyTables.crayon"fg:white bold bg:dark_gray"
+        # Kinda random to enable highlights on even rows if we have more than seven rows
+        # If we do use it, we want it to start with default for the first hidden layer/vertex regardless of how 
+        # many input vertices there are (assuming we use different formatting for input vertices).
+        length(t[1]) > 7 && iseven(i - !isnothing(inputhl) * length(inputs(g))) && return PrettyTables.crayon"fg:white bold bg:dark_gray"
         PrettyTables.crayon"default"
     end)
 
