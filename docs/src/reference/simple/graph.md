@@ -7,4 +7,5 @@ outputs(::CompGraph)
 vertices
 nvertices
 findvertices
+graphsummary
 ```

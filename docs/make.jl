@@ -2,15 +2,15 @@ using Documenter, Literate, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Exten
 
 const nndir = joinpath(dirname(pathof(NaiveNASlib)), "..")
 
-function literate_example(sourcefile; rootdir=nndir, sourcedir = "test/examples", destdir="docs/src/examples")
-    fullpath = Literate.markdown(joinpath(rootdir, sourcedir, sourcefile), joinpath(rootdir, destdir); flavor=Literate.DocumenterFlavor(), mdstrings=true, codefence="````julia" => "````")
+function literate_example(sourcefile; rootdir=nndir, sourcedir = "test/examples", destdir="docs/src/examples", kwargs...)
+    fullpath = Literate.markdown(joinpath(rootdir, sourcedir, sourcefile), joinpath(rootdir, destdir); flavor=Literate.DocumenterFlavor(), mdstrings=true, kwargs...)
     dirs = splitpath(fullpath)
     srcind = findfirst(==("src"), dirs)
     joinpath(dirs[srcind+1:end]...)
 end
 
 quicktutorial = literate_example("quicktutorial.jl")
-advancedtutorial = literate_example("advancedtutorial.jl")
+advancedtutorial = literate_example("advancedtutorial.jl"; codefence="````julia" => "````")
 
 makedocs(   sitename="NaiveNASlib",
             root = joinpath(nndir, "docs"), 

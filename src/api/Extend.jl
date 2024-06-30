@@ -16,6 +16,6 @@ using Reexport: @reexport
 @reexport using ..NaiveNASlib: AbstractAlignSizeStrategy
 @reexport using ..NaiveNASlib: AbstractConnectStrategy
 
-@reexport using ..NaiveNASlib: base, parselect, vertex
+@reexport using ..NaiveNASlib: base, parselect, vertex, op
 
 end

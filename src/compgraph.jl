@@ -208,7 +208,7 @@ julia> vertices(graph)
 vertices(g::CompGraph{<:Any, <:Tuple}) = unique(mapfoldl(ancestors, vcat, outputs(g)))
 vertices(g::CompGraph{<:Any, <:AbstractVertex}) = ancestors(g.outputs)
 
-## Non-public stuff to compute the CompGraph in a Zygote (and hopefully generally reverse-AD friendly) manner
+## Non-public stuff to compute the CompGraph in a Zygote (and hopefully generally reverse-AD) friendly manner
 
 compute_graph(memo, v::AbstractVertex) = last(output_with_memo(memo, v))
 compute_graph(memo, vs::Tuple) = last(_calc_outs(memo, vs))

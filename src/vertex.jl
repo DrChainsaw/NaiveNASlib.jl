@@ -146,3 +146,7 @@ Note that names in a graph don't have to be unique.
 """
 name(v::AbstractVertex) = string(nameof(typeof(v)))
 name(v::InputVertex) = v.name
+
+op(::InputVertex) = nothing
+op(v::CompVertex) = op(v.computation)
+op(f) = f
