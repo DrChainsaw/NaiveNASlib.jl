@@ -62,7 +62,7 @@ julia> graphsummary(g, name, "input sizes" => nin, "output sizes" => nout)
 """
 graphsummary(g::CompGraph, extracolumns...; kwargs...) = graphsummary(stdout, g, extracolumns...; kwargs...)
 function graphsummary(io, g::CompGraph, extracolumns...; 
-                        inputhl=PrettyTables.crayon"fg:black bg:249", 
+                        inputhl=PrettyTables.crayon"fg:black bg:white", 
                         outputhl=inputhl,
                         kwargs...)
     t = summarytable(g, extracolumns...)
