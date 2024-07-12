@@ -1,9 +1,12 @@
-Base.show(g::CompGraph, args...; kwargs...) = show(stdout, g, args...; kwargs...)
-function Base.show(io::IO, g::CompGraph, args...; kwargs...) 
+
+function Base.show(io::IO, g::CompGraph) 
     # Don't print the summary table if we are printing some iterable (as indicated by presence of :SHOWN_SET)
     haskey(io, :SHOWN_SET) && return print(io, "CompGraph(", nvertices(g)," vertices)")
-    graphsummary(io, g, args...; title="CompGraph with graphsummary:", kwargs...)
+    graphsummary(io, g; title="CompGraph with graphsummary:")
 end
+
+# Mainly for Documenter since the highlights tend to look pretty wonky then  
+const GRAPHSUMMARY_USE_HIGHLIGHTS = Ref(true)
 
 """
     graphsummary([io], graph, extracolumns...; [inputhl], [outputhl], kwargs...)
@@ -24,7 +27,7 @@ default formatting, alignment and highlighting.
 !!! warning "API Stability" 
     While this function is part of the public API for natural reasons, the exact shape of its output shall not be considered stable.
 
-    `Base.show` for `CompGraph`s just forwards all arguments and keyword arguments to this method. This might change in the future.
+    `Base.show` for `CompGraph`s just calls this function. This might change in the future.
 
 ### Examples
 ```jldoctest
@@ -62,14 +65,14 @@ julia> graphsummary(g, name, "input sizes" => nin, "output sizes" => nout)
 """
 graphsummary(g::CompGraph, extracolumns...; kwargs...) = graphsummary(stdout, g, extracolumns...; kwargs...)
 function graphsummary(io, g::CompGraph, extracolumns...; 
-                        inputhl=PrettyTables.crayon"fg:black bg:white", 
+                        inputhl=PrettyTables.crayon"fg:black bg:249", 
                         outputhl=inputhl,
                         kwargs...)
     t = summarytable(g, extracolumns...)
     
     # Default formatting
     arraytostr = (x, args...) -> x isa AbstractVector ? join(x, ",") : isnothing(x) ? "" : x
-    rowhighligts = PrettyTables.Highlighter(Returns(true), function(h, x, i, j)
+    rowhighligts = PrettyTables.Highlighter(Returns(GRAPHSUMMARY_USE_HIGHLIGHTS[]), function(h, x, i, j)
         !isnothing(inputhl) &&  i <= length(inputs(g)) && return inputhl
         !isnothing(outputhl) && i > length(t[1]) - length(outputs(g)) && return outputhl
         # Kinda random to enable highlights on even rows if we have more than seven rows

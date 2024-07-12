@@ -26,6 +26,8 @@ add = "add" >> in1 + in2;
 # [`CompGraph`](@ref) helps evaluating the whole graph as a function.
 graph = CompGraph([in1, in2], add)
 
+# The `show` function for `CompGraph` just redirects to [`graphsummary`](@ref) until I can find a better way to print it.
+
 # Evaluate the function represented by `graph` by just calling it.
 @test( #src
 graph(2,3)
@@ -74,13 +76,13 @@ module TinyNNlib
 
     ## We also need to tell NaiveNASlib how to change the size of LinearLayer
     ## The Δsize! function will receive indices to keep from existing weights 
-    ## as well as where to insert new indices
+    ## as well as where to insert new rows/columns
     function NaiveNASlib.Δsize!(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
-        ## newins is a vector of vectors as vertices may have more than one input, 
-        ## but LinearLayer has only one
+        ## newins is a vector of vectors as vertices may have more than one input 
+        ## LinearLayer has only one howevever
         ## The function NaiveNASlib.parselect can be used to interpret newins and newouts. 
         ## We just need to tell it along which dimensions to apply them.
-        l.W = NaiveNASlib.parselect(l.W, 1=>newouts, 2=>newins[])
+        l.W = NaiveNASlib.parselect(l.W, 1=>newouts, 2=>only(newins))
     end
 
     ## This makes LinearLayer print nice in the graphsummary table
@@ -176,10 +178,11 @@ joined = conc(scalarmult(split,2), scalarmult(split,3), scalarmult(split,5), dim
 ## Elementwise addition is of course also size invariant 
 out = start + joined;
 
-## CompGraph to help us run the whole thing. Don't forget to use [`graphsummary`](@ref) to help understand the structure
+## CompGraph to help us run the whole thing. Don't forget to use [`graphsummary`](@ref) 
+## to help understand the structure
 graph = CompGraph(invertex, out)
 graphsummary(graph, nin, nout)
-# The anonymous function in  `scalarmult` does not print nicely. Consider using a callable struct and implement `Base.show` for it! 
+# As seen above, the anonymous function in `scalarmult` does not print nicely. Consider using a callable struct and implement `Base.show` for it.
 @test graph((ones(6))) == [78, 78, 114, 114, 186, 186]
 
 md"""
@@ -213,7 +216,8 @@ parentgraph = deepcopy(graph);
 #
 # Lets evaluate the graph just to verify that we don't get a dimension mismatch error. 
 @test graph((ones(6))) == [78, 78, 0, 114, 114, 0, 186, 186, 0]
-# `TinyNNlib` uses [`parselect`](@ref) which will insert zeros when size increases by default. 
+# `TinyNNlib` uses [`parselect`](@ref) which defaults to inserting rows/columns
+# of zeros when size increases. 
 # This helps the graph maintain the same function after mutation.
 # In this case we changed the size of the output layer so we don't have 
 # the exact same function though, but hopefully it is clear why e.g. a 
@@ -226,7 +230,7 @@ md"""
 While we still have the complex model in scope, lets show a few more way to change the sizes. See the built in documentation for more information.
 
 It is possible to supply a utility function for telling the utility of each neuron in a vertex. 
-NaiveNASlib will prioritize selecting the indices with higher utility.
+NaiveNASlib will prioritize keeping the neurons with higher utility.
 """
 #
 # Prefer high indices:
@@ -263,7 +267,7 @@ v1, v2 = badgraphdecinc[[3, end]] # Imagine selecting these at random
 goodgraphdecinc = deepcopy(graph)
 v1, v2 = goodgraphdecinc[[3, end]]
 @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
-@test goodgraphdecinc((ones(6))) == [78.0, 0.0, 0.0, 78.0, 114.0, 6.0, 0.0, 108.0, 186.0, 6.0, 0.0, 180.0]
+@test goodgraphdecinc((ones(6))) == [78, 0, 0, 78, 114, 6, 0, 108, 186, 6, 0, 180]
 
 # It is also possible to change the input direction, but it requires specifying a size change for each input 
 # and is generally not recommended due to this.

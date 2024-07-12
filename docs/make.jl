@@ -1,5 +1,7 @@
 using Documenter, Literate, NaiveNASlib, NaiveNASlib.Advanced, NaiveNASlib.Extend
 
+NaiveNASlib.GRAPHSUMMARY_USE_HIGHLIGHTS[] = false
+
 const nndir = joinpath(dirname(pathof(NaiveNASlib)), "..")
 
 function literate_example(sourcefile; rootdir=nndir, sourcedir = "test/examples", destdir="docs/src/examples", kwargs...)
@@ -64,3 +66,7 @@ if get(ENV, "CI", nothing) == "true"
         push_preview=true
     )
 end
+
+NaiveNASlib.GRAPHSUMMARY_USE_HIGHLIGHTS[] = true
+
+nothing # Just so that include("make.jl") does not return anything
