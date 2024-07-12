@@ -8,6 +8,7 @@ HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 

@@ -621,8 +621,8 @@ import JuMP
                 v4 = iv(v1,v2, name = "v4")
                 v5 = av(v4, 3, name="v5")
 
-                # Use utility 0 to remove an index so we can see that the utility function has any effect
-                create_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> 0:nout(v)-1 , AlignNinToNout())))
+                # Use utility -10 to remove an index so we can see that the utility function has any effect
+                create_edge!(v3, v4, strategy=PostAlign(WithUtilityFun(v -> v === v3 ? vcat(-10, 2:nout(v)) : 1, AlignNinToNout())))
 
                 @test inputs(v4) == [v1, v2, v3]
                 @test nin(v4) == nout.([v1, v2, v3]) == [4,4,4]

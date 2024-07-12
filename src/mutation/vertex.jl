@@ -6,6 +6,8 @@ Return the vertex wrapped in `v` (if any).
 """
 function base(::AbstractVertex) end
 
+op(v::AbstractVertex) = op(base(v))
+
 """
     OutputsVertex
 

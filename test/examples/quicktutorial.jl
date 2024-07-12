@@ -4,21 +4,20 @@ md"""
 ## Construct a very simple graph
 Just to get started, lets create a simple graph for the summation of two numbers. 
 """
-using NaiveNASlib, Test
+using NaiveNASlib, Test # We'll make use of @test below to condense verbose output
 md"""
 NaiveNASlib uses a special immutable type of vertex to annotate inputs so that one
 can be certain that size mutations won't suddenly change the input shape of the model.
 """
 @testset "First example" begin #src
-in1 = inputvertex("in1", 1)
-in2 = inputvertex("in2", 1)
+in1 = inputvertex("in1", 1);
+in2 = inputvertex("in2", 1);
 
 # In this example we could have done without them as we won't have any parameters to 
 # change the size of, but lets show things as they are expected to be used.
 #
 # Create a new vertex which computes the sum of `in1` and `in2`:
-add = "add" >> in1 + in2
-@test add isa NaiveNASlib.AbstractVertex
+add = "add" >> in1 + in2;
 
 # NaiveNASlib lets you do this using [`+`](@ref) which creates a new vertex which sums it inputs. 
 # Use `>>` to attach a name to the vertex when using infix operations.
@@ -27,18 +26,29 @@ add = "add" >> in1 + in2
 # [`CompGraph`](@ref) helps evaluating the whole graph as a function.
 graph = CompGraph([in1, in2], add)
 
+# The `show` function for `CompGraph` just redirects to [`graphsummary`](@ref) until I can find a better way to print it.
+
 # Evaluate the function represented by `graph` by just calling it.
-@test graph(2,3) == 5
-@test graph(100,200) == 300
+@test( #src
+graph(2,3)
+ == 5) #src
+#-
+@test( #src
+graph(100,200)
+ == 300) #src
 
 # The [`vertices`](@ref) function returns the vertices in topological order.
 @test vertices(graph) == [in1, in2, add]
 @test name.(vertices(graph)) == ["in1", "in2", "add"]
 
+# The [`graphsummary`](@ref) function can be used to print a summary table:
+graphsummary(graph, name, "Name of inputs" => v -> name.(inputs(v)))
+
 # [`CompGraph`](@ref)s can be indexed:
-@test graph[begin] == graph[1] == in1
+@test graph[begin] == graph[1] == in1 
 @test graph[end] == graph[3] == add
 @test graph[begin:end] == vertices(graph)
+
 # This is a bit slow though as it traverses the whole graph each time. It is better to 
 # call [`vertices`](@ref) first and then apply the indexing if one needs to do this many times.
 end #src
@@ -66,20 +76,23 @@ module TinyNNlib
 
     ## We also need to tell NaiveNASlib how to change the size of LinearLayer
     ## The Δsize! function will receive indices to keep from existing weights 
-    ## as well as where to insert new indices
+    ## as well as where to insert new rows/columns
     function NaiveNASlib.Δsize!(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
-        ## newins is a vector of vectors as vertices may have more than one input, 
-        ## but LinearLayer has only one
+        ## newins is a vector of vectors as vertices may have more than one input 
+        ## LinearLayer has only one howevever
         ## The function NaiveNASlib.parselect can be used to interpret newins and newouts. 
         ## We just need to tell it along which dimensions to apply them.
-        l.W = NaiveNASlib.parselect(l.W, 1=>newouts, 2=>newins[])
+        l.W = NaiveNASlib.parselect(l.W, 1=>newouts, 2=>only(newins))
     end
+
+    ## This makes LinearLayer print nice in the graphsummary table
+    Base.show(io::IO, l::LinearLayer) = print(io, "LinearLayer(", only(nin(l)), " => " ,nout(l), ')')
 
     ## Helper function which creates a LinearLayer wrapped in an vertex in a computation graph.
     ## This creates a Keras-like API
     linearvertex(in, outsize) = absorbvertex(LinearLayer(nout(in), outsize), in)
     export linearvertex, LinearLayer
-end
+end;
 
 md"""
 There are a handful of other functions one can implement to e.g. provide better defaults and offer other forms of convenience, 
@@ -97,9 +110,9 @@ Lets do a super simple example where we make use of the tiny neural network libr
 
 @testset "Second example" begin #src
 using .TinyNNlib
-invertex = inputvertex("input", 3)
-layer1 = linearvertex(invertex, 4)
-layer2 = linearvertex(layer1, 5)
+invertex = inputvertex("input", 3);
+layer1 = linearvertex(invertex, 4);
+layer2 = linearvertex(layer1, 5);
 
 # Vertices may be called to execute their computation alone.
 # We generally outsource this work to [`CompGraph`](@ref), but now we are trying to illustrate how things work.
@@ -107,11 +120,12 @@ batchsize = 2
 batch = randn(nout(invertex), batchsize)
 y1 = layer1(batch)
 @test size(y1) == (nout(layer1), batchsize) == (4, 2)
+
 y2 = layer2(y1)
 @test size(y2) == (nout(layer2), batchsize) == (5, 2)
 
 # Lets change the output size of `layer1`. First check the input sizes so we have something to compare to.
-@test [nout(layer1)] == nin(layer2) == [4]
+@test [nout(layer1)] == nin(layer2) == [4] 
 @test Δnout!(layer1 => -2) # Returns true if successful
 @test [nout(layer1)] == nin(layer2) == [2]
 
@@ -120,8 +134,9 @@ y2 = layer2(y1)
 # The graph is still operational of course but the sizes of the activations have changed.
 y1 = layer1(batch)
 @test size(y1) == (nout(layer1), batchsize) == (2, 2)
+
 y2 = layer2(y1)
-@test size(y2) == (nout(layer2), batchsize) == (5 ,2)
+@test size(y2) == (nout(layer2), batchsize) == (5, 2)
 end #src
 
 md"""
@@ -146,26 +161,29 @@ While the previous example was simple enough to be done by hand, things can quic
 Lets use a small but non-trivial model including all of the above. We begin by making a helper which creates a vertex which
 does elementwise scaling of its input:
 """
-scalarmult(v, s::Number) = invariantvertex(x -> x .* s, v)
+scalarmult(v, s::Number) = invariantvertex(x -> x .* s, v);
 # When multiplying with a scalar, the output size is the same as the input size.
 # This vertex type is said to be size invariant (in lack of better words), hence the name [`invariantvertex`](@ref).
 
 @testset "More elaborate example" begin #src
 # Ok, lets create the model:
 ## First a few `LinearLayer`s
-invertex = inputvertex("input", 6)
-start = linearvertex(invertex, 6)
-split = linearvertex(start, nout(invertex) ÷ 3)
+invertex = inputvertex("input", 6);
+start = linearvertex(invertex, 6);
+split = linearvertex(start, nout(invertex) ÷ 3);
 
 ## Concatenation means the output size is the sum of the input sizes
-joined = conc(scalarmult(split,2), scalarmult(split,3), scalarmult(split,5), dims=1)
+joined = conc(scalarmult(split,2), scalarmult(split,3), scalarmult(split,5), dims=1);
 
 ## Elementwise addition is of course also size invariant 
-out = start + joined
+out = start + joined;
 
-## CompGraph to help us run the whole thing
+## CompGraph to help us run the whole thing. Don't forget to use [`graphsummary`](@ref) 
+## to help understand the structure
 graph = CompGraph(invertex, out)
-@test graph((ones(6)))  == [78, 78, 114, 114, 186, 186]
+graphsummary(graph, nin, nout)
+# As seen above, the anonymous function in `scalarmult` does not print nicely. Consider using a callable struct and implement `Base.show` for it.
+@test graph((ones(6))) == [78, 78, 114, 114, 186, 186]
 
 md"""
 Now we have a somewhat complex set of size relations at our hand since the sizes are constrained so that
@@ -183,7 +201,7 @@ in the graph to have something to compare to.
 @test [nout(start), nout(joined)] == nin(out) == [6, 6]
 
 # In many cases it is useful to hold on to the old graph before mutating
-parentgraph = deepcopy(graph)
+parentgraph = deepcopy(graph);
 
 # It is not possible to change the size of `out` by exactly 2 due to `1.` and `2.` above.
 # By default, NaiveNASlib warns when this happens and then tries to make the closest possible change.
@@ -198,7 +216,8 @@ parentgraph = deepcopy(graph)
 #
 # Lets evaluate the graph just to verify that we don't get a dimension mismatch error. 
 @test graph((ones(6))) == [78, 78, 0, 114, 114, 0, 186, 186, 0]
-# `TinyNNlib` uses [`parselect`](@ref) which will insert zeros when size increases by default. 
+# `TinyNNlib` uses [`parselect`](@ref) which defaults to inserting rows/columns
+# of zeros when size increases. 
 # This helps the graph maintain the same function after mutation.
 # In this case we changed the size of the output layer so we don't have 
 # the exact same function though, but hopefully it is clear why e.g. a 
@@ -211,7 +230,7 @@ md"""
 While we still have the complex model in scope, lets show a few more way to change the sizes. See the built in documentation for more information.
 
 It is possible to supply a utility function for telling the utility of each neuron in a vertex. 
-NaiveNASlib will prioritize selecting the indices with higher utility.
+NaiveNASlib will prioritize keeping the neurons with higher utility.
 """
 #
 # Prefer high indices:
@@ -248,7 +267,7 @@ v1, v2 = badgraphdecinc[[3, end]] # Imagine selecting these at random
 goodgraphdecinc = deepcopy(graph)
 v1, v2 = goodgraphdecinc[[3, end]]
 @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
-@test goodgraphdecinc((ones(6))) == [78.0, 0.0, 0.0, 78.0, 114.0, 6.0, 0.0, 108.0, 186.0, 6.0, 0.0, 180.0]
+@test goodgraphdecinc((ones(6))) == [78, 0, 0, 78, 114, 6, 0, 108, 186, 6, 0, 180]
 
 # It is also possible to change the input direction, but it requires specifying a size change for each input 
 # and is generally not recommended due to this.
@@ -284,7 +303,7 @@ function vertexandlayer(in, outsize)
     nparam = nout(in) * outsize
     l = LinearLayer(collect(reshape(1:nparam, :, nout(in))))
     return absorbvertex(l, in), l
-end
+end;
 
 # Make a simple model:
 invertices = inputvertex.(["in1", "in2"], [3,4])
@@ -294,6 +313,7 @@ merged = conc(v1, v2, dims=1)
 v3, l3 = vertexandlayer(invertices[1], nout(merged))
 add = v3 + merged
 v4, l4 = vertexandlayer(merged, 2)
+CompGraph(invertices, v4)
 
 # These weights might look a bit odd, but here we only care about making 
 # it easy to spot what has changed after size change below.
@@ -406,7 +426,7 @@ end #src
 # ### Add an edge
 
 # Using [`create_edge!`](@ref):
-@testset "Add edge example" begin
+@testset "Add edge example" begin #src
 invertices = inputvertex.(["input1", "input2"], [3, 2])
 layer1 = linearvertex(invertices[1], 4)
 layer2 = linearvertex(invertices[2], 4)

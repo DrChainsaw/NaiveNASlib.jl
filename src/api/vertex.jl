@@ -152,6 +152,12 @@ julia> name(v)
 """
 invariantvertex(args...; traitdecoration=identity) = vertex(traitdecoration(SizeInvariant()), args...)
 
+struct Concat{D}
+    dims::D
+end
+(c::Concat)(x...) = cat(x...; dims=c.dims)
+Base.show(io::IO, c::Concat) = print(io, "cat(x..., dims=", c.dims, ')')
+
 """
     conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
     conc(vname::AbstractString, v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
@@ -201,10 +207,10 @@ julia> v([1], [2, 3], [4, 5, 6])
 ```
 """
 function conc(v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)  
-    vertex(traitdecoration(SizeStack()), outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
+    vertex(traitdecoration(SizeStack()), outwrap(Concat(dims)), v, vs...)
 end
 function conc(vname::AbstractString, v::AbstractVertex, vs::AbstractVertex...; dims, traitdecoration=identity, outwrap=identity)
-    vertex(traitdecoration(SizeStack()), vname, outwrap((x...) -> cat(x..., dims=dims)), v, vs...)
+    vertex(traitdecoration(SizeStack()), vname, outwrap(Concat(dims)), v, vs...)
 end
 
 
@@ -238,10 +244,19 @@ Shortcut for [`VertexConf(;outwrap=o)`](@ref).
 outwrapconf(o) = VertexConf(outwrap=o)
 VertexConf(;traitdecoration = identity, outwrap = identity)= VertexConf(traitdecoration, outwrap)
 
+struct ElementWiseOp{F}
+    op::F
+end
+(e::ElementWiseOp)(x...) = e.op.(x...)
+function Base.show(io::IO, e::ElementWiseOp) 
+    show(io, e.op)
+    print(io, " (element wise)")
+end
+
 # Common wiring for all elementwise operations
 function elemwise(op, conf::VertexConf, vs::AbstractVertex...)
     all(vi -> nout(vi) == nout(vs[1]), vs) || throw(DimensionMismatch("nout of all vertices input to elementwise vertex must be equal! Got $(nout.(vs))"))
-    invariantvertex(conf.outwrap((x...) -> op.(x...)), vs...; conf.traitdecoration)
+    invariantvertex(conf.outwrap(ElementWiseOp(op)), vs...; conf.traitdecoration)
 end
 
 

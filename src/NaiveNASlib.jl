@@ -11,9 +11,10 @@ using JuMP: @variable, @constraint, @objective, @expression, MOI, MOI.INFEASIBLE
 import HiGHS
 import Functors
 using Functors: @functor, functor
+import PrettyTables
 
 # Computation graph
-export CompGraph, nvertices, vertices, findvertices, inputs, outputs, name
+export CompGraph, nvertices, vertices, findvertices, inputs, outputs, name, graphsummary
 
 # Vertex size operations
 export nin, nout, Δnin!, Δnout!, Δsize!, relaxed
