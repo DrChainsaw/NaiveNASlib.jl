@@ -36,6 +36,12 @@
         end
     end
 
+    @testset "show" begin
+        g = testgraph()
+        str = sprint((args...) -> show(args...), g)
+        @test length(split(str, '\n')) == nvertices(g)+6        
+    end
+
     @testset "graphsummary" begin
         g = testgraph()
         str = sprint((args...) -> graphsummary(args..., "vname"=>name, nin, nout; highlighters=tuple()), g)
