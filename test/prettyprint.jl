@@ -36,9 +36,9 @@
         end
     end
 
-    @testset "pretty print full" begin
+    @testset "graphsummary" begin
         g = testgraph()
-        str = sprint((args...) -> show(args..., "vname"=>name, nin, nout; highlighters=tuple()), g)
+        str = sprint((args...) -> graphsummary(args..., "vname"=>name, nin, nout; highlighters=tuple()), g)
 
         expnames = name.(vertices(g))
         innames = name.(inputs(g))
@@ -76,7 +76,6 @@
         str = sprint(show, CompGraph[g])
 
         @test str == "CompGraph[CompGraph($(nvertices(g)) vertices)]"
-
     end
 end
 
