@@ -37,12 +37,8 @@ include("testutil.jl")
 	@info "Testing api"
 	include("api/vertex.jl")
 
-	if !Sys.isapple()
-		@info "Testing doc examples"
-		include("examples.jl")
-	else
-		@info "Skipping doc examples on macOS"
-	end
+	@info "Testing doc examples"
+	include("examples.jl")
 
 	if Int !== Int32
 		# Don't test documentation unless 64-bit since some example print numerical types
