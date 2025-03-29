@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Quick Tutorial · NaiveNASlib</title><meta name="title" content="Quick Tutorial · NaiveNASlib"/><meta property="og:title" content="Quick Tutorial · NaiveNASlib"/><meta property="twitter:title" content="Quick Tutorial · NaiveNASlib"/><meta name="description" content="Documentation for NaiveNASlib."/><meta property="og:description" content="Documentation for NaiveNASlib."/><meta property="twitter:description" content="Documentation for NaiveNASlib."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">NaiveNASlib</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li class="is-active"><a class="tocitem" href>Quick Tutorial</a><ul class="internal"><li><a class="tocitem" href="#Construct-a-very-simple-graph"><span>Construct a very simple graph</span></a></li><li><a class="tocitem" href="#Modify-a-graph"><span>Modify a graph</span></a></li><li><a class="tocitem" href="#A-more-elaborate-example"><span>A more elaborate example</span></a></li><li><a class="tocitem" href="#Closer-look-at-how-weights-are-modified"><span>Closer look at how weights are modified</span></a></li><li><a class="tocitem" href="#Other-modifications"><span>Other modifications</span></a></li></ul></li><li><a class="tocitem" href="../advancedtutorial/">Advanced Tutorial</a></li><li><a class="tocitem" href="../../terminology/">Terminology</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../reference/simple/createvertex/">Vertex Creation</a></li><li><a class="tocitem" href="../../reference/simple/graph/">Graph Operations</a></li><li><a class="tocitem" href="../../reference/simple/queryvertex/">Access vertex data</a></li><li><a class="tocitem" href="../../reference/simple/mutatevertex/">Vertex Mutation</a></li><li><input class="collapse-toggle" id="menuitem-5-5" type="checkbox"/><label class="tocitem" for="menuitem-5-5"><span class="docs-label">Advanced</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../reference/advanced/graphquery/">Advanced Graph Functions</a></li><li><a class="tocitem" href="../../reference/advanced/size/">Size Strategies</a></li><li><a class="tocitem" href="../../reference/advanced/structure/">Vertex Connection Strategies</a></li><li><a class="tocitem" href="../../reference/advanced/traits/">Extra Vertex Traits</a></li><li><a class="tocitem" href="../../reference/advanced/infixconf/">Element Wise Configuration</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5-6" type="checkbox"/><label class="tocitem" for="menuitem-5-6"><span class="docs-label">Extend</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../reference/extend/vertices/">Vertex Types</a></li><li><a class="tocitem" href="../../reference/extend/strategies/">Strategy Base Types</a></li><li><a class="tocitem" href="../../reference/extend/traits/">Trait Types</a></li><li><a class="tocitem" href="../../reference/extend/misc/">Other Functions</a></li></ul></li></ul></li><li><span class="tocitem">Internal</span><ul><li><a class="tocitem" href="../../reference/internal/internal/">Internal functions with doc strings</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Quick Tutorial</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Quick Tutorial</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/DrChainsaw/NaiveNASlib.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/DrChainsaw/NaiveNASlib.jl/blob/master/test/examples/quicktutorial.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Quick-Tutorial"><a class="docs-heading-anchor" href="#Quick-Tutorial">Quick Tutorial</a><a id="Quick-Tutorial-1"></a><a class="docs-heading-anchor-permalink" href="#Quick-Tutorial" title="Permalink"></a></h1><h2 id="Construct-a-very-simple-graph"><a class="docs-heading-anchor" href="#Construct-a-very-simple-graph">Construct a very simple graph</a><a id="Construct-a-very-simple-graph-1"></a><a class="docs-heading-anchor-permalink" href="#Construct-a-very-simple-graph" title="Permalink"></a></h2><p>Just to get started, lets create a simple graph for the summation of two numbers.</p><pre><code class="language-julia hljs">using NaiveNASlib, Test # We&#39;ll make use of @test below to condense verbose output</code></pre><p>NaiveNASlib uses a special immutable type of vertex to annotate inputs so that one can be certain that size mutations won&#39;t suddenly change the input shape of the model.</p><pre><code class="language-julia hljs">in1 = inputvertex(&quot;in1&quot;, 1);
+in2 = inputvertex(&quot;in2&quot;, 1);</code></pre><p>In this example we could have done without them as we won&#39;t have any parameters to change the size of, but lets show things as they are expected to be used.</p><p>Create a new vertex which computes the sum of <code>in1</code> and <code>in2</code>:</p><pre><code class="language-julia hljs">add = &quot;add&quot; &gt;&gt; in1 + in2;</code></pre><p>NaiveNASlib lets you do this using <a href="../../reference/simple/createvertex/#Base.:+"><code>+</code></a> which creates a new vertex which sums it inputs. Use <code>&gt;&gt;</code> to attach a name to the vertex when using infix operations. Naming vertices is completely optional, but it is quite helpful as can be seen below.</p><p><a href="../../reference/simple/graph/#NaiveNASlib.CompGraph"><code>CompGraph</code></a> helps evaluating the whole graph as a function.</p><pre><code class="language-julia hljs">graph = CompGraph([in1, in2], add)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">CompGraph with graphsummary:
+┌────────────────┬───────────┬────────────────┬──────────────────┐
+│ Graph Position │ Vertex Nr │ Input Vertices │ Op               │
+├────────────────┼───────────┼────────────────┼──────────────────┤
+│ Input          │ 1         │                │                  │
+│ Input          │ 2         │                │                  │
+│ Output         │ 3         │ 1,2            │ + (element wise) │
+└────────────────┴───────────┴────────────────┴──────────────────┘
+</span></code></pre><p>The <code>show</code> function for <code>CompGraph</code> just redirects to <a href="../../reference/simple/graph/#NaiveNASlib.graphsummary"><code>graphsummary</code></a> until I can find a better way to print it.</p><p>Evaluate the function represented by <code>graph</code> by just calling it.</p><pre><code class="language-julia hljs">graph(2,3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5</code></pre><pre><code class="language-julia hljs">graph(100,200)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">300</code></pre><p>The <a href="../../reference/simple/graph/#NaiveNASlib.vertices"><code>vertices</code></a> function returns the vertices in topological order.</p><pre><code class="language-julia hljs">@test vertices(graph) == [in1, in2, add]
+@test name.(vertices(graph)) == [&quot;in1&quot;, &quot;in2&quot;, &quot;add&quot;]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>The <a href="../../reference/simple/graph/#NaiveNASlib.graphsummary"><code>graphsummary</code></a> function can be used to print a summary table:</p><pre><code class="language-julia hljs">graphsummary(graph, name, &quot;Name of inputs&quot; =&gt; v -&gt; name.(inputs(v)))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">┌────────────────┬───────────┬────────────────┬──────────────────┬──────┬────────────────┐
+│ Graph Position │ Vertex Nr │ Input Vertices │ Op               │ Name │ Name of inputs │
+├────────────────┼───────────┼────────────────┼──────────────────┼──────┼────────────────┤
+│ Input          │ 1         │                │                  │ in1  │                │
+│ Input          │ 2         │                │                  │ in2  │                │
+│ Output         │ 3         │ 1,2            │ + (element wise) │ add  │ in1,in2        │
+└────────────────┴───────────┴────────────────┴──────────────────┴──────┴────────────────┘</code></pre><p><a href="../../reference/simple/graph/#NaiveNASlib.CompGraph"><code>CompGraph</code></a>s can be indexed:</p><pre><code class="language-julia hljs">@test graph[begin] == graph[1] == in1
+@test graph[end] == graph[3] == add
+@test graph[begin:end] == vertices(graph)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>This is a bit slow though as it traverses the whole graph each time. It is better to call <a href="../../reference/simple/graph/#NaiveNASlib.vertices"><code>vertices</code></a> first and then apply the indexing if one needs to do this many times.</p><h2 id="Modify-a-graph"><a class="docs-heading-anchor" href="#Modify-a-graph">Modify a graph</a><a id="Modify-a-graph-1"></a><a class="docs-heading-anchor-permalink" href="#Modify-a-graph" title="Permalink"></a></h2><p>Now lets look at how to make use of it to modify the structure of a neural network. Since batteries are excluded, lets first create a tiny neural network library and do the wiring so that NaiveNASlib can work with it.</p><pre><code class="language-julia hljs">module TinyNNlib
+    using NaiveNASlib
+    # A simple linear layer
+    mutable struct LinearLayer{T}
+        W::Matrix{T}
+    end
+    # Normally ones uses something like randn here, but this makes output
+    # in examples easier on the eyes
+    LinearLayer(nin, nout) = LinearLayer(ones(Int, nout, nin))
+    (l::LinearLayer)(x) = l.W * x
+
+    # NaiveNASlib needs to know what LinearLayer considers its output and input size
+    # In this case it is the number of rows and columns of the weight matrix
+    # Input size is always a vector since vertices might have multiple inputs
+    NaiveNASlib.nin(l::LinearLayer) = [size(l.W, 2)]
+    NaiveNASlib.nout(l::LinearLayer) = size(l.W, 1)
+
+    # We also need to tell NaiveNASlib how to change the size of LinearLayer
+    # The Δsize! function will receive indices to keep from existing weights
+    # as well as where to insert new rows/columns
+    function NaiveNASlib.Δsize!(l::LinearLayer, newins::AbstractVector, newouts::AbstractVector)
+        # newins is a vector of vectors as vertices may have more than one input
+        # LinearLayer has only one howevever
+        # The function NaiveNASlib.parselect can be used to interpret newins and newouts.
+        # We just need to tell it along which dimensions to apply them.
+        l.W = NaiveNASlib.parselect(l.W, 1=&gt;newouts, 2=&gt;only(newins))
+    end
+
+    # This makes LinearLayer print nice in the graphsummary table
+    Base.show(io::IO, l::LinearLayer) = print(io, &quot;LinearLayer(&quot;, only(nin(l)), &quot; =&gt; &quot; ,nout(l), &#39;)&#39;)
+
+    # Helper function which creates a LinearLayer wrapped in an vertex in a computation graph.
+    # This creates a Keras-like API
+    linearvertex(in, outsize) = absorbvertex(LinearLayer(nout(in), outsize), in)
+    export linearvertex, LinearLayer
+end;</code></pre><p>There are a handful of other functions one can implement to e.g. provide better defaults and offer other forms of convenience, but here we use the bare minimum to get ourselves started. Some examples of this is provided further down.</p><p>In practice one might not want to create a whole neural network library from scratch, but rather incorporate NaiveNASlib with an existing library in a glue package. It might appear that this will inevitably lead to type-piracy as neither the layer definitions nor the functions (e.g. nout, nin) would belong to the glue package. However, one typically wants to wrap the layers in some intermediate type anyways. For instance, <a href="https://github.com/DrChainsaw/NaiveNASflux.jl">NaiveNASflux</a> needs to wrap the layers from Flux in a mutable container as the layers themselves are not mutable.</p><p>Lets do a super simple example where we make use of the tiny neural network library to create a model and then modify it:</p><pre><code class="language-julia hljs">using .TinyNNlib
+invertex = inputvertex(&quot;input&quot;, 3);
+layer1 = linearvertex(invertex, 4);
+layer2 = linearvertex(layer1, 5);</code></pre><p>Vertices may be called to execute their computation alone. We generally outsource this work to <a href="../../reference/simple/graph/#NaiveNASlib.CompGraph"><code>CompGraph</code></a>, but now we are trying to illustrate how things work.</p><pre><code class="language-julia hljs">batchsize = 2
+batch = randn(nout(invertex), batchsize)
+y1 = layer1(batch)
+@test size(y1) == (nout(layer1), batchsize) == (4, 2)
+
+y2 = layer2(y1)
+@test size(y2) == (nout(layer2), batchsize) == (5, 2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>Lets change the output size of <code>layer1</code>. First check the input sizes so we have something to compare to.</p><pre><code class="language-julia hljs">@test [nout(layer1)] == nin(layer2) == [4]
+@test Δnout!(layer1 =&gt; -2) # Returns true if successful
+@test [nout(layer1)] == nin(layer2) == [2]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>And now the weight matrices have changed!</p><p>The graph is still operational of course but the sizes of the activations have changed.</p><pre><code class="language-julia hljs">y1 = layer1(batch)
+@test size(y1) == (nout(layer1), batchsize) == (2, 2)
+
+y2 = layer2(y1)
+@test size(y2) == (nout(layer2), batchsize) == (5, 2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>As can be seen above, the consequence of changing the output size of <code>layer1</code> was that the input size of <code>layer2</code> also was changed. This is of course required for the computation graph to not throw a dimension mismatch error when being executed.</p><p>Besides the very simple graph, this mutation was trivial because the sizes of the input and output dimensions of <code>LinearLayer</code>&#39;s parameters can change independently as they are the rows and columns of the weight matrix. This is expressed by giving the layers the mutation size trait <a href="../../reference/extend/traits/#NaiveNASlib.SizeAbsorb"><code>SizeAbsorb</code></a> in the lingo of NaiveNASlib, meaning that a change in number of input/output neurons does not propagate further in the graph.</p><h2 id="A-more-elaborate-example"><a class="docs-heading-anchor" href="#A-more-elaborate-example">A more elaborate example</a><a id="A-more-elaborate-example-1"></a><a class="docs-heading-anchor-permalink" href="#A-more-elaborate-example" title="Permalink"></a></h2><p>While the previous example was simple enough to be done by hand, things can quickly get out of hand when using:</p><ul><li>Layers which require <code>nin==nout</code>, e.g. batch normalization and pooling.</li><li>Element wise operations such as activation functions or just element wise arithmetics (e.g <code>+</code> used in residual connections).</li><li>Concatenation of activations.</li></ul><p>Lets use a small but non-trivial model including all of the above. We begin by making a helper which creates a vertex which does elementwise scaling of its input:</p><pre><code class="language-julia hljs">scalarmult(v, s::Number) = invariantvertex(x -&gt; x .* s, v);</code></pre><p>When multiplying with a scalar, the output size is the same as the input size. This vertex type is said to be size invariant (in lack of better words), hence the name <a href="../../reference/simple/createvertex/#NaiveNASlib.invariantvertex"><code>invariantvertex</code></a>.</p><p>Ok, lets create the model:</p><pre><code class="language-julia hljs"># First a few `LinearLayer`s
+invertex = inputvertex(&quot;input&quot;, 6);
+start = linearvertex(invertex, 6);
+split = linearvertex(start, nout(invertex) ÷ 3);
+
+# Concatenation means the output size is the sum of the input sizes
+joined = conc(scalarmult(split,2), scalarmult(split,3), scalarmult(split,5), dims=1);
+
+# Elementwise addition is of course also size invariant
+out = start + joined;
+
+# CompGraph to help us run the whole thing. Don&#39;t forget to use [`graphsummary`](@ref)
+# to help understand the structure
+graph = CompGraph(invertex, out)
+graphsummary(graph, nin, nout)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">┌────────────────┬───────────┬────────────────┬─────────────────────┬───────┬──────┐
+│ Graph Position │ Vertex Nr │ Input Vertices │ Op                  │ Nin   │ Nout │
+├────────────────┼───────────┼────────────────┼─────────────────────┼───────┼──────┤
+│ Input          │ 1         │                │                     │       │ 6    │
+│ Hidden         │ 2         │ 1              │ LinearLayer(6 =&gt; 6) │ 6     │ 6    │
+│ Hidden         │ 3         │ 2              │ LinearLayer(6 =&gt; 2) │ 6     │ 2    │
+│ Hidden         │ 4         │ 3              │ #3                  │ 2     │ 2    │
+│ Hidden         │ 5         │ 3              │ #3                  │ 2     │ 2    │
+│ Hidden         │ 6         │ 3              │ #3                  │ 2     │ 2    │
+│ Hidden         │ 7         │ 4,5,6          │ cat(x..., dims=1)   │ 2,2,2 │ 6    │
+│ Output         │ 8         │ 2,7            │ + (element wise)    │ 6,6   │ 6    │
+└────────────────┴───────────┴────────────────┴─────────────────────┴───────┴──────┘</code></pre><p>As seen above, the anonymous function in <code>scalarmult</code> does not print nicely. Consider using a callable struct and implement <code>Base.show</code> for it.</p><pre><code class="language-julia hljs">@test graph((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>Now we have a somewhat complex set of size relations at our hand since the sizes are constrained so that</p><ol><li><code>start</code> and <code>joined</code> must have the same output size due to element wise addition.</li><li><code>joined</code> will always have 3 times the output size of <code>split</code> since there are no size absorbing vertices between them.</li></ol><p>Modifying this graph manually would of course be manageable (albeit a bit cumbersome) if we created the model by hand and knew it inside out. When things like the above emerges out of a neural architecture search things are less fun though and this is where use of NaiveNASlib will really pay off.</p><p>Ok, lets try to increase the size of the vertex <code>out</code> by 2. Before we do that, lets have a look at the sizes of the vertices in the graph to have something to compare to.</p><pre><code class="language-julia hljs">@test [nout(start)] == nin(split) == [3nout(split)] == [sum(nin(joined))] == [nout(out)] == [6]
+@test [nout(start), nout(joined)] == nin(out) == [6, 6]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>In many cases it is useful to hold on to the old graph before mutating</p><pre><code class="language-julia hljs">parentgraph = deepcopy(graph);</code></pre><p>It is not possible to change the size of <code>out</code> by exactly 2 due to <code>1.</code> and <code>2.</code> above. By default, NaiveNASlib warns when this happens and then tries to make the closest possible change. If we don&#39;t want the warning, we can tell NaiveNASlib to relax and make the closest possible change right away:</p><pre><code class="language-julia hljs">@test Δnout!(out =&gt; relaxed(2))
+
+@test [nout(start)] == nin(split) == [3nout(split)] == [sum(nin(joined))] == [nout(out)] == [9]
+@test [nout(start), nout(joined)] == nin(out) == [9, 9]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>As we can see above, the size change rippled through the graph due to the size relations described above. Pretty much every vertex was affected.</p><p>Lets evaluate the graph just to verify that we don&#39;t get a dimension mismatch error.</p><pre><code class="language-julia hljs">@test graph((ones(6))) == [78, 78, 0, 114, 114, 0, 186, 186, 0]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p><code>TinyNNlib</code> uses <a href="../../reference/extend/misc/#NaiveNASlib.parselect"><code>parselect</code></a> which defaults to inserting rows/columns of zeros when size increases. This helps the graph maintain the same function after mutation. In this case we changed the size of the output layer so we don&#39;t have the exact same function though, but hopefully it is clear why e.g. a linear layer after <code>out</code> would have made it produce the same output.</p><p>Copy is still intact of course.</p><pre><code class="language-julia hljs">@test parentgraph((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>While we still have the complex model in scope, lets show a few more way to change the sizes. See the built in documentation for more information.</p><p>It is possible to supply a utility function for telling the utility of each neuron in a vertex. NaiveNASlib will prioritize keeping the neurons with higher utility.</p><p>Prefer high indices:</p><pre><code class="language-julia hljs">graphhigh = deepcopy(graph)
+@test Δnout!(v -&gt; 1:nout(v), graphhigh[end] =&gt; -3)
+@test graphhigh((ones(6))) == [42, 0, 60, 0, 96, 0]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>Perfer low indices:</p><pre><code class="language-julia hljs">graphlow = deepcopy(graph)
+@test Δnout!(v -&gt; nout(v):-1:1, graphlow[end] =&gt; -3)
+@test graphlow((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>A simple approach when doing structured pruning is to prefer neurons with high magnitude. Here is how to set that as the default for LinearLayer. This is something one should probably implement in <code>TinyNNlib</code> instead.</p><pre><code class="language-julia hljs">using Statistics: mean
+NaiveNASlib.defaultutility(l::LinearLayer) = mean(abs, l.W, dims=2)
+
+graphhighmag = deepcopy(graph)
+@test Δnout!(graphhighmag[end] =&gt; -3)
+@test graphhighmag((ones(6))) == [78, 78, 114, 114, 186, 186]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>In many NAS applications one wants to apply random mutations to the graph. When doing so, one might end up in situations like this:</p><pre><code class="language-julia hljs">badgraphdecinc = deepcopy(graph)
+v1, v2 = badgraphdecinc[[3, end]] # Imagine selecting these at random
+@test Δnout!(v1 =&gt; relaxed(-2))
+@test Δnout!(v2 =&gt; 6)
+# Now we first deleted a bunch of weights, then we added new :(
+@test badgraphdecinc((ones(6))) ==  [42, 0, 0, 60, 0, 0, 96, 0, 0]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>In such cases, it might be better to supply all wanted changes in one go and let NaiveNASlib try to come up with a decent compromise.</p><pre><code class="language-julia hljs">goodgraphdecinc = deepcopy(graph)
+v1, v2 = goodgraphdecinc[[3, end]]
+@test Δnout!(v1 =&gt; relaxed(-2), v2 =&gt; 3) # Mix relaxed and exact size changes freely
+@test goodgraphdecinc((ones(6))) == [78, 78, 6, 0, 108, 114, 6, 6, 180, 180, 0, 0]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>It is also possible to change the input direction, but it requires specifying a size change for each input and is generally not recommended due to this.</p><pre><code class="language-julia hljs">graphΔnin = deepcopy(graph)
+v1, v2 = graphΔnin[end-1:end]
+# Use missing to signal &quot;don&#39;t care&quot;
+@test Δnin!(v1 =&gt; (3, relaxed(2), missing), v2 =&gt; relaxed((1,2)))
+@test nin(v1) == [6, 6, 6] # Sizes are tied to nout of split so they all have to be equal
+@test nin(v2) == [18, 18] # Sizes are tied due to elementwise addition</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>A common pruning strategy is to just remove the x% of params with lowest utility. This can be done by just not putting any size requirements and assign negative utility.</p><pre><code class="language-julia hljs">graphprune40 = deepcopy(graph)
+Δsize!(graphprune40) do v
+    utility = NaiveNASlib.defaultutility(v)
+    # We make some strong assumptions on weight distribution here for breviety :)
+    return utility .- 0.4mean(utility)
+end
+@test nout.(vertices(graphprune40)) == [6, 6, 2, 2, 2, 2, 6, 6]
+# Compare to original:
+@test nout.(vertices(graph))        == [6, 9, 3, 3, 3, 3, 9, 9]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><h2 id="Closer-look-at-how-weights-are-modified"><a class="docs-heading-anchor" href="#Closer-look-at-how-weights-are-modified">Closer look at how weights are modified</a><a id="Closer-look-at-how-weights-are-modified-1"></a><a class="docs-heading-anchor-permalink" href="#Closer-look-at-how-weights-are-modified" title="Permalink"></a></h2><p>Here we take a closer look at how the weight matrices are changed. We use the following function to create <code>LinearLayer</code>s with easy to distinguish weights. It returns both a vertex and the <code>LinearLayer</code> so we can easily look at the weights:</p><pre><code class="language-julia hljs">function vertexandlayer(in, outsize)
+    nparam = nout(in) * outsize
+    l = LinearLayer(collect(reshape(1:nparam, :, nout(in))))
+    return absorbvertex(l, in), l
+end;</code></pre><p>Make a simple model:</p><pre><code class="language-julia hljs">invertices = inputvertex.([&quot;in1&quot;, &quot;in2&quot;], [3,4])
+v1, l1 = vertexandlayer(invertices[1], 4)
+v2, l2 = vertexandlayer(invertices[2], 3)
+merged = conc(v1, v2, dims=1)
+v3, l3 = vertexandlayer(invertices[1], nout(merged))
+add = v3 + merged
+v4, l4 = vertexandlayer(merged, 2)
+CompGraph(invertices, v4)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">CompGraph with graphsummary:
+┌────────────────┬───────────┬────────────────┬─────────────────────┐
+│ Graph Position │ Vertex Nr │ Input Vertices │ Op                  │
+├────────────────┼───────────┼────────────────┼─────────────────────┤
+│ Input          │ 1         │                │                     │
+│ Input          │ 3         │                │                     │
+│ Hidden         │ 2         │ 1              │ LinearLayer(3 =&gt; 4) │
+│ Hidden         │ 4         │ 3              │ LinearLayer(4 =&gt; 3) │
+│ Hidden         │ 5         │ 2,4            │ cat(x..., dims=1)   │
+│ Output         │ 6         │ 5              │ LinearLayer(7 =&gt; 2) │
+└────────────────┴───────────┴────────────────┴─────────────────────┘
+</span></code></pre><p>These weights might look a bit odd, but here we only care about making it easy to spot what has changed after size change below.</p><pre><code class="language-julia hljs">@test l1.W ==
+[ 1 5  9
+  2 6 10
+  3 7 11
+  4 8 12 ]
+
+@test l2.W ==
+[ 1 4 7 10
+  2 5 8 11
+  3 6 9 12 ]
+
+@test l3.W ==
+[ 1  8 15
+  2  9 16
+  3 10 17
+  4 11 18
+  5 12 19
+  6 13 20
+  7 14 21 ]
+
+@test l4.W ==
+[ 1 3 5 7  9 11 13 ;
+  2 4 6 8 10 12 14 ]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>Now, lets decrease <code>v2</code> by 1 and force <code>merged</code> to retain its size which in turn forces <code>v1</code> to grow by 1. Assign utility 10 to neurons 1 and 3 of <code>v2</code> and 1 for all other neurons in the model.</p><pre><code class="language-julia hljs">@test Δnout!(v2 =&gt; -1, merged =&gt; 0) do v
+    v == v2 ? [10, 1, 10] : 1
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p><code>v1</code> got a new row of parameters at the end:</p><pre><code class="language-julia hljs">@test l1.W ==
+[ 1 5  9
+  2 6 10
+  3 7 11
+  4 8 12
+  0 0  0 ]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p><code>v2</code> chose to drop its middle row as it was the output neuron with lowest utility:</p><pre><code class="language-julia hljs">@test l2.W ==
+[ 1 4 7 10
+  3 6 9 12 ]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p><code>v4</code> dropped the second to last column (which is aligned to the middle row of <code>v2</code>). and got new parameters in column 5 (which is aligned to the last row of <code>v1</code>):</p><pre><code class="language-julia hljs">@test l4.W ==
+[  1 3 5 7 0  9 13
+   2 4 6 8 0 10 14 ]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><p>Oh, and since <code>v4</code> is connected to <code>v3</code> though <code>add</code>, <code>v3</code> had the equivalent change to its rows:</p><pre><code class="language-julia hljs">@test l3.W ==
+[ 1  8 15
+  2  9 16
+  3 10 17
+  4 11 18
+  0  0  0
+  5 12 19
+  7 14 21 ]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><h2 id="Other-modifications"><a class="docs-heading-anchor" href="#Other-modifications">Other modifications</a><a id="Other-modifications-1"></a><a class="docs-heading-anchor-permalink" href="#Other-modifications" title="Permalink"></a></h2><p>Lets just do a few quick examples of the other types of modifications.</p><h3 id="Add-a-vertex"><a class="docs-heading-anchor" href="#Add-a-vertex">Add a vertex</a><a id="Add-a-vertex-1"></a><a class="docs-heading-anchor-permalink" href="#Add-a-vertex" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#Base.insert!"><code>insert!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 3)
+layer1 = linearvertex(invertex, 5)
+graph = CompGraph(invertex, layer1)
+
+# nvertices(g) is shortcut for length(vertices(g))
+@test nvertices(graph) == 2
+@test graph(ones(3)) == [3,3,3,3,3]
+
+# Insert a layer between invertex and layer1
+@test insert!(invertex, vertex -&gt; linearvertex(vertex, nout(vertex))) # True if success
+
+@test nvertices(graph) == 3
+@test graph(ones(3)) == [9, 9, 9, 9, 9]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><h3 id="Remove-a-vertex"><a class="docs-heading-anchor" href="#Remove-a-vertex">Remove a vertex</a><a id="Remove-a-vertex-1"></a><a class="docs-heading-anchor-permalink" href="#Remove-a-vertex" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#NaiveNASlib.remove!"><code>remove!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 3)
+layer1 = linearvertex(invertex, 5)
+layer2 = linearvertex(layer1, 4)
+graph = CompGraph(invertex, layer2)
+
+@test nvertices(graph) == 3
+@test graph(ones(3)) == [15, 15, 15, 15]
+
+# Remove layer1 and change nin of layer2 from 5 to 3
+# Would perhaps have been better to increase nout of invertex, but it is immutable
+@test remove!(layer1) # True if success
+
+@test nvertices(graph) == 2
+@test graph(ones(3)) == [3, 3, 3, 3]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><h3 id="Add-an-edge"><a class="docs-heading-anchor" href="#Add-an-edge">Add an edge</a><a id="Add-an-edge-1"></a><a class="docs-heading-anchor-permalink" href="#Add-an-edge" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#NaiveNASlib.create_edge!"><code>create_edge!</code></a>:</p><pre><code class="language-julia hljs">invertices = inputvertex.([&quot;input1&quot;, &quot;input2&quot;], [3, 2])
+layer1 = linearvertex(invertices[1], 4)
+layer2 = linearvertex(invertices[2], 4)
+add = layer1 + layer2
+out = linearvertex(add, 5)
+graph = CompGraph(invertices, out)
+
+@test nin(add) == [4, 4]
+# Two inputs to this graph!
+@test graph(ones(3), ones(2)) == [20, 20, 20, 20, 20]
+
+# This graph is not interesting enough for there to be a good showcase for adding a new edge.
+# Lets create a new layer which has a different output size just to see how things change
+# The only vertex which support more than one input is add
+layer3 = linearvertex(invertices[2], 6)
+@test create_edge!(layer3, add) # True if success
+
+# NaiveNASlib will try to increase the size in case of a mismatch by default
+@test nin(add) == [6, 6, 6]
+@test graph(ones(3), ones(2)) == [28, 28, 28, 28, 28]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><h3 id="Remove-an-edge"><a class="docs-heading-anchor" href="#Remove-an-edge">Remove an edge</a><a id="Remove-an-edge-1"></a><a class="docs-heading-anchor-permalink" href="#Remove-an-edge" title="Permalink"></a></h3><p>Using <a href="../../reference/simple/mutatevertex/#NaiveNASlib.remove_edge!"><code>remove_edge!</code></a>:</p><pre><code class="language-julia hljs">invertex = inputvertex(&quot;input&quot;, 4)
+layer1 = linearvertex(invertex, 3)
+layer2 = linearvertex(invertex, 5)
+merged = conc(layer1, layer2, layer1, dims=1)
+out = linearvertex(merged, 3)
+graph = CompGraph(invertex, out)
+
+@test nin(merged) == [3, 5, 3]
+@test graph(ones(4)) == [44, 44, 44]
+
+@test remove_edge!(layer1, merged) # True if success
+
+@test nin(merged) == [5, 3]
+@test graph(ones(4)) == [32, 32, 32]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32"><span class="sgr1">Test Passed</span></span></code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Introduction</a><a class="docs-footer-nextpage" href="../advancedtutorial/">Advanced Tutorial »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.9.0 on <span class="colophon-date" title="Saturday 29 March 2025 22:45">Saturday 29 March 2025</span>. Using Julia version 1.10.9.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
