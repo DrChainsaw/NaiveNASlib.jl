@@ -2,8 +2,7 @@
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://DrChainsaw.github.io/NaiveNASlib.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://DrChainsaw.github.io/NaiveNASlib.jl/dev)
-[![Build status](https://github.com/DrChainsaw/NaiveNASlib.jl/workflows/CI/badge.svg?branch=master)](https://github.com/DrChainsaw/NaiveNASlib.jl/actions)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/DrChainsaw/NaiveNASlib.jl?svg=true)](https://ci.appveyor.com/project/DrChainsaw/NaiveNASlib-jl)
+[![Build status](https://github.com/DrChainsaw/NaiveNASlib.jl/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/DrChainsaw/NaiveNASlib.jl/actions)
 [![Codecov](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/DrChainsaw/NaiveNASlib.jl)
 
 NaiveNASlib is a library of functions for mutating computation graphs. It is designed with Neural Architecture Search (NAS) in mind, but can be used for any purpose where doing changes to a model architecture is desired.
