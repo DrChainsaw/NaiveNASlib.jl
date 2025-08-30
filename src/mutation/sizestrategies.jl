@@ -116,7 +116,7 @@ Use with a [`DecoratingJuMPΔSizeStrategy`](@ref):
 julia> using NaiveNASlib, NaiveNASlib.Advanced
 
 julia> WithUtilityFun(defaultutility, DefaultJuMPΔSizeStrategy())
-WithUtilityFun{typeof(defaultutility), DefaultJuMPΔSizeStrategy}(NaiveNASlib.defaultutility, DefaultJuMPΔSizeStrategy())
+WithUtilityFun{typeof(defaultutility), DefaultJuMPΔSizeStrategy}(defaultutility, DefaultJuMPΔSizeStrategy())
 ```
 """
 struct DefaultJuMPΔSizeStrategy <: AbstractJuMPΔSizeStrategy end

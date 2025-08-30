@@ -43,6 +43,16 @@ include("testutil.jl")
 	if Int !== Int32
 		# Don't test documentation unless 64-bit since some example print numerical types
 		import Documenter
-		Documenter.doctest(NaiveNASlib)
+		defaultcols = haskey(ENV, "COLUMNS") ? ENV["COLUMNS"] : nothing
+		try 
+			ENV["COLUMNS"] = 1000
+			Documenter.doctest(NaiveNASlib)
+		finally
+			if isnothing(defaultcols)
+				delete!(ENV, "COLUMNS")
+			else
+				ENV["COLUMNS"] = defaultcols
+			end
+		end
 	end
 end

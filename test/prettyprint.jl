@@ -38,13 +38,13 @@
 
     @testset "show" begin
         g = testgraph()
-        str = sprint((args...) -> show(args...), g)
-        @test length(split(str, '\n')) == nvertices(g)+6        
+        str = sprint(show, g)
+        @test length(split(str, '\n')) == nvertices(g)+7      
     end
 
     @testset "graphsummary" begin
         g = testgraph()
-        str = sprint((args...) -> graphsummary(args..., "vname"=>name, nin, nout; highlighters=tuple()), g)
+        str = sprint((args...) -> graphsummary(args..., "vname"=>name, nin, nout; highlighters=NaiveNASlib.PrettyTables.TextHighlighter[]), g; context=:displaysize => (typemax(Int), typemax(Int)))
 
         expnames = name.(vertices(g))
         innames = name.(inputs(g))
@@ -78,9 +78,7 @@
 
     @testset "pretty print array" begin
         g = testgraph()
-
         str = sprint(show, CompGraph[g])
-
         @test str == "CompGraph[CompGraph($(nvertices(g)) vertices)]"
     end
 end
