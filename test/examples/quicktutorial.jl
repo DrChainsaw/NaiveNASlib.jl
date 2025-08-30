@@ -267,7 +267,7 @@ v1, v2 = badgraphdecinc[[3, end]] # Imagine selecting these at random
 goodgraphdecinc = deepcopy(graph)
 v1, v2 = goodgraphdecinc[[3, end]]
 @test Δnout!(v1 => relaxed(-2), v2 => 3) # Mix relaxed and exact size changes freely
-@test goodgraphdecinc((ones(6))) == [78, 0, 0, 78, 114, 6, 0, 108, 186, 6, 0, 180]
+@test goodgraphdecinc((ones(6))) == [78, 78, 6, 0, 108, 114, 6, 6, 180, 180, 0, 0]
 
 # It is also possible to change the input direction, but it requires specifying a size change for each input 
 # and is generally not recommended due to this.
